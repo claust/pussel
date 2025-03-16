@@ -14,6 +14,8 @@ A FastAPI-based backend service for the Puzzle Solver application that helps use
 - Code formatting with black and isort
 - Linting with flake8
 - Pre-commit hooks for code quality
+- Continuous Integration with GitHub Actions
+- Code coverage reporting with Codecov
 
 ## Setup
 
@@ -23,9 +25,10 @@ python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 ```
 
-2. Install dependencies:
+2. Install dependencies and package in development mode:
 ```bash
 pip install -r requirements.txt
+pip install -e .
 ```
 
 3. Install pre-commit hooks:
@@ -109,7 +112,12 @@ GET /health
 ## Running Tests
 
 ```bash
-pytest
+pytest -v --cov=app --cov-report=term-missing
+```
+
+For XML coverage report (used by CI):
+```bash
+pytest -v --cov=app --cov-report=xml
 ```
 
 ## Project Structure
@@ -142,6 +150,24 @@ The application uses Pydantic settings for configuration:
 - `UPLOAD_DIR`: Directory for uploaded files ("uploads")
 - `MAX_UPLOAD_SIZE`: Maximum file upload size (10MB)
 - `BACKEND_CORS_ORIGINS`: CORS settings (currently "*" for development)
+
+## CI/CD Pipeline
+
+The project uses GitHub Actions for continuous integration, which:
+- Runs on Ubuntu latest
+- Tests with Python 3.12
+- Installs dependencies and package in development mode
+- Checks code formatting with black
+- Verifies import order with isort
+- Runs linting with flake8
+- Performs type checking with mypy
+- Executes test suite with coverage reporting
+- Uploads coverage reports to Codecov
+
+The workflow is triggered on:
+- Push to master/main branch
+- Pull requests to master/main branch
+- Only when changes affect backend code or CI configuration
 
 ## Future Improvements
 
