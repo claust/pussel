@@ -50,7 +50,7 @@ class StorageService:
             except Exception as e:
                 print(f"Error saving file to Azure: {e}")
                 # Fall back to local storage
-                file.seek(0)  # Reset file position after reading
+                await file.seek(0)  # Reset file position after reading
 
         # Local file storage
         file_path = os.path.join(settings.UPLOAD_DIR, file_name)

@@ -26,5 +26,4 @@ multi_line_output = 3
 
 [tool.mypy]
 python_version = "3.12"
-mypy_path = ["azure-storage-blob-stubs"]
 plugins = ["pydantic.mypy"]
