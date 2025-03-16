@@ -49,6 +49,7 @@ linter:
     prefer_expression_function_bodies: true
     prefer_relative_imports: true
     prefer_single_quotes: true
+    require_trailing_commas: true
     sort_child_properties_last: true
     sort_constructors_first: true
     sort_unnamed_constructors_first: true
