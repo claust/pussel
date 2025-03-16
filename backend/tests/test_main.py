@@ -3,11 +3,14 @@
 import os
 import shutil
 import sys
+import tempfile
+from io import BufferedReader
 from pathlib import Path
-from typing import Generator
+from typing import Generator, cast
 
 import pytest
 from fastapi.testclient import TestClient
+from typing_extensions import TypeAlias
 
 from app.main import app, settings
 
@@ -15,8 +18,14 @@ from app.main import app, settings
 backend_dir = Path(__file__).parent.parent
 sys.path.append(str(backend_dir))
 
+# Third-party imports
+
+# Local imports
 
 client = TestClient(app)
+
+# Type alias for file upload tuple
+FileUpload: TypeAlias = tuple[str, BufferedReader, str]
 
 
 @pytest.fixture(autouse=True)
@@ -47,15 +56,14 @@ def test_upload_puzzle() -> None:
 
     try:
         with open(test_image_path, "rb") as f:
-            response = client.post(
-                "/api/v1/puzzle/upload",
-                files={"file": ("test_puzzle.jpg", f, "image/jpeg")},
-            )
+            files = {"file": ("test_puzzle.jpg", f, "image/jpeg")}
+            response = client.post("/api/v1/puzzle/upload", files=files)
 
         assert response.status_code == 200
         assert "puzzle_id" in response.json()
         puzzle_id = response.json()["puzzle_id"]
-        assert os.path.exists(os.path.join(settings.UPLOAD_DIR, f"{puzzle_id}.jpg"))
+        puzzle_path = os.path.join(settings.UPLOAD_DIR, f"{puzzle_id}.jpg")
+        assert os.path.exists(puzzle_path)
 
     finally:
         # Cleanup test image
@@ -65,11 +73,16 @@ def test_upload_puzzle() -> None:
 
 def test_process_piece_invalid_puzzle() -> None:
     """Test processing a piece with an invalid puzzle ID."""
-    response = client.post(
-        "/api/v1/puzzle/invalid-id/piece",
-        files={"file": ("test_piece.jpg", b"fake piece content", "image/jpeg")},
-    )
-    assert response.status_code == 404
+    with tempfile.NamedTemporaryFile(suffix=".jpg") as temp_file:
+        temp_file.write(b"fake piece content")
+        temp_file.seek(0)
+        file_tuple = cast(
+            FileUpload,
+            ("test_piece.jpg", temp_file, "image/jpeg"),
+        )
+        files = {"file": file_tuple}
+        response = client.post("/api/v1/puzzle/invalid-id/piece", files=files)
+        assert response.status_code == 404
 
 
 def test_process_piece() -> None:
@@ -81,17 +94,23 @@ def test_process_piece() -> None:
     try:
         # Upload puzzle
         with open("test_puzzle.jpg", "rb") as f:
-            response = client.post(
-                "/api/v1/puzzle/upload",
-                files={"file": ("test_puzzle.jpg", f, "image/jpeg")},
-            )
+            files = {"file": ("test_puzzle.jpg", f, "image/jpeg")}
+            response = client.post("/api/v1/puzzle/upload", files=files)
         puzzle_id = response.json()["puzzle_id"]
 
         # Test piece processing
-        response = client.post(
-            f"/api/v1/puzzle/{puzzle_id}/piece",
-            files={"file": ("test_piece.jpg", b"fake piece content", "image/jpeg")},
-        )
+        with tempfile.NamedTemporaryFile(suffix=".jpg") as temp_file:
+            temp_file.write(b"fake piece content")
+            temp_file.seek(0)
+            file_tuple = cast(
+                FileUpload,
+                ("test_piece.jpg", temp_file, "image/jpeg"),
+            )
+            files = {"file": file_tuple}
+            response = client.post(
+                f"/api/v1/puzzle/{puzzle_id}/piece",
+                files=files,
+            )
 
         assert response.status_code == 200
         result = response.json()
