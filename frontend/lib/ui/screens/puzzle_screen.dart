@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../models/piece.dart';
 import '../../models/puzzle.dart';
 import '../../services/api_service.dart';
+import '../widgets/puzzle_detail.dart';
 import 'camera_screen.dart';
 
 class PuzzleScreen extends StatefulWidget {
@@ -28,6 +29,7 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
   bool _isUploading = false;
   bool _isProcessingPiece = false;
   String? _errorMessage;
+  bool _isFullScreen = true;
 
   Puzzle? _puzzle;
 
@@ -77,6 +79,7 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
             (context) => CameraScreen(
               mode: CameraMode.piece,
               puzzleId: _puzzle!.puzzleId,
+              puzzleImage: widget.puzzleImage,
             ),
       ),
     );
@@ -93,6 +96,7 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
       setState(() {
         _pieces.add(piece);
         _isProcessingPiece = false;
+        _isFullScreen = true;
       });
     } catch (e) {
       setState(() {
@@ -109,13 +113,33 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Puzzle Solver')),
-    body:
-        _errorMessage != null
-            ? _buildErrorView()
-            : _isUploading
-            ? _buildLoadingView('Uploading puzzle...')
-            : _buildPuzzleView(),
+    appBar: AppBar(
+      title: const Text('Puzzle Solver'),
+      actions: [
+        IconButton(
+          icon: Icon(_isFullScreen ? Icons.grid_view : Icons.fullscreen),
+          onPressed: () {
+            setState(() {
+              _isFullScreen = !_isFullScreen;
+            });
+          },
+        ),
+      ],
+    ),
+    body: AnimatedSwitcher(
+      duration: const Duration(milliseconds: 300),
+      transitionBuilder:
+          (Widget child, Animation<double> animation) =>
+              FadeTransition(opacity: animation, child: child),
+      child:
+          _errorMessage != null
+              ? _buildErrorView()
+              : _isUploading
+              ? _buildLoadingView('Uploading puzzle...')
+              : _isFullScreen
+              ? _buildFullScreenView()
+              : _buildPuzzleView(),
+    ),
     floatingActionButton:
         _puzzle != null
             ? FloatingActionButton(
@@ -160,9 +184,39 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
     ),
   );
 
+  Widget _buildFullScreenView() => Stack(
+    children: [
+      InteractiveViewer(
+        minScale: 0.5,
+        maxScale: 4.0,
+        child: Container(
+          width: double.infinity,
+          height: double.infinity,
+          color: Colors.black,
+          child: PuzzleDetail(puzzleImage: widget.puzzleImage, pieces: _pieces),
+        ),
+      ),
+
+      Positioned(
+        bottom: 16,
+        right: 16,
+        child: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.black54,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: const Text(
+            'Tap grid icon to view pieces',
+            style: TextStyle(color: Colors.white, fontSize: 12),
+          ),
+        ),
+      ),
+    ],
+  );
+
   Widget _buildPuzzleView() => Column(
     children: [
-      // Puzzle image section
       Container(
         height: 200,
         width: double.infinity,
@@ -170,7 +224,6 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
         child: Image.file(widget.puzzleImage, fit: BoxFit.contain),
       ),
 
-      // Puzzle ID
       Padding(
         padding: const EdgeInsets.all(8.0),
         child: Text(
@@ -181,7 +234,6 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
 
       const Divider(),
 
-      // Pieces heading
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
         child: Row(
@@ -199,7 +251,6 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
         ),
       ),
 
-      // Pieces grid
       Expanded(
         child:
             _pieces.isEmpty
@@ -229,7 +280,6 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Piece image
         Expanded(
           child:
               piece.localImagePath != null
@@ -244,7 +294,6 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
                   ),
         ),
 
-        // Piece info
         Padding(
           padding: const EdgeInsets.all(8.0),
           child: Column(
