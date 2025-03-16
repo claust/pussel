@@ -50,8 +50,14 @@ flutter pub get
 4. Run the app:
 
 ```bash
+# For mobile/desktop devices
 flutter run
+
+# For web (Chrome)
+flutter run -d chrome
 ```
+
+Note: When deploying to web, specify Chrome explicitly with `-d chrome` rather than using `-d web`, as the latter may not be recognized as a valid device ID.
 
 ### Backend Configuration
 
