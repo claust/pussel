@@ -1,3 +1,5 @@
+"""Data models for puzzle-related operations."""
+
 from typing import Optional
 
 from pydantic import BaseModel
@@ -15,7 +17,7 @@ class PieceResponse(BaseModel):
 
     position: Position
     confidence: float
-    rotation: float
+    rotation: int
 
 
 class PuzzleResponse(BaseModel):
