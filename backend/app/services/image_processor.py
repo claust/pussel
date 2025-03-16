@@ -2,8 +2,9 @@
 
 import random
 
-from app.models.puzzle_model import PieceResponse, Position
 from fastapi import UploadFile
+
+from app.models.puzzle_model import PieceResponse, Position
 
 
 class ImageProcessor:
@@ -21,15 +22,12 @@ class ImageProcessor:
         # Mock implementation - replace with actual ML model
         # Return normalized coordinates (0.0-1.0) where (0,0) is top-left
         # and (1,1) is bottom-right
-        position = Position(
-            x=random.uniform(0.1, 0.9),
-            y=random.uniform(0.1, 0.9)
-        )
+        x_rand = random.uniform(0.1, 0.9)
+        y_rand = random.uniform(0.1, 0.9)
+        position = Position(x=x_rand, y=y_rand)
         confidence = random.uniform(0.5, 1.0)
         rotation = random.choice([0, 90, 180, 270])
 
         return PieceResponse(
-            position=position,
-            confidence=confidence,
-            rotation=rotation
+            position=position, confidence=confidence, rotation=rotation
         )
