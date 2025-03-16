@@ -38,4 +38,4 @@ repos:
         - types-pillow
         - pydantic
         - fastapi
-        - pytest 
+        - pytest
