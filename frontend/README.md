@@ -15,8 +15,8 @@ A Flutter mobile app for the Pussel puzzle solver project. This app allows users
 ```
 frontend/
 ├── lib/
-│   ├── config/           # App configuration
-│   ├── models/           # Data models
+│   ├── config/           # API configuration
+│   ├── models/           # Data models (Puzzle, Piece)
 │   ├── services/         # API and camera services
 │   ├── ui/               # UI components
 │   │   ├── screens/      # Full screens
@@ -31,7 +31,8 @@ frontend/
 
 ### Prerequisites
 
-- Flutter SDK (version 3.7.0 or higher)
+- Flutter SDK (version 3.29.2 or higher)
+- Dart SDK (version 3.7.2 or higher)
 - Android Studio or Xcode for running on emulators/simulators
 - A running backend API service (see backend README)
 
@@ -54,33 +55,58 @@ flutter run
 
 ### Backend Configuration
 
-The app is configured to connect to a backend running at:
-- Android Emulator: `http://10.0.2.2:8000`
-- iOS Simulator: `http://localhost:8000`
-
-To change the backend URL, modify the `baseUrl` in `lib/config/api_config.dart`.
-
-## Testing on Android Emulator
-
-1. Start the Android emulator
-2. Ensure the backend API is running
-3. Run the app with:
-
-```bash
-flutter run
-```
+The app is configured to connect to a backend running at the URL specified in `lib/config/api_config.dart`. The default settings are:
+- Base URL: Defined in ApiConfig.baseUrl
+- Timeout settings: Configurable via ApiConfig constants
+- Endpoints: Defined in ApiConfig class
 
 ## Development
 
-### Code Style
+### Code Style and Linting
 
-This project follows the official [Flutter style guide](https://flutter.dev/docs/development/tools/formatting) and uses the Flutter formatter:
+This project uses strict linting rules to ensure high code quality:
+
+- Custom rules defined in `analysis_options.yaml`
+- Enforced trailing commas for better git diffs
+- Sorted imports and constructors
+- Preferred use of expression function bodies
+- Required final variables where appropriate
+
+To check your code against these rules:
 
 ```bash
-flutter format .
+flutter analyze
 ```
 
-### Adding Dependencies
+To automatically format your code:
+
+```bash
+dart format .
+```
+
+### Pre-commit Hooks
+
+We use pre-commit hooks to ensure code quality. After cloning the repository, install pre-commit:
+
+```bash
+pip install pre-commit
+pre-commit install
+```
+
+The pre-commit hooks will:
+- Run dart format
+- Check dart analysis
+- Apply automated fixes
+- Ensure files end with newlines
+- Prevent trailing whitespace
+
+### Dependencies
+
+Key dependencies used in this project:
+
+- **API and networking**: dio, http
+- **State management**: provider
+- **Image and camera**: camera, image_picker, path_provider
 
 To add new dependencies, modify the `pubspec.yaml` file and run:
 
@@ -88,7 +114,14 @@ To add new dependencies, modify the `pubspec.yaml` file and run:
 flutter pub get
 ```
 
-### Building for Release
+### Continuous Integration
+
+This project uses GitHub Actions for CI/CD, which:
+- Runs linting and tests on every PR
+- Builds APK and web versions
+- Uploads build artifacts
+
+## Building for Release
 
 To build a release version of the app:
 
@@ -98,6 +131,17 @@ flutter build apk --release
 
 # For iOS
 flutter build ios --release
+
+# For web
+flutter build web --release
+```
+
+## Testing
+
+Run the tests with:
+
+```bash
+flutter test
 ```
 
 ## License
