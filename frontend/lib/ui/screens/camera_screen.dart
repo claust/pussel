@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../services/camera_service.dart';
@@ -28,6 +29,15 @@ class _CameraScreenState extends State<CameraScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+
+    if (kIsWeb) {
+      // On web, show a note about limitations but still try to initialize
+      setState(() {
+        _errorMessage =
+            'Camera functionality is limited on web. Some features may not work properly.';
+      });
+    }
+
     _initializeCamera();
   }
 
@@ -56,7 +66,9 @@ class _CameraScreenState extends State<CameraScreen>
   Future<void> _initializeCamera() async {
     setState(() {
       _isInitializing = true;
-      _errorMessage = null;
+      if (_errorMessage == null || !kIsWeb) {
+        _errorMessage = null;
+      }
     });
 
     try {
@@ -67,7 +79,10 @@ class _CameraScreenState extends State<CameraScreen>
     } catch (e) {
       setState(() {
         _isInitializing = false;
-        _errorMessage = 'Failed to initialize camera: $e';
+        _errorMessage =
+            kIsWeb
+                ? 'Camera access may be limited in web browsers. Please try a mobile device for full functionality.'
+                : 'Failed to initialize camera: $e';
       });
     }
   }
@@ -118,7 +133,7 @@ class _CameraScreenState extends State<CameraScreen>
   );
 
   Widget _buildBody() {
-    if (_errorMessage != null) {
+    if (_errorMessage != null && !_cameraService.isInitialized) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
@@ -145,13 +160,27 @@ class _CameraScreenState extends State<CameraScreen>
 
     return Column(
       children: [
+        if (kIsWeb && _errorMessage != null)
+          Container(
+            padding: const EdgeInsets.all(8),
+            color: Colors.amber.shade100,
+            width: double.infinity,
+            child: Text(
+              _errorMessage!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.brown),
+            ),
+          ),
         Expanded(
           child: ClipRRect(
             borderRadius: const BorderRadius.only(
               bottomLeft: Radius.circular(8.0),
               bottomRight: Radius.circular(8.0),
             ),
-            child: CameraPreview(_cameraService.controller!),
+            child:
+                _cameraService.controller != null
+                    ? CameraPreview(_cameraService.controller!)
+                    : const Center(child: Text('Camera not available')),
           ),
         ),
         const SizedBox(height: 80), // Space for the floating action button
@@ -160,7 +189,8 @@ class _CameraScreenState extends State<CameraScreen>
   }
 
   Widget _buildFloatingActionButton() =>
-      _isInitializing || _errorMessage != null
+      (_isInitializing ||
+              (_errorMessage != null && !_cameraService.isInitialized))
           ? Container()
           : FloatingActionButton(
             onPressed: _takePicture,
