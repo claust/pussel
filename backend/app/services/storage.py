@@ -2,7 +2,7 @@
 
 import os
 from io import BytesIO
-from typing import Optional
+from typing import Any, Optional
 
 from app.config import settings
 from fastapi import UploadFile
@@ -11,7 +11,7 @@ from fastapi import UploadFile
 class StorageService:
     """Service for handling file storage."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize storage service."""
         self.use_azure = getattr(settings, "USE_AZURE_STORAGE", False)
         self.container_name = "puzzle-images"
