@@ -54,7 +54,7 @@ jobs:
       run: flake8 . --extend-ignore=I100,I201
 
     - name: Type check with mypy
-      run: mypy app
+      run: mypy $(find app -name "*.py")
 
     - name: Run tests
       env:
