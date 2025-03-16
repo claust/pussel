@@ -1,0 +1,1 @@
+"""Puzzle Solver Backend Application."""
