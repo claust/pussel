@@ -8,7 +8,12 @@ plugins {
 android {
     namespace = "com.pussel.frontend"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+
+    // Set minimum NDK version required by plugins while preserving Flutter's version management
+    val requiredNdkVersion = "27.0.12077973"
+    ndkVersion = requiredNdkVersion
+    // Note: If you want to revert to using flutter.ndkVersion in the future when it's updated,
+    // simply change back to: ndkVersion = flutter.ndkVersion
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
