@@ -10,12 +10,32 @@ pussel/
 └── frontend/         # Flutter mobile app (coming soon)
 ```
 
+## Features
+
+- FastAPI backend with:
+  - Puzzle image upload and processing
+  - Comprehensive test suite with high coverage
+  - Strong type checking and linting
+  - Continuous Integration with GitHub Actions
+  - Code coverage reporting with Codecov
+- Flutter mobile app (coming soon)
+
 ## Getting Started
 
 See the individual README files in each directory for setup and running instructions:
 
 - [Backend README](backend/README.md)
 - Frontend README (coming soon)
+
+## Development
+
+The project follows best practices for code quality and testing:
+- Pre-commit hooks for automated checks
+- Comprehensive test suite
+- Continuous Integration with GitHub Actions
+- Code coverage tracking with Codecov
+- Type checking and linting
+- Automated code formatting
 
 ## License
 
