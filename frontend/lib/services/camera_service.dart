@@ -54,18 +54,26 @@ class CameraService {
       // Take the picture
       final XFile photo = await _controller!.takePicture();
 
-      // Get the directory
-      final Directory tempDir = await getTemporaryDirectory();
-      final String filePath = path.join(
-        tempDir.path,
-        '${DateTime.now().millisecondsSinceEpoch}.jpg',
-      );
+      // Web platform doesn't support getTemporaryDirectory
+      if (kIsWeb) {
+        // On web, we can't access the file system in the same way
+        // Just return the XFile as a File for consistent API
+        // The path will still be accessible via XFile.path
+        return File(photo.path);
+      } else {
+        // Get the directory (mobile/desktop platforms)
+        final Directory tempDir = await getTemporaryDirectory();
+        final String filePath = path.join(
+          tempDir.path,
+          '${DateTime.now().millisecondsSinceEpoch}.jpg',
+        );
 
-      // Copy the file to the new path
-      final File newFile = File(filePath);
-      await File(photo.path).copy(filePath);
+        // Copy the file to the new path
+        final File newFile = File(filePath);
+        await File(photo.path).copy(filePath);
 
-      return newFile;
+        return newFile;
+      }
     } catch (e) {
       debugPrint('Error taking picture: $e');
       return null;

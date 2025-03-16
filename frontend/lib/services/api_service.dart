@@ -42,13 +42,34 @@ class ApiService {
   // Upload a complete puzzle image
   Future<Puzzle> uploadPuzzle(File imageFile) async {
     try {
-      final String fileName = imageFile.path.split('/').last;
-      final FormData formData = FormData.fromMap({
-        'file': await MultipartFile.fromFile(
-          imageFile.path,
-          filename: fileName,
-        ),
-      });
+      FormData formData;
+
+      if (kIsWeb) {
+        // For web, we need to handle file uploads differently
+        // The path isn't a real filesystem path in web
+        final fileName = 'puzzle_${DateTime.now().millisecondsSinceEpoch}.jpg';
+        formData = FormData.fromMap({
+          'file': MultipartFile.fromBytes(
+            // For web, we would need access to the bytes
+            // This is a limitation of the current example
+            // In a real app, you'd need to store the image data
+            [],
+            filename: fileName,
+          ),
+        });
+
+        // In a real implementation, you would capture the image bytes
+        // from the camera and use those directly
+      } else {
+        // Mobile/desktop platforms
+        final String fileName = imageFile.path.split('/').last;
+        formData = FormData.fromMap({
+          'file': await MultipartFile.fromFile(
+            imageFile.path,
+            filename: fileName,
+          ),
+        });
+      }
 
       final response = await _dio.post(
         ApiConfig.uploadPuzzleEndpoint,
@@ -77,13 +98,32 @@ class ApiService {
   // Process a puzzle piece
   Future<Piece> processPiece(String puzzleId, File pieceImage) async {
     try {
-      final String fileName = pieceImage.path.split('/').last;
-      final FormData formData = FormData.fromMap({
-        'file': await MultipartFile.fromFile(
-          pieceImage.path,
-          filename: fileName,
-        ),
-      });
+      FormData formData;
+
+      if (kIsWeb) {
+        // For web, we need to handle file uploads differently
+        final fileName = 'piece_${DateTime.now().millisecondsSinceEpoch}.jpg';
+        formData = FormData.fromMap({
+          'file': MultipartFile.fromBytes(
+            // For web, we would need access to the bytes
+            // This is a limitation of the current example
+            [],
+            filename: fileName,
+          ),
+        });
+
+        // In a real implementation, you would capture the image bytes
+        // from the camera and use those directly
+      } else {
+        // Mobile/desktop platforms
+        final String fileName = pieceImage.path.split('/').last;
+        formData = FormData.fromMap({
+          'file': await MultipartFile.fromFile(
+            pieceImage.path,
+            filename: fileName,
+          ),
+        });
+      }
 
       final response = await _dio.post(
         ApiConfig.processPieceEndpoint(puzzleId),

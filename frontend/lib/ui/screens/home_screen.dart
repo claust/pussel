@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import 'camera_screen.dart';
@@ -15,6 +16,29 @@ class HomeScreen extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              // Web platform notice
+              if (kIsWeb)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 24),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.amber.shade300),
+                  ),
+                  child: const Column(
+                    children: [
+                      Icon(Icons.info_outline, color: Colors.amber),
+                      SizedBox(height: 8),
+                      Text(
+                        'Camera functionality is limited in web browsers. For the best experience, please use a mobile device.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.brown),
+                      ),
+                    ],
+                  ),
+                ),
+
               // Logo or icon
               const Icon(
                 Icons.extension,
