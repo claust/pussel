@@ -37,4 +37,4 @@ repos:
         additional_dependencies:
         - types-requests
         - types-python-jose
-        - types-pillow 
+        - types-pillow

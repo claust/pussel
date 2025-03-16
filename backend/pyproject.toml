@@ -19,4 +19,4 @@ line_length = 88
 skip = ["venv"]
 known_first_party = ["app"]
 sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
-default_section = "THIRDPARTY" 
+default_section = "THIRDPARTY"
