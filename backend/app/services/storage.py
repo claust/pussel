@@ -2,10 +2,11 @@
 
 import os
 from io import BytesIO
-from typing import Any, Optional
+from typing import Optional, cast
+
+from fastapi import UploadFile
 
 from app.config import settings
-from fastapi import UploadFile
 
 
 class StorageService:
@@ -39,14 +40,12 @@ class StorageService:
                 blob_client = self.container_client.get_blob_client(file_name)
                 file_contents = await file.read()
 
-                content_settings = ContentSettings(
-                    content_type=file.content_type)
+                content_settings = ContentSettings(content_type=file.content_type)
                 blob_client.upload_blob(
-                    file_contents,
-                    overwrite=True,
-                    content_settings=content_settings
+                    file_contents, overwrite=True, content_settings=content_settings
                 )
-                return blob_client.url
+                # Cast to ensure mypy knows this is a string
+                return cast(str, blob_client.url)
             except Exception as e:
                 print(f"Error saving file to Azure: {e}")
                 # Fall back to local storage
