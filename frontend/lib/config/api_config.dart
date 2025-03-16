@@ -1,7 +1,14 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
+
 class ApiConfig {
-  static const String baseUrl =
-      'http://10.0.2.2:8000'; // Use this for Android Emulator
-  // static const String baseUrl = 'http://localhost:8000'; // Use this for iOS Simulator
+  // Detect the platform and use appropriate URL
+  static String get baseUrl {
+    if (kIsWeb) {
+      return 'http://localhost:8000'; // Use localhost for web
+    } else {
+      return 'http://10.0.2.2:8000'; // Use this for Android Emulator
+    }
+  }
 
   // API endpoints
   static const String healthEndpoint = '/health';
