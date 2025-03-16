@@ -2,9 +2,9 @@
 
 import os
 import uuid
-from typing import Dict
+from typing import Dict, Optional
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
@@ -15,7 +15,6 @@ from app.services.image_processor import ImageProcessor
 app = FastAPI(title=settings.PROJECT_NAME)
 
 # Configure CORS
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.BACKEND_CORS_ORIGINS,
@@ -27,9 +26,6 @@ app.add_middleware(
 # Store puzzle images in memory for demo
 puzzle_images: Dict[str, str] = {}
 
-# Default file argument
-DEFAULT_FILE = File(...)
-
 
 @app.get("/health")
 def health_check() -> dict[str, str]:
@@ -38,7 +34,7 @@ def health_check() -> dict[str, str]:
 
 
 @app.post("/api/v1/puzzle/upload", response_model=PuzzleResponse)
-async def upload_puzzle(file: UploadFile = DEFAULT_FILE) -> PuzzleResponse:
+async def upload_puzzle(file: Optional[UploadFile] = None) -> PuzzleResponse:
     """Upload a complete puzzle image.
 
     Args:
@@ -50,6 +46,9 @@ async def upload_puzzle(file: UploadFile = DEFAULT_FILE) -> PuzzleResponse:
     Raises:
         HTTPException: If file size exceeds limit or file type is invalid.
     """
+    if file is None:
+        raise HTTPException(status_code=400, detail="No file provided")
+
     if file.size and file.size > settings.MAX_UPLOAD_SIZE:
         raise HTTPException(status_code=413, detail="File too large")
 
@@ -65,7 +64,8 @@ async def upload_puzzle(file: UploadFile = DEFAULT_FILE) -> PuzzleResponse:
 
 @app.post("/api/v1/puzzle/{puzzle_id}/piece", response_model=PieceResponse)
 async def process_piece(
-    puzzle_id: str, file: UploadFile = DEFAULT_FILE
+    puzzle_id: str,
+    file: Optional[UploadFile] = None,
 ) -> PieceResponse:
     """Process a puzzle piece image.
 
@@ -79,6 +79,9 @@ async def process_piece(
     Raises:
         HTTPException: If puzzle not found or file type is invalid.
     """
+    if file is None:
+        raise HTTPException(status_code=400, detail="No file provided")
+
     if puzzle_id not in puzzle_images:
         raise HTTPException(status_code=404, detail="Puzzle not found")
 
