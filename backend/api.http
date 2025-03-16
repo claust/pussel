@@ -1,0 +1,33 @@
+### Health Check
+GET http://localhost:8000/health
+
+### Upload Complete Puzzle
+POST http://localhost:8000/api/v1/puzzle/upload
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="puzzle.jpg"
+Content-Type: image/jpeg
+
+< ./test-data/puzzle.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### Process Puzzle Piece
+POST http://localhost:8000/api/v1/puzzle/123/piece
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="piece.jpg"
+Content-Type: image/jpeg
+
+< ./test-data/piece.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### API Documentation (OpenAPI/Swagger)
+GET http://localhost:8000/docs
+
+### Alternative API Documentation (ReDoc)
+GET http://localhost:8000/redoc
+
+### OpenAPI Schema
+GET http://localhost:8000/openapi.json
