@@ -10,10 +10,16 @@ import 'puzzle_screen.dart';
 enum CameraMode { puzzle, piece }
 
 class CameraScreen extends StatefulWidget {
-  const CameraScreen({required this.mode, super.key, this.puzzleId});
+  const CameraScreen({
+    required this.mode,
+    super.key,
+    this.puzzleId,
+    this.puzzleImage, // Add puzzle image parameter
+  });
 
   final CameraMode mode;
   final String? puzzleId; // Only needed for piece mode
+  final File? puzzleImage; // Reference to the puzzle image for context
 
   @override
   State<CameraScreen> createState() => _CameraScreenState();
@@ -127,7 +133,40 @@ class _CameraScreenState extends State<CameraScreen>
             : 'Take Piece Photo',
       ),
     ),
-    body: _buildBody(),
+    body: Stack(
+      children: [
+        // When in piece mode, show the puzzle image in the background with reduced opacity
+        if (widget.mode == CameraMode.piece && widget.puzzleImage != null)
+          Opacity(
+            opacity: 0.3,
+            child: Container(
+              color: Colors.black,
+              child: Center(
+                child: Image.file(widget.puzzleImage!, fit: BoxFit.contain),
+              ),
+            ),
+          ),
+
+        _buildBody(),
+
+        // Helper overlay message when in piece mode
+        if (widget.mode == CameraMode.piece)
+          Positioned(
+            top: 16,
+            left: 0,
+            right: 0,
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              color: Colors.black54,
+              child: const Text(
+                'Align the piece within the frame',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ),
+      ],
+    ),
     floatingActionButton: _buildFloatingActionButton(),
     floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
   );
