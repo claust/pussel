@@ -1,3 +1,5 @@
+"""Test module for the FastAPI puzzle solver application."""
+
 import os
 import shutil
 import sys
@@ -7,7 +9,7 @@ from typing import Generator
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import UPLOAD_DIR, app
+from app.main import app, settings
 
 # Add the backend directory to the Python path
 backend_dir = Path(__file__).parent.parent
@@ -21,12 +23,12 @@ client = TestClient(app)
 def setup_and_cleanup() -> Generator[None, None, None]:
     """Set up test environment and clean up after tests."""
     # Create upload directory
-    os.makedirs(UPLOAD_DIR, exist_ok=True)
+    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 
     yield
 
     # Cleanup after tests
-    shutil.rmtree(UPLOAD_DIR)
+    shutil.rmtree(settings.UPLOAD_DIR)
 
 
 def test_health_check() -> None:
@@ -53,7 +55,7 @@ def test_upload_puzzle() -> None:
         assert response.status_code == 200
         assert "puzzle_id" in response.json()
         puzzle_id = response.json()["puzzle_id"]
-        assert os.path.exists(os.path.join(UPLOAD_DIR, f"{puzzle_id}.jpg"))
+        assert os.path.exists(os.path.join(settings.UPLOAD_DIR, f"{puzzle_id}.jpg"))
 
     finally:
         # Cleanup test image

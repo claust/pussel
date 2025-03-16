@@ -1,65 +1,65 @@
+"""Main FastAPI application module for the puzzle solver."""
+
+import os
 import uuid
-from pathlib import Path
 from typing import Dict
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.config import settings
 from app.models.puzzle_model import PieceResponse, PuzzleResponse
 from app.services.image_processor import ImageProcessor
 
-app = FastAPI()
+# Initialize FastAPI app
+app = FastAPI(title=settings.PROJECT_NAME)
 
-# Add CORS middleware
+# Configure CORS
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.BACKEND_CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Create upload directory if it doesn't exist
-UPLOAD_DIR = Path("uploads")
-UPLOAD_DIR.mkdir(exist_ok=True)
+# Store puzzle images in memory for demo
+puzzle_images: Dict[str, str] = {}
 
 # Default file argument
 DEFAULT_FILE = File(...)
 
 
 @app.get("/health")
-def health_check() -> Dict[str, str]:
-    """Check if the service is healthy."""
+def health_check() -> dict[str, str]:
+    """Health check endpoint."""
     return {"status": "healthy"}
 
 
 @app.post("/api/v1/puzzle/upload", response_model=PuzzleResponse)
 async def upload_puzzle(file: UploadFile = DEFAULT_FILE) -> PuzzleResponse:
-    """Upload a puzzle image for processing.
+    """Upload a complete puzzle image.
 
     Args:
-        file: The puzzle image file to upload.
+        file: The puzzle image file.
 
     Returns:
-        PuzzleResponse: The response containing the puzzle ID.
+        PuzzleResponse: Response containing the puzzle ID.
 
     Raises:
-        HTTPException: If the file is not an image or if there's an error saving it.
+        HTTPException: If file size exceeds limit or file type is invalid.
     """
-    if not file.content_type or not file.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="File must be an image")
+    if file.size and file.size > settings.MAX_UPLOAD_SIZE:
+        raise HTTPException(status_code=413, detail="File too large")
 
-    # Generate unique ID for the puzzle
     puzzle_id = str(uuid.uuid4())
+    file_path = os.path.join(settings.UPLOAD_DIR, f"{puzzle_id}.jpg")
 
-    try:
-        # Save the file
-        file_path = UPLOAD_DIR / f"{puzzle_id}.jpg"
-        with open(file_path, "wb") as f:
-            f.write(await file.read())
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    with open(file_path, "wb") as f:
+        f.write(await file.read())
 
+    puzzle_images[puzzle_id] = file_path
     return PuzzleResponse(puzzle_id=puzzle_id)
 
 
@@ -67,32 +67,20 @@ async def upload_puzzle(file: UploadFile = DEFAULT_FILE) -> PuzzleResponse:
 async def process_piece(
     puzzle_id: str, file: UploadFile = DEFAULT_FILE
 ) -> PieceResponse:
-    """Process a puzzle piece and find its position in the puzzle.
+    """Process a puzzle piece image.
 
     Args:
-        puzzle_id: The ID of the puzzle to match against.
+        puzzle_id: ID of the puzzle to match against.
         file: The puzzle piece image file.
 
     Returns:
-        PieceResponse: The response containing the piece's position and confidence.
+        PieceResponse: Response containing position and confidence.
 
     Raises:
-        HTTPException: If the puzzle doesn't exist, the file is not an image,
-                      or if there's an error processing the piece.
+        HTTPException: If puzzle not found or file type is invalid.
     """
-    # Check if puzzle exists
-    puzzle_path = UPLOAD_DIR / f"{puzzle_id}.jpg"
-    if not puzzle_path.exists():
+    if puzzle_id not in puzzle_images:
         raise HTTPException(status_code=404, detail="Puzzle not found")
 
-    if not file.content_type or not file.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="File must be an image")
-
-    try:
-        # Process the piece
-        piece_data = await file.read()
-        processor = ImageProcessor()
-        result = processor.process_piece(piece_data, str(puzzle_path))
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    processor = ImageProcessor()
+    return processor.process_piece(file)
