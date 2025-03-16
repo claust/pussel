@@ -27,4 +27,4 @@ ignore =
     # E203: Whitespace before ':' (conflicts with Black)
     E203,
     # W503: Line break before binary operator (conflicts with Black)
-    W503 
+    W503
