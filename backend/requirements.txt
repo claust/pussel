@@ -15,6 +15,9 @@ pytest==8.0.1
 pytest-cov==4.1.0
 python-multipart==0.0.9
 
+# Azure dependencies
+azure-storage-blob==12.19.0
+
 # Type stubs
 types-Pillow
 types-requests
