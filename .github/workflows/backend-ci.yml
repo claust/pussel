@@ -87,7 +87,7 @@ jobs:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Setup Bicep
-        uses: azure/setup-bicep@v1
+        uses: anthony-c-martin/setup-bicep@v0.3
 
       - name: Deploy infrastructure
         id: deploy-infra
