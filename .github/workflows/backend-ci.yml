@@ -41,18 +41,11 @@ jobs:
         pip install -r requirements.txt
         pip install -e .
 
-    # Run formatters first (and don't just check)
-    - name: Format with black
-      run: black .
-
-    - name: Sort imports with isort
-      run: isort .
-
-    # Then check for issues
-    - name: Verify formatting with black
+    # Check code formatting
+    - name: Check formatting with black
       run: black . --check
 
-    - name: Verify imports with isort
+    - name: Check imports with isort
       run: isort . --check-only
 
     - name: Lint with flake8
