@@ -77,7 +77,7 @@ jobs:
         name: backend-coverage
         fail_ci_if_error: true
 
-  deploy-to-azure:
+  build:
     needs: test
     if: github.ref == 'refs/heads/dev' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
@@ -97,7 +97,6 @@ jobs:
         uses: anthony-c-martin/setup-bicep@v0.3
 
       - name: Deploy infrastructure
-        id: deploy-infra
         run: |
           az deployment group create \
             --resource-group ski-dev-clth-pussel \
@@ -105,30 +104,36 @@ jobs:
             --parameters environmentName=dev \
             --output json > deployment-output.json
 
-          echo "app_name=$(jq -r '.properties.outputs.appServiceName.value' deployment-output.json)" >> $GITHUB_OUTPUT
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
-      - name: Log in to Azure container registry
+      - name: Log in to registry
         uses: docker/login-action@v2
         with:
-          registry: ${{ secrets.ACR_LOGIN_SERVER }}
-          username: ${{ secrets.ACR_USERNAME }}
-          password: ${{ secrets.ACR_PASSWORD }}
+          registry: https://skidevclthpusselacr.azurecr.io/
+          username: ${{ secrets.AzureAppService_ContainerUsername_4a936ba86a5848c3b88e895db9a5b7e2 }}
+          password: ${{ secrets.AzureAppService_ContainerPassword_fb5d4695e2e0483da95d5aa96ebc281d }}
 
       - name: Build and push container image
         uses: docker/build-push-action@v4
         with:
           context: ./backend
           push: true
-          tags: ${{ secrets.ACR_LOGIN_SERVER }}/pussel-backend:${{ github.sha }},${{ secrets.ACR_LOGIN_SERVER }}/pussel-backend:latest
-          cache-from: type=registry,ref=${{ secrets.ACR_LOGIN_SERVER }}/pussel-backend:latest
+          tags: skidevclthpusselacr.azurecr.io/${{ secrets.AzureAppService_ContainerUsername_4a936ba86a5848c3b88e895db9a5b7e2 }}/pussel-backend:${{ github.sha }}
+          cache-from: type=registry,ref=skidevclthpusselacr.azurecr.io/${{ secrets.AzureAppService_ContainerUsername_4a936ba86a5848c3b88e895db9a5b7e2 }}/pussel-backend:latest
           cache-to: type=inline
 
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/dev' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+
+    steps:
       - name: Deploy to Azure Web App
+        id: deploy-to-webapp
         uses: azure/webapps-deploy@v2
         with:
-          app-name: ${{ steps.deploy-infra.outputs.app_name }}
-          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          images: ${{ secrets.ACR_LOGIN_SERVER }}/pussel-backend:${{ github.sha }}
+          app-name: 'ski-dev-clth-pussel-dev'
+          slot-name: 'production'
+          publish-profile: ${{ secrets.AzureAppService_PublishProfile_bd043e1cdeca4a1885009f476dac2e93 }}
+          images: 'skidevclthpusselacr.azurecr.io/${{ secrets.AzureAppService_ContainerUsername_4a936ba86a5848c3b88e895db9a5b7e2 }}/pussel-backend:${{ github.sha }}'
