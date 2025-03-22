@@ -7,10 +7,11 @@ param location string = resourceGroup().location
 @description('App service plan SKU')
 param appServicePlanSku string = 'B1'
 
-// Generate unique names
-var acr_name = 'puzacr${uniqueString(resourceGroup().id)}'
-var storage_name = 'puzstorage${uniqueString(resourceGroup().id)}'
-var app_name = 'pussel-backend-${environmentName}'
+// Resource naming
+var prefix = 'ski-dev-clth'
+var acr_name = '${prefix}-acr'
+var storage_name = '${prefix}-st'
+var app_name = '${prefix}-pussel-${environmentName}'
 
 // Container Registry
 module acr './modules/containerRegistry.bicep' = {
@@ -40,6 +41,7 @@ module appService './modules/appService.bicep' = {
     skuName: appServicePlanSku
     storageAccountName: storage.outputs.name
     storageAccountId: storage.outputs.storageId
+    prefix: prefix
   }
 }
 

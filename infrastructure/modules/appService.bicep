@@ -4,6 +4,7 @@ param containerRegistryName string
 param skuName string
 param storageAccountName string
 param storageAccountId string
+param prefix string
 
 var appServicePlanName = '${name}-plan'
 
@@ -63,7 +64,7 @@ resource appService 'Microsoft.Web/sites@2021-02-01' = {
 
 // Create managed certificate
 resource managedCertificate 'Microsoft.Web/certificates@2021-02-01' = {
-  name: 'pussel-thomasen-dk'
+  name: '${prefix}-cert-pussel'
   location: location
   properties: {
     serverFarmId: appServicePlan.id
