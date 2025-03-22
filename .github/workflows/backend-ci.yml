@@ -105,26 +105,30 @@ jobs:
             --parameters environmentName=dev \
             --output json > deployment-output.json
 
-          echo "acr_name=$(jq -r '.properties.outputs.containerRegistryName.value' deployment-output.json)" >> $GITHUB_OUTPUT
           echo "app_name=$(jq -r '.properties.outputs.appServiceName.value' deployment-output.json)" >> $GITHUB_OUTPUT
 
-      - name: Build and push Docker image
-        uses: azure/docker-login@v1
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to Azure container registry
+        uses: docker/login-action@v2
         with:
-          login-server: ${{ steps.deploy-infra.outputs.acr_name }}.azurecr.io
-          username: ${{ steps.deploy-infra.outputs.acr_name }}
+          registry: ${{ secrets.ACR_LOGIN_SERVER }}
+          username: ${{ secrets.ACR_USERNAME }}
           password: ${{ secrets.ACR_PASSWORD }}
 
-      - name: Build and push
-        run: |
-          cd backend
-          docker build -t ${{ steps.deploy-infra.outputs.acr_name }}.azurecr.io/pussel-backend:${{ github.sha }} .
-          docker tag ${{ steps.deploy-infra.outputs.acr_name }}.azurecr.io/pussel-backend:${{ github.sha }} ${{ steps.deploy-infra.outputs.acr_name }}.azurecr.io/pussel-backend:latest
-          docker push ${{ steps.deploy-infra.outputs.acr_name }}.azurecr.io/pussel-backend:${{ github.sha }}
-          docker push ${{ steps.deploy-infra.outputs.acr_name }}.azurecr.io/pussel-backend:latest
+      - name: Build and push container image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./backend
+          push: true
+          tags: ${{ secrets.ACR_LOGIN_SERVER }}/pussel-backend:${{ github.sha }},${{ secrets.ACR_LOGIN_SERVER }}/pussel-backend:latest
+          cache-from: type=registry,ref=${{ secrets.ACR_LOGIN_SERVER }}/pussel-backend:latest
+          cache-to: type=inline
 
-      - name: Deploy to App Service
+      - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v2
         with:
           app-name: ${{ steps.deploy-infra.outputs.app_name }}
-          images: ${{ steps.deploy-infra.outputs.acr_name }}.azurecr.io/pussel-backend:${{ github.sha }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          images: ${{ secrets.ACR_LOGIN_SERVER }}/pussel-backend:${{ github.sha }}
