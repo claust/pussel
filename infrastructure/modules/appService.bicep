@@ -3,7 +3,7 @@ param location string
 param containerRegistryName string
 param skuName string
 param storageAccountName string
-param storageAccountKey string
+param storageAccountId string
 
 var appServicePlanName = '${name}-plan'
 
@@ -46,7 +46,7 @@ resource appService 'Microsoft.Web/sites@2021-02-01' = {
         }
         {
           name: 'AZURE_STORAGE_CONNECTION_STRING'
-          value: 'DefaultEndpointsProtocol=https;AccountName=${storageAccountName};AccountKey=${storageAccountKey};EndpointSuffix=core.windows.net'
+          value: 'DefaultEndpointsProtocol=https;AccountName=${storageAccountName};AccountKey=${listKeys(storageAccountId, '2021-04-01').keys[0].value};EndpointSuffix=core.windows.net'
         }
         {
           name: 'USE_AZURE_STORAGE'
@@ -73,10 +73,8 @@ resource managedCertificate 'Microsoft.Web/certificates@2021-02-01' = {
 
 // Bind the certificate to the custom domain
 resource sslBinding 'Microsoft.Web/sites/hostNameBindings@2021-02-01' = {
-  name: '${appService.name}/pussel.thomasen.dk'
-  dependsOn: [
-    managedCertificate
-  ]
+  parent: appService
+  name: 'pussel.thomasen.dk'
   properties: {
     siteName: appService.name
     hostNameType: 'Verified'

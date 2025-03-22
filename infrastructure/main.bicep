@@ -39,7 +39,7 @@ module appService './modules/appService.bicep' = {
     containerRegistryName: acr.outputs.name
     skuName: appServicePlanSku
     storageAccountName: storage.outputs.name
-    storageAccountKey: storage.outputs.key
+    storageAccountId: storage.outputs.storageId
   }
 }
 
