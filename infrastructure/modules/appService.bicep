@@ -4,7 +4,6 @@ param containerRegistryName string
 param skuName string
 param storageAccountName string
 param storageAccountId string
-param prefix string
 
 var appServicePlanName = '${name}-plan'
 
@@ -74,7 +73,8 @@ resource existingCertificate 'Microsoft.Web/certificates@2021-02-01' existing = 
 
 // Domain binding using the existing certificate
 resource customDomainBinding 'Microsoft.Web/sites/hostNameBindings@2021-02-01' = {
-  name: '${appService.name}/pussel.thomasen.dk'
+  parent: appService
+  name: 'pussel.thomasen.dk'
   properties: {
     hostNameType: 'Verified'
     sslState: 'SniEnabled'
