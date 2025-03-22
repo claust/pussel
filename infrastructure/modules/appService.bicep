@@ -64,7 +64,7 @@ resource appService 'Microsoft.Web/sites@2021-02-01' = {
 
 // Create managed certificate
 resource managedCertificate 'Microsoft.Web/certificates@2021-02-01' = {
-  name: '${prefix}-cert-pussel'
+  name: 'pussel.thomasen.dk-${name}'
   location: location
   properties: {
     serverFarmId: appServicePlan.id
@@ -77,7 +77,6 @@ resource sslBinding 'Microsoft.Web/sites/hostNameBindings@2021-02-01' = {
   parent: appService
   name: 'pussel.thomasen.dk'
   properties: {
-    siteName: appService.name
     hostNameType: 'Verified'
     sslState: 'SniEnabled'
     thumbprint: managedCertificate.properties.thumbprint
