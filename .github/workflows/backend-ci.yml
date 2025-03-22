@@ -70,10 +70,14 @@ jobs:
         name: backend-coverage
         fail_ci_if_error: true
 
-  build:
+  infrastructure:
     needs: test
-    if: github.ref == 'refs/heads/dev' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && contains(github.event.head_commit.modified, 'infrastructure/')
+    outputs:
+      resource_group: ${{ steps.infra_output.outputs.resource_group }}
+      acr_name: ${{ steps.infra_output.outputs.acr_name }}
+      app_name: ${{ steps.infra_output.outputs.app_name }}
 
     steps:
       - name: Checkout code
@@ -90,12 +94,36 @@ jobs:
         uses: anthony-c-martin/setup-bicep@v0.3
 
       - name: Deploy infrastructure
+        id: deploy_infra
         run: |
           az deployment group create \
             --resource-group ski-dev-clth-pussel \
             --template-file infrastructure/main.bicep \
             --parameters environmentName=dev \
             --output json > deployment-output.json
+
+      - name: Set infrastructure outputs
+        id: infra_output
+        run: |
+          echo "resource_group=ski-dev-clth-pussel" >> $GITHUB_OUTPUT
+          echo "acr_name=$(jq -r '.properties.outputs.containerRegistryName.value' deployment-output.json)" >> $GITHUB_OUTPUT
+          echo "app_name=$(jq -r '.properties.outputs.appServiceName.value' deployment-output.json)" >> $GITHUB_OUTPUT
+
+  build:
+    needs: [test, infrastructure]
+    if: github.ref == 'refs/heads/dev' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Azure CLI
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
