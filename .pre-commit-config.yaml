@@ -9,6 +9,17 @@ repos:
           - id: debug-statements
           - id: requirements-txt-fixer
 
+    # Bicep linting hook
+    - repo: local
+      hooks:
+          - id: bicep-lint
+            name: Bicep Linting
+            description: Lint Bicep files using Azure CLI
+            entry: scripts/bicep_lint.sh
+            language: script
+            files: \.bicep$
+            pass_filenames: true
+
     - repo: https://github.com/psf/black
       rev: 24.2.0
       hooks:
