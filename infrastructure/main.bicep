@@ -10,7 +10,7 @@ param appServicePlanSku string = 'B1'
 // Resource naming
 var prefix = 'ski-dev-clth'
 var acr_name = '${prefix}-acr'
-var storage_name = 'skidevclthst'
+var storage_name = replace('${prefix}-st', '-', '')
 var app_name = '${prefix}-pussel-${environmentName}'
 
 // Container Registry
