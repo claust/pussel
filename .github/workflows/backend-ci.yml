@@ -73,17 +73,31 @@ jobs:
   infrastructure:
     needs: test
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && contains(github.event.head_commit.modified, 'infrastructure/')
+    if: github.ref == 'refs/heads/dev' && github.event_name != 'pull_request'
     outputs:
       resource_group: ${{ steps.infra_output.outputs.resource_group }}
       acr_name: ${{ steps.infra_output.outputs.acr_name }}
       app_name: ${{ steps.infra_output.outputs.app_name }}
+      infra_changed: ${{ steps.check_changes.outputs.infra_changed }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check for infrastructure changes
+        id: check_changes
+        run: |
+          CHANGED_FILES=$(git diff --name-only HEAD^ HEAD)
+          if echo "$CHANGED_FILES" | grep -q "infrastructure/"; then
+            echo "infra_changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "infra_changed=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Set up Azure CLI
+        if: steps.check_changes.outputs.infra_changed == 'true'
         uses: azure/login@v1
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -91,9 +105,11 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Setup Bicep
+        if: steps.check_changes.outputs.infra_changed == 'true'
         uses: anthony-c-martin/setup-bicep@v0.3
 
       - name: Deploy infrastructure
+        if: steps.check_changes.outputs.infra_changed == 'true'
         id: deploy_infra
         run: |
           az deployment group create \
@@ -106,8 +122,13 @@ jobs:
         id: infra_output
         run: |
           echo "resource_group=ski-dev-clth-pussel" >> $GITHUB_OUTPUT
-          echo "acr_name=$(jq -r '.properties.outputs.containerRegistryName.value' deployment-output.json)" >> $GITHUB_OUTPUT
-          echo "app_name=$(jq -r '.properties.outputs.appServiceName.value' deployment-output.json)" >> $GITHUB_OUTPUT
+          if [[ "${{ steps.check_changes.outputs.infra_changed }}" == "true" ]]; then
+            echo "acr_name=$(jq -r '.properties.outputs.containerRegistryName.value' deployment-output.json)" >> $GITHUB_OUTPUT
+            echo "app_name=$(jq -r '.properties.outputs.appServiceName.value' deployment-output.json)" >> $GITHUB_OUTPUT
+          else
+            echo "acr_name=skidevclthpusselacr" >> $GITHUB_OUTPUT
+            echo "app_name=ski-dev-clth-pussel-app" >> $GITHUB_OUTPUT
+          fi
 
   build:
     needs: [test, infrastructure]
