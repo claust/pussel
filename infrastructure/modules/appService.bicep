@@ -55,7 +55,11 @@ resource appService 'Microsoft.Web/sites@2021-02-01' = {
         }
         {
           name: 'BACKEND_CORS_ORIGINS'
-          value: '["https://pussel-frontend.azurewebsites.net", "http://localhost:3000"]'
+          value: '["https://pussel-frontend.azurewebsites.net", "http://localhost:3000", "https://pussel.thomasen.dk"]'
+        }
+        {
+          name: 'PUBLIC_URL'
+          value: 'https://pussel.thomasen.dk'
         }
       ]
     }
@@ -68,15 +72,18 @@ resource existingCertificate 'Microsoft.Web/certificates@2021-02-01' existing = 
   scope: resourceGroup()
 }
 
-// Bind the certificate to the custom domain
-resource sslBinding 'Microsoft.Web/sites/hostNameBindings@2021-02-01' = {
+// Update CORS to include the custom domain
+resource corsSettings 'Microsoft.Web/sites/config@2021-02-01' = {
   parent: appService
-  name: 'pussel.thomasen.dk'
+  name: 'web'
   properties: {
-    hostNameType: 'Verified'
-    sslState: 'SniEnabled'
-    thumbprint: existingCertificate.properties.thumbprint
-    customHostNameDnsRecordType: 'CName'
+    cors: {
+      allowedOrigins: [
+        'https://pussel-frontend.azurewebsites.net'
+        'http://localhost:3000'
+        'https://pussel.thomasen.dk'
+      ]
+    }
   }
 }
 
