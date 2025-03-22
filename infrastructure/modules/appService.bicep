@@ -66,10 +66,21 @@ resource appService 'Microsoft.Web/sites@2021-02-01' = {
   }
 }
 
-// Reference existing managed certificate
+// Try to reference the existing certificate - will succeed if exists
 resource existingCertificate 'Microsoft.Web/certificates@2021-02-01' existing = {
   name: 'pussel.thomasen.dk-pussel-backend-dev'
   scope: resourceGroup()
+}
+
+// Domain binding using the existing certificate
+resource customDomainBinding 'Microsoft.Web/sites/hostNameBindings@2021-02-01' = {
+  name: '${appService.name}/pussel.thomasen.dk'
+  properties: {
+    hostNameType: 'Verified'
+    sslState: 'SniEnabled'
+    thumbprint: existingCertificate.properties.thumbprint
+    customHostNameDnsRecordType: 'CName'
+  }
 }
 
 // Update CORS to include the custom domain
