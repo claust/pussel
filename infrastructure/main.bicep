@@ -7,7 +7,7 @@ param location string = resourceGroup().location
 @description('App service plan SKU')
 param appServicePlanSku string = 'B1'
 
-// Resource naming variables
+// Resource naming
 var prefix = 'ski-${environmentName}-clth-pussel'
 var acr_name = replace('${prefix}-acr', '-', '')
 var storage_name = replace('${prefix}-st', '-', '')
