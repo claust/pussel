@@ -1,10 +1,8 @@
 param name string
 param location string
-param containerRegistryName string
 param skuName string
 param storageAccountName string
 param storageAccountId string
-param prefix string
 
 var appServicePlanName = '${name}-plan'
 

@@ -37,7 +37,6 @@ module appService './modules/appService.bicep' = {
   params: {
     name: app_name
     location: location
-    containerRegistryName: acr.outputs.name
     skuName: appServicePlanSku
     storageAccountName: storage.outputs.name
     storageAccountId: storage.outputs.storageId
