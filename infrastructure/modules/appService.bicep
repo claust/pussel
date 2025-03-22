@@ -61,5 +61,30 @@ resource appService 'Microsoft.Web/sites@2021-02-01' = {
   }
 }
 
+// Create managed certificate
+resource managedCertificate 'Microsoft.Web/certificates@2021-02-01' = {
+  name: 'pussel-thomasen-dk'
+  location: location
+  properties: {
+    serverFarmId: appServicePlan.id
+    canonicalName: 'pussel.thomasen.dk'
+  }
+}
+
+// Bind the certificate to the custom domain
+resource sslBinding 'Microsoft.Web/sites/hostNameBindings@2021-02-01' = {
+  name: '${appService.name}/pussel.thomasen.dk'
+  dependsOn: [
+    managedCertificate
+  ]
+  properties: {
+    siteName: appService.name
+    hostNameType: 'Verified'
+    sslState: 'SniEnabled'
+    thumbprint: managedCertificate.properties.thumbprint
+    customHostNameDnsRecordType: 'CName'
+  }
+}
+
 output name string = appService.name
 output url string = 'https://${appService.properties.defaultHostName}'
