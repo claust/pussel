@@ -9,7 +9,7 @@ param appServicePlanSku string = 'B1'
 
 // Resource naming
 var prefix = 'ski-dev-clth-pussel'
-var acr_name = '${prefix}-acr'
+var acr_name = replace('${prefix}-acr', '-', '')
 var storage_name = replace('${prefix}-st', '-', '')
 var app_name = '${prefix}-${environmentName}'
 
@@ -41,7 +41,6 @@ module appService './modules/appService.bicep' = {
     skuName: appServicePlanSku
     storageAccountName: storage.outputs.name
     storageAccountId: storage.outputs.storageId
-    prefix: prefix
   }
 }
 
