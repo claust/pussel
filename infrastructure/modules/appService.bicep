@@ -4,6 +4,7 @@ param containerRegistryName string
 param skuName string
 param storageAccountName string
 param storageAccountId string
+param prefix string
 
 var appServicePlanName = '${name}-plan'
 
@@ -25,20 +26,12 @@ resource appService 'Microsoft.Web/sites@2021-02-01' = {
   properties: {
     serverFarmId: appServicePlan.id
     siteConfig: {
-      linuxFxVersion: 'DOCKER|${containerRegistryName}.azurecr.io/pussel-backend:latest'
+      linuxFxVersion: 'DOCKER|mcr.microsoft.com/appsvc/staticsite:latest'
       appCommandLine: 'uvicorn app.main:app --host 0.0.0.0 --port 8000'
       appSettings: [
         {
-          name: 'DOCKER_REGISTRY_SERVER_URL'
-          value: 'https://${containerRegistryName}.azurecr.io'
-        }
-        {
-          name: 'DOCKER_REGISTRY_SERVER_USERNAME'
-          value: containerRegistryName
-        }
-        {
-          name: 'DOCKER_REGISTRY_SERVER_PASSWORD'
-          value: '@Microsoft.KeyVault(SecretUri=kvReference)'
+          name: 'SCM_DO_BUILD_DURING_DEPLOYMENT'
+          value: 'true'
         }
         {
           name: 'UPLOAD_DIR'
@@ -59,6 +52,10 @@ resource appService 'Microsoft.Web/sites@2021-02-01' = {
         {
           name: 'PUBLIC_URL'
           value: 'https://pussel.thomasen.dk'
+        }
+        {
+          name: 'WEBSITES_ENABLE_APP_SERVICE_STORAGE'
+          value: 'false'
         }
       ]
     }
