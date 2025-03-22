@@ -62,14 +62,10 @@ resource appService 'Microsoft.Web/sites@2021-02-01' = {
   }
 }
 
-// Create managed certificate
-resource managedCertificate 'Microsoft.Web/certificates@2021-02-01' = {
-  name: 'pussel.example.net-${name}'
-  location: location
-  properties: {
-    serverFarmId: appServicePlan.id
-    canonicalName: 'pussel.example.net'
-  }
+// Reference existing managed certificate
+resource existingCertificate 'Microsoft.Web/certificates@2021-02-01' existing = {
+  name: 'pussel.example.net-pussel-backend-dev'
+  scope: resourceGroup()
 }
 
 // Bind the certificate to the custom domain
@@ -79,7 +75,7 @@ resource sslBinding 'Microsoft.Web/sites/hostNameBindings@2021-02-01' = {
   properties: {
     hostNameType: 'Verified'
     sslState: 'SniEnabled'
-    thumbprint: managedCertificate.properties.thumbprint
+    thumbprint: existingCertificate.properties.thumbprint
     customHostNameDnsRecordType: 'CName'
   }
 }
