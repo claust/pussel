@@ -166,7 +166,7 @@ jobs:
           cache-to: type=inline
 
   deploy:
-    needs: build
+    needs: [build, infrastructure]
     if: github.ref == 'refs/heads/dev' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
 
@@ -175,7 +175,7 @@ jobs:
         id: deploy-to-webapp
         uses: azure/webapps-deploy@v2
         with:
-          app-name: 'ski-dev-clth-pussel-app'
+          app-name: '${{ needs.infrastructure.outputs.app_name }}'
           slot-name: 'production'
           publish-profile: ${{ secrets.AzureAppService_PublishProfile_bd043e1cdeca4a1885009f476dac2e93 }}
           images: 'skidevclthpusselacr.azurecr.io/${{ secrets.AzureAppService_ContainerUsername_4a936ba86a5848c3b88e895db9a5b7e2 }}/pussel-backend:${{ github.sha }}'
