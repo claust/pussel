@@ -8,10 +8,10 @@ param location string = resourceGroup().location
 param appServicePlanSku string = 'B1'
 
 // Resource naming
-var prefix = 'ski-dev-clth-pussel'
+var prefix = 'ski-${environmentName}-clth-pussel'
 var acr_name = replace('${prefix}-acr', '-', '')
 var storage_name = replace('${prefix}-st', '-', '')
-var app_name = '${prefix}-${environmentName}'
+var app_name = '$(prefix)-app'
 
 // Container Registry
 module acr './modules/containerRegistry.bicep' = {
