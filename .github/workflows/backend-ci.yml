@@ -127,7 +127,7 @@ jobs:
             echo "app_name=$(jq -r '.properties.outputs.appServiceName.value' deployment-output.json)" >> $GITHUB_OUTPUT
           else
             echo "acr_name=skidevclthpusselacr" >> $GITHUB_OUTPUT
-            echo "app_name=ski-dev-clth-pussel-app" >> $GITHUB_OUTPUT
+            echo "app_name=ski-dev-clth-pussel-dev" >> $GITHUB_OUTPUT
           fi
 
   build:
