@@ -55,9 +55,31 @@ flutter run
 
 # For web (Chrome)
 flutter run -d chrome
+
+# For iOS simulator - specify the simulator name
+flutter run -d "iPhone SE (3rd generation)"
 ```
 
 Note: When deploying to web, specify Chrome explicitly with `-d chrome` rather than using `-d web`, as the latter may not be recognized as a valid device ID.
+
+### Running the Backend
+
+To run the backend server:
+
+```bash
+cd backend && source venv/bin/activate && uvicorn app.main:app --reload
+```
+
+The API will be available at `http://127.0.0.1:8000/docs`.
+
+### Launching iOS Simulator
+
+To launch iOS simulator and run the app:
+
+```bash
+# One-line command to launch simulator and run app
+flutter emulators --launch apple_ios_simulator && flutter run -d "iPhone SE (3rd generation)"
+```
 
 ### Backend Configuration
 
@@ -149,7 +171,3 @@ Run the tests with:
 ```bash
 flutter test
 ```
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
