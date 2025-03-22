@@ -26,6 +26,7 @@ resource appService 'Microsoft.Web/sites@2021-02-01' = {
     serverFarmId: appServicePlan.id
     siteConfig: {
       linuxFxVersion: 'DOCKER|${containerRegistryName}.azurecr.io/pussel-backend:latest'
+      appCommandLine: 'uvicorn app.main:app --host 0.0.0.0 --port 8000'
       appSettings: [
         {
           name: 'DOCKER_REGISTRY_SERVER_URL'
