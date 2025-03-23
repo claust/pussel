@@ -24,6 +24,6 @@ per-file-ignores =
     tests/*:D103,D100
 max-complexity = 10
 docstring-convention = google
-import-order-style = google
+import-order-style = pep8
 application-import-names = app
 select = C,E,F,W,B,B950,D
