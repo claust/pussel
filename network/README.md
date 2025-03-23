@@ -10,6 +10,35 @@ Install the required dependencies:
 pip install -r requirements.txt
 ```
 
+## Development
+
+### Code Quality Tools
+
+The project uses several tools to maintain code quality:
+
+- **black**: Code formatting
+- **isort**: Import sorting
+- **flake8**: Linting with additional plugins:
+  - flake8-docstrings
+  - flake8-import-order
+  - flake8-bugbear
+- **mypy**: Static type checking
+- **pre-commit**: Git hooks for code quality checks
+
+### Running Code Quality Checks
+
+```bash
+# Format code
+black .
+isort .
+
+# Run linting
+flake8
+
+# Run type checking
+mypy .
+```
+
 ## Utilities
 
 ### 1. Puzzle Piece Generator
