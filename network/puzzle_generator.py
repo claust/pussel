@@ -1,13 +1,31 @@
 #!/usr/bin/env python
-"""Puzzle Generator and Preprocessor.
+r"""Puzzle Generator and Preprocessor.
 
 This utility takes complete puzzle images and:
 1. Generates puzzle pieces with varying rotations
 2. Processes the pieces for machine learning model training
 3. Creates metadata for position and rotation prediction tasks
+4. Applies data augmentation for more robust training (using Albumentations library)
 
 The generator maintains a single unified pipeline from original puzzles
 to model-ready data, avoiding redundant storage of intermediate pieces.
+
+Dependencies:
+  - numpy, Pillow, albumentations
+
+Example usage:
+  # Basic processing
+  python puzzle_generator.py puzzle.jpg --output-dir datasets/processed
+
+  # With augmentation
+  python puzzle_generator.py puzzles/ --output-dir datasets/processed --augment \
+    --brightness-range 0.8 1.2 --contrast-range 0.8 1.2 \
+    --color-shift-range 0.9 1.1 --rotation-range 15 \
+    --zoom-range 0.9 1.1 --random-crop 0.1
+
+  # With custom piece and puzzle sizes
+  python puzzle_generator.py puzzles/ --output-dir datasets/processed \
+    --puzzle-size 512 512 --piece-size 224 224 --validation-split 0.2
 """
 
 
@@ -19,6 +37,7 @@ import random
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
+import albumentations as A  # type: ignore[import]
 import numpy as np
 from PIL import Image
 
@@ -45,6 +64,12 @@ class ProcessingOptions:
     use_augmentation: bool = False
     brightness_range: Tuple[float, float] = (0.8, 1.2)
     contrast_range: Tuple[float, float] = (0.8, 1.2)
+    # Additional augmentation options
+    color_shift_range: Tuple[float, float] = (0.9, 1.1)  # RGB channel multipliers
+    rotation_range: int = 0  # Max degrees for non-90° rotations
+    shear_range: float = 0.0  # Max shear angle in degrees
+    zoom_range: Tuple[float, float] = (0.9, 1.1)  # Zoom factor
+    random_crop_percent: float = 0.0  # How much to randomly crop and pad
 
     # Processing options
     normalize_pixels: bool = True
@@ -188,6 +213,59 @@ class PuzzleProcessor:
         """
         self.options = options
 
+        # Initialize augmentation pipeline if enabled
+        self.aug_pipeline = None
+        if options.use_augmentation:
+            self._setup_augmentation_pipeline()
+
+    def _setup_augmentation_pipeline(self):
+        """Set up the augmentation pipeline using albumentations."""
+        min_bright, max_bright = self.options.brightness_range
+        min_contrast, max_contrast = self.options.contrast_range
+        min_color, max_color = self.options.color_shift_range
+        min_zoom, max_zoom = self.options.zoom_range
+
+        # Create transformations pipeline
+        self.aug_pipeline = A.Compose(
+            [
+                # Basic color adjustments
+                A.RandomBrightnessContrast(
+                    brightness_limit=(min_bright - 1.0, max_bright - 1.0),
+                    contrast_limit=(min_contrast - 1.0, max_contrast - 1.0),
+                    p=0.5,
+                ),
+                # Color shifts (RGB adjustments)
+                A.RGBShift(
+                    r_shift_limit=(min_color - 1.0, max_color - 1.0),
+                    g_shift_limit=(min_color - 1.0, max_color - 1.0),
+                    b_shift_limit=(min_color - 1.0, max_color - 1.0),
+                    p=0.5,
+                ),
+                # Affine transformations
+                A.ShiftScaleRotate(
+                    shift_limit=0.0,
+                    scale_limit=(min_zoom - 1.0, max_zoom - 1.0),
+                    rotate_limit=self.options.rotation_range,
+                    p=0.5,
+                    border_mode=0,
+                ),
+                # Shear transformation
+                A.IAAAffine(
+                    shear=(-self.options.shear_range, self.options.shear_range),
+                    p=0.5 if self.options.shear_range > 0 else 0,
+                    mode="constant",
+                ),
+                # Random cropping
+                A.RandomSizedCrop(
+                    min_height=int((1.0 - self.options.random_crop_percent) * 100),
+                    max_height=100,
+                    height=100,
+                    width=100,
+                    p=0.5 if self.options.random_crop_percent > 0 else 0,
+                ),
+            ]
+        )
+
     def standardize_puzzle(self, image: Image.Image) -> Image.Image:
         """Resize a puzzle image to standard dimensions.
 
@@ -251,6 +329,17 @@ class PuzzleProcessor:
         Returns:
             Processed piece image
         """
+        # Apply augmentations if enabled
+        if self.options.use_augmentation and self.aug_pipeline is not None:
+            # Convert PIL to numpy for albumentations
+            img_array = np.array(piece_img)
+
+            # Apply augmentations
+            augmented = self.aug_pipeline(image=img_array)
+
+            # Convert back to PIL
+            piece_img = Image.fromarray(augmented["image"])
+
         # Resize the piece to the target size
         target_width, target_height = self.options.piece_size
         processed_img = piece_img.resize(
@@ -611,6 +700,64 @@ def main():
     )
     parser.add_argument("--config", help="Path to JSON configuration file")
 
+    # Add augmentation arguments
+    aug_group = parser.add_argument_group("Augmentation options")
+    aug_group.add_argument(
+        "--augment",
+        action="store_true",
+        help="Enable data augmentation",
+    )
+    aug_group.add_argument(
+        "--brightness-range",
+        type=float,
+        nargs=2,
+        default=[0.8, 1.2],
+        metavar=("MIN", "MAX"),
+        help="Range for brightness adjustment",
+    )
+    aug_group.add_argument(
+        "--contrast-range",
+        type=float,
+        nargs=2,
+        default=[0.8, 1.2],
+        metavar=("MIN", "MAX"),
+        help="Range for contrast adjustment",
+    )
+    aug_group.add_argument(
+        "--color-shift-range",
+        type=float,
+        nargs=2,
+        default=[0.9, 1.1],
+        metavar=("MIN", "MAX"),
+        help="Range for RGB channel multipliers",
+    )
+    aug_group.add_argument(
+        "--rotation-range",
+        type=int,
+        default=0,
+        help="Max degrees for small random rotations",
+    )
+    aug_group.add_argument(
+        "--shear-range",
+        type=float,
+        default=0.0,
+        help="Max shear angle in degrees",
+    )
+    aug_group.add_argument(
+        "--zoom-range",
+        type=float,
+        nargs=2,
+        default=[0.9, 1.1],
+        metavar=("MIN", "MAX"),
+        help="Range for random zoom",
+    )
+    aug_group.add_argument(
+        "--random-crop",
+        type=float,
+        default=0.0,
+        help="Percentage of image to randomly crop and pad",
+    )
+
     # Parse arguments and create options
     args = parser.parse_args()
     options = _create_options(args)
@@ -631,12 +778,25 @@ def _create_options(args):
     if args.config:
         return ProcessingOptions.from_json(args.config)
 
-    return ProcessingOptions(
+    options = ProcessingOptions(
         num_pieces=args.pieces,
         puzzle_size=tuple(args.puzzle_size),
         piece_size=tuple(args.piece_size),
         validation_split=args.validation_split,
     )
+
+    # Set augmentation options
+    if hasattr(args, "augment"):
+        options.use_augmentation = args.augment
+        options.brightness_range = tuple(args.brightness_range)
+        options.contrast_range = tuple(args.contrast_range)
+        options.color_shift_range = tuple(args.color_shift_range)
+        options.rotation_range = args.rotation_range
+        options.shear_range = args.shear_range
+        options.zoom_range = tuple(args.zoom_range)
+        options.random_crop_percent = args.random_crop
+
+    return options
 
 
 def _process_input(input_path, output_dir_path, options):
