@@ -1,15 +1,23 @@
 #!/usr/bin/env python
-"""Puzzle Piece Generator.
+"""Puzzle Generator and Preprocessor.
 
-This utility takes a complete puzzle image and generates a specified number
-of puzzle pieces. Each piece is named according to its position and rotation in
-the original image.
+This utility takes complete puzzle images and:
+1. Generates puzzle pieces with varying rotations
+2. Processes the pieces for machine learning model training
+3. Creates metadata for position and rotation prediction tasks
+
+The generator maintains a single unified pipeline from original puzzles
+to model-ready data, avoiding redundant storage of intermediate pieces.
 """
 
+
 import argparse
+import csv
+import json
 import os
 import random
-from typing import List, Optional, Tuple
+from dataclasses import dataclass
+from typing import Optional, Tuple
 
 import numpy as np
 from PIL import Image
@@ -19,209 +27,659 @@ BBox = Tuple[int, int, int, int]
 PieceData = Tuple[Image.Image, BBox, int]
 
 
-def generate_mask(width: int, height: int, piece_size: int) -> np.ndarray:
-    """Generate a mask for cutting an image into jigsaw puzzle pieces.
+@dataclass
+class ProcessingOptions:
+    """Options for processing puzzle pieces."""
 
-    Args:
-        width: Width of the image
-        height: Height of the image
-        piece_size: Average size of a puzzle piece
+    # Piece generation options
+    num_pieces: int = 500
+    piece_size: Tuple[int, int] = (224, 224)
 
-    Returns:
-        A numpy array of labels where each unique value represents a piece
-    """
-    # Calculate number of pieces across and down
-    pieces_x = max(2, width // piece_size)
-    pieces_y = max(2, height // piece_size)
+    # Puzzle standardization options
+    puzzle_size: Tuple[int, int] = (512, 512)
 
-    # Create a grid of initial piece IDs
-    piece_grid = np.zeros((height, width), dtype=np.int32)
-    for y in range(pieces_y):
-        for x in range(pieces_x):
-            # Create boundaries for each piece
-            y_start = int(y * height / pieces_y)
-            y_end = int((y + 1) * height / pieces_y)
-            x_start = int(x * width / pieces_x)
-            x_end = int((x + 1) * width / pieces_x)
+    # Training/validation split
+    validation_split: float = 0.2
 
-            # Assign unique ID to each piece
-            piece_id = y * pieces_x + x + 1
-            piece_grid[y_start:y_end, x_start:x_end] = piece_id
+    # Augmentation options (to be used later)
+    use_augmentation: bool = False
+    brightness_range: Tuple[float, float] = (0.8, 1.2)
+    contrast_range: Tuple[float, float] = (0.8, 1.2)
 
-    # Return regular grid without distortion
-    return piece_grid
+    # Processing options
+    normalize_pixels: bool = True
+
+    @classmethod
+    def from_json(cls, json_path: str) -> "ProcessingOptions":
+        """Create options from a JSON configuration file."""
+        with open(json_path, "r", encoding="utf-8") as f:
+            config = json.load(f)
+        return cls(**config)
 
 
-def _extract_single_piece(
-    image: Image.Image, mask: np.ndarray, piece_id: int
-) -> Optional[PieceData]:
-    """Extract a single puzzle piece from an image.
+class MetadataHandler:
+    """Handles creation and updating of metadata files for puzzle pieces."""
 
-    Args:
-        image: PIL Image to extract piece from
-        mask: Numpy array mask
-        piece_id: ID of the piece to extract
+    def __init__(self, metadata_path: str, create_new: bool = True):
+        """Initialize the metadata handler.
 
-    Returns:
-        Tuple of (piece_image, bounding_box, rotation) or None if no piece
-        found
-    """
-    # Create a binary mask for this piece
-    piece_mask = (mask == piece_id).astype(np.uint8) * 255
-    piece_mask_img = Image.fromarray(piece_mask)
+        Args:
+            metadata_path: Path to the metadata CSV file
+            create_new: Whether to create a new file (True) or append (False)
+        """
+        self.metadata_path = metadata_path
+        self.header = [
+            "piece_id",
+            "puzzle_id",
+            "filename",
+            "x1",
+            "y1",
+            "x2",
+            "y2",
+            "rotation",
+            "normalized_x1",
+            "normalized_y1",
+            "normalized_x2",
+            "normalized_y2",
+            "split",
+        ]
 
-    # Find bounding box
-    bbox = piece_mask_img.getbbox()
-    if bbox is None:
-        return None
+        if create_new:
+            # Create directory if it doesn't exist
+            os.makedirs(os.path.dirname(metadata_path), exist_ok=True)
 
-    # Extract piece
-    x1, y1, x2, y2 = bbox
-    piece_img = Image.new("RGBA", (x2 - x1, y2 - y1), (0, 0, 0, 0))
+            # Create the CSV file with header
+            with open(metadata_path, "w", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f)
+                writer.writerow(self.header)
 
-    def _get_pixel_color(x: int, y: int) -> Tuple[int, int, int, int]:
-        """Return the appropriate pixel color based on mask value."""
-        if mask[y, x] == piece_id:
-            r, g, b = image.getpixel((x, y))[:3]
-            return (r, g, b, 255)
-        return (0, 0, 0, 0)
+    def add_piece(
+        self,
+        piece_id: str,
+        puzzle_id: str,
+        filename: str,
+        bbox: BBox,
+        rotation: int,
+        puzzle_size: Tuple[int, int],
+        split: str = "train",
+    ) -> None:
+        """Add a puzzle piece to the metadata file.
 
-    # Extract pixel data
-    for y in range(y1, y2):
-        for x in range(x1, x2):
-            piece_img.putpixel((x - x1, y - y1), _get_pixel_color(x, y))
-
-    # Random rotation for training diversity
-    rotation = random.choice([0, 90, 180, 270])
-    if rotation:
-        piece_img = piece_img.rotate(rotation, expand=True)
-
-    return piece_img, bbox, rotation
-
-
-def extract_pieces(image: Image.Image, mask: np.ndarray) -> List[PieceData]:
-    """Extract puzzle pieces from an image using a mask.
-
-    Args:
-        image: PIL Image to extract pieces from
-        mask: Numpy array where each unique value represents a puzzle piece
-
-    Returns:
-        List of (piece_image, bounding_box, rotation) tuples
-    """
-    pieces = []
-    unique_ids = np.unique(mask)
-
-    # Skip the background value (0)
-    for piece_id in unique_ids[1:]:
-        piece_data = _extract_single_piece(image, mask, piece_id)
-        if piece_data:
-            pieces.append(piece_data)
-
-    return pieces
-
-
-def _save_puzzle_pieces(
-    pieces: List[PieceData],
-    output_dir: str,
-    puzzle_name: str,
-) -> int:
-    """Save extracted puzzle pieces to disk.
-
-    Args:
-        pieces: List of (piece_image, bounding_box, rotation) tuples
-        output_dir: Base directory to save pieces
-        puzzle_name: Name of the puzzle for folder creation
-
-    Returns:
-        Number of pieces saved
-    """
-    # Create output directory
-    piece_dir = os.path.join(output_dir, puzzle_name)
-    os.makedirs(piece_dir, exist_ok=True)
-
-    # Save pieces
-    for i, (piece_img, bbox, rotation) in enumerate(pieces, 1):
+        Args:
+            piece_id: Unique ID for the piece
+            puzzle_id: ID of the source puzzle
+            filename: Relative path to the piece image
+            bbox: Original bounding box (x1, y1, x2, y2)
+            rotation: Rotation value (0, 90, 180, 270)
+            puzzle_size: Size of the standardized puzzle (width, height)
+            split: Dataset split ('train' or 'validation')
+        """
+        # Calculate normalized coordinates
         x1, y1, x2, y2 = bbox
-        filename = f"piece_{i:03d}_x{x1}_y{y1}_x{x2}_y{y2}_r{rotation}.png"
-        piece_path = os.path.join(piece_dir, filename)
-        piece_img.save(piece_path)
+        width, height = puzzle_size
 
-    return len(pieces)
+        # Calculate normalized coordinates
+        normalized_coords = {
+            "x1": x1 / width,
+            "y1": y1 / height,
+            "x2": x2 / width,
+            "y2": y2 / height,
+        }
+
+        # Create row data
+        row = [
+            piece_id,
+            puzzle_id,
+            filename,
+            x1,
+            y1,
+            x2,
+            y2,
+            rotation,
+            normalized_coords["x1"],
+            normalized_coords["y1"],
+            normalized_coords["x2"],
+            normalized_coords["y2"],
+            split,
+        ]
+
+        # Append to CSV
+        with open(self.metadata_path, "a", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(row)
+
+    def create_split_files(self, output_dir: str) -> None:
+        """Create train.txt and val.txt files from the metadata.
+
+        Args:
+            output_dir: Directory to save the split files
+        """
+        train_pieces = []
+        val_pieces = []
+
+        # Read metadata and separate by split
+        with open(self.metadata_path, "r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if row["split"] == "train":
+                    train_pieces.append(row["piece_id"])
+                else:
+                    val_pieces.append(row["piece_id"])
+
+        # Write train.txt
+        train_path = os.path.join(output_dir, "train.txt")
+        with open(train_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(train_pieces))
+
+        # Write val.txt
+        val_path = os.path.join(output_dir, "val.txt")
+        with open(val_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(val_pieces))
 
 
-def generate_puzzle_pieces(
-    input_image_path: str, output_dir: str, num_pieces: int = 500
-):
-    """Generate puzzle pieces from a complete puzzle image.
+class PuzzleProcessor:
+    """Processes puzzle images for piece generation and model training."""
+
+    def __init__(self, options: ProcessingOptions):
+        """Initialize the puzzle processor.
+
+        Args:
+            options: Processing options
+        """
+        self.options = options
+
+    def standardize_puzzle(self, image: Image.Image) -> Image.Image:
+        """Resize a puzzle image to standard dimensions.
+
+        Args:
+            image: Input puzzle image
+
+        Returns:
+            Standardized puzzle image
+        """
+        width, height = self.options.puzzle_size
+        return image.resize((width, height), Image.Resampling.LANCZOS)
+
+    def generate_mask(self, width: int, height: int) -> np.ndarray:
+        """Generate a mask for cutting an image into jigsaw puzzle pieces.
+
+        Args:
+            width: Width of the image
+            height: Height of the image
+
+        Returns:
+            A numpy array of labels where each unique value represents a piece
+        """
+        # Calculate number of pieces based on target count
+        piece_size = int(np.sqrt((width * height) / self.options.num_pieces))
+
+        # Calculate number of pieces across and down
+        pieces_x = max(2, width // piece_size)
+        pieces_y = max(2, height // piece_size)
+
+        # Create a grid of initial piece IDs
+        piece_grid = np.zeros((height, width), dtype=np.int32)
+        for y in range(pieces_y):
+            for x in range(pieces_x):
+                # Create boundaries for each piece
+                y_start = int(y * height / pieces_y)
+                y_end = int((y + 1) * height / pieces_y)
+                x_start = int(x * width / pieces_x)
+                x_end = int((x + 1) * width / pieces_x)
+
+                # Assign unique ID to each piece
+                piece_id = y * pieces_x + x + 1
+                piece_grid[y_start:y_end, x_start:x_end] = piece_id
+
+        # Return regular grid without distortion
+        return piece_grid
+
+    def process_piece(
+        self,
+        piece_img: Image.Image,
+        # We need to accept these arguments for API consistency
+        bbox: Optional[BBox] = None,
+        rotation: int = 0,
+    ) -> Image.Image:
+        """Process a puzzle piece for model input.
+
+        Args:
+            piece_img: Original piece image
+            bbox: Bounding box coordinates (unused, kept for API consistency)
+            rotation: Rotation value (unused, kept for API consistency)
+
+        Returns:
+            Processed piece image
+        """
+        # Resize the piece to the target size
+        target_width, target_height = self.options.piece_size
+        processed_img = piece_img.resize(
+            (target_width, target_height), Image.Resampling.LANCZOS
+        )
+
+        # Normalize pixel values if requested
+        if self.options.normalize_pixels:
+            processed_img = self._normalize_image(processed_img)
+
+        return processed_img
+
+    def _normalize_image(self, img: Image.Image) -> Image.Image:
+        """Normalize pixel values of an image.
+
+        Args:
+            img: Input image
+
+        Returns:
+            Normalized image
+        """
+        # Convert to numpy array for normalization
+        img_array = np.array(img).astype(np.float32)
+
+        # Handle alpha channel properly
+        if img_array.shape[-1] == 4:  # RGBA
+            # Normalize RGB channels to 0-1
+            img_array[..., :3] = img_array[..., :3] / 255.0
+        else:  # RGB
+            img_array = img_array / 255.0
+
+        # Convert back to PIL
+        return Image.fromarray((img_array * 255).astype(np.uint8))
+
+    def extract_piece(
+        self, image: Image.Image, mask: np.ndarray, piece_id: int
+    ) -> Optional[PieceData]:
+        """Extract and process a single puzzle piece.
+
+        Args:
+            image: Source puzzle image
+            mask: Piece mask array
+            piece_id: ID of the piece to extract
+
+        Returns:
+            Tuple of (original piece image, bounding box, rotation) or None
+        """
+        # Create a binary mask for this piece
+        piece_mask = (mask == piece_id).astype(np.uint8) * 255
+        piece_mask_img = Image.fromarray(piece_mask)
+
+        # Find bounding box
+        bbox = piece_mask_img.getbbox()
+        if bbox is None:
+            return None
+
+        # Extract piece
+        x1, y1, x2, y2 = bbox
+        piece_img = Image.new("RGBA", (x2 - x1, y2 - y1), (0, 0, 0, 0))
+
+        # Extract pixel data with proper alpha channel
+        for y in range(y1, y2):
+            for x in range(x1, x2):
+                if mask[y, x] == piece_id:
+                    r, g, b = image.getpixel((x, y))[:3]
+                    piece_img.putpixel((x - x1, y - y1), (r, g, b, 255))
+                else:
+                    piece_img.putpixel((x - x1, y - y1), (0, 0, 0, 0))
+
+        # Random rotation for training diversity
+        rotation = random.choice([0, 90, 180, 270])
+        if rotation:
+            piece_img = piece_img.rotate(rotation, expand=True)
+
+        return piece_img, bbox, rotation
+
+    def process_puzzle(
+        self, puzzle_path: str, output_dir: str, metadata_handler: MetadataHandler
+    ) -> int:
+        """Process a puzzle image into pieces for model training.
+
+        Args:
+            puzzle_path: Path to the puzzle image
+            output_dir: Base directory for saving processed data
+            metadata_handler: Handler for piece metadata
+
+        Returns:
+            Number of pieces generated
+        """
+        return process_puzzle_helper(self, puzzle_path, output_dir, metadata_handler)
+
+
+def process_directory(
+    input_dir: str, output_dir: str, options: ProcessingOptions
+) -> int:
+    """Process all puzzle images in a directory.
 
     Args:
-        input_image_path: Path to the input puzzle image
-        output_dir: Directory to save the generated pieces
-        num_pieces: Approximate number of pieces to generate
+        input_dir: Input directory containing puzzle images
+        output_dir: Output directory for processed data
+        options: Processing options
+
+    Returns:
+        Total number of pieces generated
     """
-    # Load the image
-    image = Image.open(input_image_path).convert("RGB")
-    width, height = image.size
+    # Setup the metadata handler
+    metadata_path = os.path.join(output_dir, "metadata.csv")
+    metadata_handler = MetadataHandler(metadata_path, create_new=True)
 
-    # Calculate piece size based on desired piece count
-    piece_size = int(np.sqrt((width * height) / num_pieces))
+    # Initialize the processor
+    processor = PuzzleProcessor(options)
 
-    # Generate mask
-    mask = generate_mask(width, height, piece_size)
-    actual_pieces = len(np.unique(mask)) - 1  # Subtract 1 for background
+    # Keep track of total pieces
+    total_pieces = 0
 
-    print(
-        f"Generating approximately {actual_pieces} pieces from " f"{input_image_path}"
+    # Process each puzzle image
+    for filename in os.listdir(input_dir):
+        if not filename.lower().endswith((".png", ".jpg", ".jpeg")):
+            continue
+
+        puzzle_path = os.path.join(input_dir, filename)
+        pieces_count = processor.process_puzzle(
+            puzzle_path, output_dir, metadata_handler
+        )
+
+        print(f"Generated {pieces_count} pieces from {filename}")
+        total_pieces += pieces_count
+
+    # Create the train/val split files
+    metadata_handler.create_split_files(output_dir)
+
+    return total_pieces
+
+
+def process_puzzle_helper(
+    processor,
+    puzzle_path,
+    output_dir,
+    metadata_handler,
+    puzzle_name=None,
+    puzzle_id=None,
+):
+    """Helper function to reduce local variables in process_puzzle.
+
+    Args:
+        processor: The PuzzleProcessor instance
+        puzzle_path: Path to the puzzle image
+        output_dir: Base directory for saving processed data
+        metadata_handler: Handler for piece metadata
+        puzzle_name: Optional name override
+        puzzle_id: Optional ID override
+
+    Returns:
+        Number of pieces generated
+    """
+    # Create directories and prepare paths
+    dirs = _prepare_directories(output_dir)
+
+    # Get the puzzle name and ID if not provided
+    if puzzle_name is None:
+        puzzle_name = os.path.splitext(os.path.basename(puzzle_path))[0]
+    if puzzle_id is None:
+        puzzle_id = puzzle_name
+
+    # Load and process image
+    std_image = _process_puzzle_image(
+        processor, puzzle_path, dirs["puzzles"], puzzle_name
     )
 
-    # Extract pieces
-    pieces = extract_pieces(image, mask)
+    # Generate mask
+    width, height = std_image.size
+    mask = processor.generate_mask(width, height)
 
-    # Save pieces
-    puzzle_name = os.path.splitext(os.path.basename(input_image_path))[0]
-    saved_count = _save_puzzle_pieces(pieces, output_dir, puzzle_name)
+    # Process pieces
+    processed_count = 0
+    unique_ids = np.unique(mask)
 
-    print(
-        f"Generated {saved_count} pieces in " f"{os.path.join(output_dir, puzzle_name)}"
+    for piece_id in unique_ids[1:]:  # Skip background (0)
+        processed_count += process_single_piece(
+            processor,
+            std_image,
+            mask,
+            piece_id,
+            dirs["pieces"],
+            puzzle_id,
+            metadata_handler,
+        )
+
+    return processed_count
+
+
+def _prepare_directories(output_dir):
+    """Prepare output directories for puzzle processing.
+
+    Args:
+        output_dir: Base output directory
+
+    Returns:
+        Dictionary of directory paths
+    """
+    pieces_dir = os.path.join(output_dir, "pieces")
+    puzzles_dir = os.path.join(output_dir, "puzzles")
+    os.makedirs(pieces_dir, exist_ok=True)
+    os.makedirs(puzzles_dir, exist_ok=True)
+
+    return {"pieces": pieces_dir, "puzzles": puzzles_dir}
+
+
+def _process_puzzle_image(processor, puzzle_path, puzzles_dir, puzzle_name):
+    """Load and process the puzzle image.
+
+    Args:
+        processor: The PuzzleProcessor instance
+        puzzle_path: Path to the puzzle image
+        puzzles_dir: Directory to save processed puzzles
+        puzzle_name: Name of the puzzle
+
+    Returns:
+        Standardized puzzle image
+    """
+    # Load the image
+    original_image = Image.open(puzzle_path).convert("RGB")
+    std_image = processor.standardize_puzzle(original_image)
+
+    # Save the standardized puzzle
+    std_puzzle_path = os.path.join(puzzles_dir, f"{puzzle_name}.jpg")
+    std_image.save(std_puzzle_path)
+
+    return std_image
+
+
+def process_single_piece(
+    processor, std_image, mask, piece_id, pieces_dir, puzzle_id, metadata_handler
+):
+    """Process a single puzzle piece to reduce complexity.
+
+    Args:
+        processor: The PuzzleProcessor instance
+        std_image: Standardized puzzle image
+        mask: Piece mask array
+        piece_id: ID of the piece to extract
+        pieces_dir: Directory to save piece images
+        puzzle_id: ID of the source puzzle
+        metadata_handler: Handler for piece metadata
+
+    Returns:
+        1 if piece was processed, 0 otherwise
+    """
+    # Extract the piece
+    piece_data = processor.extract_piece(std_image, mask, piece_id)
+    if piece_data is None:
+        return 0
+
+    # Process piece and save
+    piece_info = _create_piece_info(piece_data, puzzle_id, piece_id, processor.options)
+    _save_and_record_piece(processor, piece_info, pieces_dir, metadata_handler)
+
+    return 1
+
+
+def _create_piece_info(piece_data, puzzle_id, piece_id, options):
+    """Create piece information dictionary from extracted piece data.
+
+    Args:
+        piece_data: Tuple of (original_piece, bbox, rotation)
+        puzzle_id: ID of the source puzzle
+        piece_id: ID of the piece
+        options: Processing options
+
+    Returns:
+        Dictionary with piece information
+    """
+    original_piece, bbox, rotation = piece_data
+
+    # Determine the split (train or validation)
+    split = "validation" if random.random() < options.validation_split else "train"
+
+    return {
+        "piece": original_piece,
+        "bbox": bbox,
+        "rotation": rotation,
+        "id": f"{puzzle_id}_{piece_id:03d}",
+        "split": split,
+        "filename": f"{puzzle_id}_{piece_id:03d}_r{rotation}.png",
+    }
+
+
+def _save_and_record_piece(processor, piece_info, pieces_dir, metadata_handler):
+    """Save processed piece and record its metadata.
+
+    Args:
+        processor: The PuzzleProcessor instance
+        piece_info: Dictionary with piece information
+        pieces_dir: Directory to save piece images
+        metadata_handler: Handler for piece metadata
+    """
+    # Process the piece for the model
+    processed_piece = processor.process_piece(
+        piece_info["piece"], piece_info["bbox"], piece_info["rotation"]
+    )
+
+    # Save the processed piece
+    piece_path = os.path.join(pieces_dir, piece_info["filename"])
+    processed_piece.save(piece_path)
+
+    # Add to metadata
+    metadata_handler.add_piece(
+        piece_id=piece_info["id"],
+        puzzle_id=piece_info["id"].split("_")[0],
+        filename=os.path.join("pieces", piece_info["filename"]),
+        bbox=piece_info["bbox"],
+        rotation=piece_info["rotation"],
+        puzzle_size=processor.options.puzzle_size,
+        split=piece_info["split"],
     )
 
 
 def main():
-    """Process command-line arguments and run the puzzle piece generator."""
+    """Process command-line arguments and run the puzzle processor."""
     parser = argparse.ArgumentParser(
-        description="Generate puzzle pieces from complete puzzle images"
+        description="Generate and process puzzle pieces for model training"
     )
     parser.add_argument(
-        "image_path", help="Path to the puzzle image or directory of images"
+        "input_path", help="Path to a puzzle image or directory of puzzle images"
     )
     parser.add_argument(
         "--output-dir",
-        default="datasets/example/pieces",
-        help="Directory to save the generated pieces",
+        default="datasets/example/processed",
+        help="Directory to save the processed data",
     )
     parser.add_argument(
         "--pieces",
         type=int,
         default=500,
-        help="Approximate number of pieces to generate",
+        help="Approximate number of pieces to generate per puzzle",
+    )
+    parser.add_argument(
+        "--puzzle-size",
+        type=int,
+        nargs=2,
+        default=[512, 512],
+        metavar=("WIDTH", "HEIGHT"),
+        help="Size to resize puzzles to",
+    )
+    parser.add_argument(
+        "--piece-size",
+        type=int,
+        nargs=2,
+        default=[224, 224],
+        metavar=("WIDTH", "HEIGHT"),
+        help="Size to resize pieces to",
+    )
+    parser.add_argument(
+        "--validation-split",
+        type=float,
+        default=0.2,
+        help="Fraction of pieces to use for validation",
+    )
+    parser.add_argument("--config", help="Path to JSON configuration file")
+
+    # Parse arguments and create options
+    args = parser.parse_args()
+    options = _create_options(args)
+
+    # Process the input
+    _process_input(args.input_path, args.output_dir, options)
+
+
+def _create_options(args):
+    """Create processing options from command-line arguments.
+
+    Args:
+        args: Parsed command-line arguments
+
+    Returns:
+        ProcessingOptions instance
+    """
+    if args.config:
+        return ProcessingOptions.from_json(args.config)
+
+    return ProcessingOptions(
+        num_pieces=args.pieces,
+        puzzle_size=tuple(args.puzzle_size),
+        piece_size=tuple(args.piece_size),
+        validation_split=args.validation_split,
     )
 
-    args = parser.parse_args()
 
+def _process_input(input_path, output_dir_path, options):
+    """Process the input image or directory.
+
+    Args:
+        input_path: Path to the input image or directory
+        output_dir_path: Path to the output directory
+        options: Processing options
+    """
     # Create full output path
-    output_dir = os.path.join(os.path.dirname(__file__), args.output_dir)
+    output_dir = os.path.abspath(output_dir_path)
     os.makedirs(output_dir, exist_ok=True)
 
-    # Process single image or directory
-    image_path = args.image_path
-    if os.path.isdir(image_path):
-        for filename in os.listdir(image_path):
-            if filename.lower().endswith((".png", ".jpg", ".jpeg")):
-                img_path = os.path.join(image_path, filename)
-                generate_puzzle_pieces(img_path, output_dir, args.pieces)
+    # Process the input
+    input_path = os.path.abspath(input_path)
+    if os.path.isdir(input_path):
+        total_pieces = process_directory(input_path, output_dir, options)
+        print(f"Total: Generated {total_pieces} pieces in {output_dir}")
     else:
-        generate_puzzle_pieces(image_path, output_dir, args.pieces)
+        _process_single_file(input_path, output_dir, options)
+
+
+def _process_single_file(input_path, output_dir, options):
+    """Process a single puzzle image.
+
+    Args:
+        input_path: Path to the puzzle image
+        output_dir: Path to the output directory
+        options: Processing options
+    """
+    # Setup for single file
+    metadata_path = os.path.join(output_dir, "metadata.csv")
+    metadata_handler = MetadataHandler(metadata_path, create_new=True)
+
+    # Process the single puzzle
+    processor = PuzzleProcessor(options)
+    pieces_count = processor.process_puzzle(input_path, output_dir, metadata_handler)
+
+    # Create split files
+    metadata_handler.create_split_files(output_dir)
+
+    print(f"Generated {pieces_count} pieces in {output_dir}")
 
 
 if __name__ == "__main__":

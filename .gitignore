@@ -178,10 +178,8 @@ Thumbs.db
 .cursor/
 
 # Generated puzzle data
-network/datasets/*/pieces/
-network/datasets/*/resized/
-network/datasets/*/temp_*
-network/datasets/*/original/
+network/datasets/*/processed/
+network/datasets/*/raw/
 
 # Flutter/Dart specific
 *.class
