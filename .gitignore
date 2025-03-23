@@ -177,6 +177,11 @@ Thumbs.db
 # Cursor
 .cursor/
 
+# Generated puzzle data
+network/datasets/*/pieces/
+network/datasets/*/resized/
+network/datasets/*/temp_*
+
 # Flutter/Dart specific
 *.class
 *.log
