@@ -181,6 +181,7 @@ Thumbs.db
 network/datasets/*/pieces/
 network/datasets/*/resized/
 network/datasets/*/temp_*
+network/datasets/*/original/
 
 # Flutter/Dart specific
 *.class
