@@ -181,6 +181,9 @@ Thumbs.db
 network/datasets/*/processed/
 network/datasets/*/raw/
 
+# Model checkpoints
+network/checkpoints/
+
 # Flutter/Dart specific
 *.class
 *.log
