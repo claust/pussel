@@ -9,7 +9,8 @@ pussel/
     ├── model.py             # LightningModule with timm backbone ✓
     ├── dataset.py           # Dataset handling with Albumentations ✓
     ├── train.py             # Training script with Lightning Trainer ✓
-    └── config.py            # Configuration parameters ✓
+    ├── config.py            # Configuration parameters ✓
+    └── visualize.py         # Visualization of predictions (To be implemented)
 ```
 
 ## Implementation Tasks
@@ -52,17 +53,33 @@ pussel/
 
 ### 6. Initial Testing & Visualization
 - [x] Add simple inference function in model.py
-- [ ] Implement basic visualization to show predictions on puzzle
+- [x] Implement basic visualization to show predictions on puzzle
+
+### 7. Additional Metrics & Evaluation (Future Enhancement)
+- [ ] Implement IoU (Intersection over Union) metric for position evaluation
+- [ ] Add confusion matrix for rotation prediction analysis
+- [ ] Create combined metric for correct placement rate
+- [ ] Experiment with different values for loss weights (α, β)
+
+### 8. Advanced Data Augmentation (Future Enhancement)
+- [ ] Add more sophisticated augmentations:
+  - [ ] Minor affine transformations (excluding rotation)
+  - [ ] Random cropping with padding
+- [ ] Implement curriculum learning (start with easy pieces, then harder ones)
 
 ## Timeline
 - Dataset implementation: ✓ Done
 - Model implementation: ✓ Done
 - Training setup: ✓ Done
 - Configuration: ✓ Done
-- Initial testing & visualization: Partially done (1/2)
+- Initial testing & visualization: ✓ Done
+- Additional metrics & evaluation: Not started
+- Advanced data augmentation: Not started
 
 ## Future Improvements (Post-POC)
-- Experiment with different backbones
+- Experiment with different backbones (EfficientNet-B3 as mentioned in specification)
 - Implement more sophisticated data augmentation
 - Add detailed evaluation metrics
 - Create standalone prediction script
+- Investigate attention mechanisms for feature extraction
+- Implement multi-scale feature extraction for various piece sizes
