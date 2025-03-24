@@ -6,10 +6,10 @@ pussel/
 └── network/
     ├── puzzle_generator.py  # Existing preprocessing script
     ├── specification.md     # Existing specification
-    ├── model.py             # LightningModule with timm backbone
+    ├── model.py             # LightningModule with timm backbone ✓
     ├── dataset.py           # Dataset handling with Albumentations ✓
-    ├── train.py             # Training script with Lightning Trainer
-    └── config.py            # Configuration parameters
+    ├── train.py             # Training script with Lightning Trainer ✓
+    └── config.py            # Configuration parameters ✓
 ```
 
 ## Implementation Tasks
@@ -33,32 +33,33 @@ pussel/
 - [x] Create DataModule for Lightning with train/val loading
 
 ### 3. Model Implementation (network/model.py)
-- [ ] Create PuzzleCNN LightningModule with timm ResNet50 backbone
-- [ ] Implement position prediction head (bounding box coordinates)
-- [ ] Implement rotation prediction head (4-class classification)
-- [ ] Define loss functions (MSE, CrossEntropy)
-- [ ] Add training_step, validation_step with metrics
+- [x] Create PuzzleCNN LightningModule with timm ResNet50 backbone
+- [x] Implement position prediction head (bounding box coordinates)
+- [x] Implement rotation prediction head (4-class classification)
+- [x] Define loss functions (MSE, CrossEntropy)
+- [x] Add training_step, validation_step with metrics
 
 ### 4. Training Setup (network/train.py)
-- [ ] Configure Lightning Trainer
-- [ ] Add callbacks (model checkpoint, early stopping)
-- [ ] Implement simple logging of metrics
-- [ ] Add CLI arguments for key parameters
+- [x] Configure Lightning Trainer
+- [x] Add callbacks (model checkpoint, early stopping)
+- [x] Implement simple logging of metrics
+- [x] Add CLI arguments for key parameters
 
 ### 5. Configuration (network/config.py)
-- [ ] Model configuration (backbone, head dims)
-- [ ] Training parameters
-- [ ] Data paths and parameters
+- [x] Model configuration (backbone, head dims)
+- [x] Training parameters
+- [x] Data paths and parameters
 
 ### 6. Initial Testing & Visualization
-- [ ] Add simple inference function in model.py
+- [x] Add simple inference function in model.py
 - [ ] Implement basic visualization to show predictions on puzzle
 
 ## Timeline
 - Dataset implementation: ✓ Done
-- Model implementation: 1-2 days
-- Training setup: 1 day
-- Initial testing & visualization: 1 day
+- Model implementation: ✓ Done
+- Training setup: ✓ Done
+- Configuration: ✓ Done
+- Initial testing & visualization: Partially done (1/2)
 
 ## Future Improvements (Post-POC)
 - Experiment with different backbones
