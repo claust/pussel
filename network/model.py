@@ -11,6 +11,7 @@ import torch.nn.functional as F
 from pytorch_lightning.utilities.types import OptimizerLRSchedulerConfig
 from torch.optim import Adam
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+import torchmetrics
 
 
 class PuzzleCNN(pl.LightningModule):
@@ -82,6 +83,58 @@ class PuzzleCNN(pl.LightningModule):
         self.val_pos_loss = 0.0
         self.val_rot_loss = 0.0
         self.val_rot_acc = 0.0
+
+        # Initialize additional metrics (confusion matrix and IoU)
+        self.val_confusion = torchmetrics.ConfusionMatrix(
+            task="multiclass", num_classes=4
+        )
+
+    @staticmethod
+    def calculate_iou(pred_boxes: torch.Tensor, gt_boxes: torch.Tensor) -> torch.Tensor:
+        """Calculate IoU (Intersection over Union) between predicted and ground truth boxes.
+
+        Args:
+            pred_boxes: Predicted boxes with normalized coordinates (x1, y1, x2, y2)
+            gt_boxes: Ground truth boxes with normalized coordinates (x1, y1, x2, y2)
+
+        Returns:
+            IoU values for each box pair, shape (batch_size,)
+        """
+        # Extract coordinates for pred_boxes
+        pred_x1 = pred_boxes[:, 0]
+        pred_y1 = pred_boxes[:, 1]
+        pred_x2 = pred_boxes[:, 2]
+        pred_y2 = pred_boxes[:, 3]
+
+        # Extract coordinates for gt_boxes
+        gt_x1 = gt_boxes[:, 0]
+        gt_y1 = gt_boxes[:, 1]
+        gt_x2 = gt_boxes[:, 2]
+        gt_y2 = gt_boxes[:, 3]
+
+        # Calculate areas
+        pred_area = (pred_x2 - pred_x1) * (pred_y2 - pred_y1)
+        gt_area = (gt_x2 - gt_x1) * (gt_y2 - gt_y1)
+
+        # Calculate intersection coordinates
+        inter_x1 = torch.max(pred_x1, gt_x1)
+        inter_y1 = torch.max(pred_y1, gt_y1)
+        inter_x2 = torch.min(pred_x2, gt_x2)
+        inter_y2 = torch.min(pred_y2, gt_y2)
+
+        # Calculate intersection area
+        inter_width = torch.clamp(inter_x2 - inter_x1, min=0)
+        inter_height = torch.clamp(inter_y2 - inter_y1, min=0)
+        intersection = inter_width * inter_height
+
+        # Calculate union area
+        union = pred_area + gt_area - intersection
+
+        # Calculate IoU
+        # Add small epsilon to avoid division by zero
+        iou = intersection / (union + 1e-6)
+
+        return iou
 
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """Forward pass through the model.
@@ -157,23 +210,52 @@ class PuzzleCNN(pl.LightningModule):
         rotation_pred = torch.argmax(rotation_logits, dim=1)
         rotation_acc = (rotation_pred == batch["rotation"]).float().mean()
 
+        # Update confusion matrix
+        self.val_confusion.update(rotation_pred, batch["rotation"])
+
+        # Calculate IoU for position
+        iou = self.calculate_iou(position_pred, batch["position"])
+        mean_iou = iou.mean()
+
         # Calculate total loss
         total_loss = (
             self.position_weight * position_loss + self.rotation_weight * rotation_loss
         )
+
+        # Calculate combined metric (correct placement rate)
+        # A piece is correctly placed if IoU > 0.5 and rotation is correct
+        correct_rotation = (rotation_pred == batch["rotation"]).float()
+        correct_position = (iou > 0.5).float()
+        correct_placement = (correct_rotation * correct_position).mean()
 
         # Log metrics
         self.log("val/position_loss", position_loss, prog_bar=True)
         self.log("val/rotation_loss", rotation_loss, prog_bar=True)
         self.log("val/rotation_acc", rotation_acc, prog_bar=True)
         self.log("val/total_loss", total_loss, prog_bar=True)
+        self.log("val/mean_iou", mean_iou, prog_bar=True)
+        self.log("val/correct_placement_rate", correct_placement, prog_bar=True)
 
         return {
             "val_loss": total_loss,
             "val_pos_loss": position_loss,
             "val_rot_loss": rotation_loss,
             "val_rot_acc": rotation_acc,
+            "val_iou": mean_iou,
+            "val_correct_placement": correct_placement,
         }
+
+    def on_validation_epoch_end(self) -> None:
+        """Called at the end of validation to compute epoch-level metrics."""
+        # Log confusion matrix
+        confusion_matrix = self.val_confusion.compute()
+
+        # Reset confusion matrix for next epoch
+        self.val_confusion.reset()
+
+        # You could log the confusion matrix here, but it's not straightforward with Lightning
+        # Instead, we'll print it for now (in a real-world scenario, you might use a custom callback)
+        self.print(f"Rotation Confusion Matrix:\n{confusion_matrix}")
 
     def configure_optimizers(self) -> OptimizerLRSchedulerConfig:
         """Configure optimizers and learning rate schedulers.
