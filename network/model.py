@@ -8,10 +8,10 @@ import timm
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torchmetrics
 from pytorch_lightning.utilities.types import OptimizerLRSchedulerConfig
 from torch.optim import Adam
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-import torchmetrics
 
 
 class PuzzleCNN(pl.LightningModule):
@@ -91,7 +91,9 @@ class PuzzleCNN(pl.LightningModule):
 
     @staticmethod
     def calculate_iou(pred_boxes: torch.Tensor, gt_boxes: torch.Tensor) -> torch.Tensor:
-        """Calculate IoU (Intersection over Union) between predicted and ground truth boxes.
+        """Calculate IoU between predicted and ground truth boxes.
+
+        Calculate the intersection over union between prediction and ground truth boxes.
 
         Args:
             pred_boxes: Predicted boxes with normalized coordinates (x1, y1, x2, y2)
@@ -247,15 +249,16 @@ class PuzzleCNN(pl.LightningModule):
 
     def on_validation_epoch_end(self) -> None:
         """Called at the end of validation to compute epoch-level metrics."""
-        # Log confusion matrix
-        confusion_matrix = self.val_confusion.compute()
+        # Compute and get confusion matrix
+        self.val_confusion.compute()  # Updates internal state
+
+        # You could log the confusion matrix here, but it's not straightforward
+        # with Lightning. Instead, we'll print it for now (in a real-world scenario,
+        # you might use a custom callback)
+        self.print(f"Rotation Confusion Matrix:\n{self.val_confusion}")
 
         # Reset confusion matrix for next epoch
         self.val_confusion.reset()
-
-        # You could log the confusion matrix here, but it's not straightforward with Lightning
-        # Instead, we'll print it for now (in a real-world scenario, you might use a custom callback)
-        self.print(f"Rotation Confusion Matrix:\n{confusion_matrix}")
 
     def configure_optimizers(self) -> OptimizerLRSchedulerConfig:
         """Configure optimizers and learning rate schedulers.
