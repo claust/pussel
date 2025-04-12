@@ -93,15 +93,21 @@ Features:
 The generated pieces will be saved in the following directory structure:
 
 ```
-datasets/example/pieces/
-└── puzzle_name/
-    ├── piece_001_x100_y150_x170_y220_r0.png
-    ├── piece_002_x200_y250_x270_y320_r90.png
+datasets/example/
+├── metadata.csv
+├── train.txt
+├── val.txt
+├── puzzle_001.jpg
+├── puzzle_002.jpg
+├── ...
+└── pieces/
+    ├── puzzle_001_piece_001_x100_y150_x170_y220_r0.png
+    ├── puzzle_001_piece_002_x200_y250_x270_y320_r90.png
     └── ...
 ```
 
 Each piece filename encodes its position and rotation:
-- `piece_001`: Piece ID
+- `puzzle_001_piece_001`: Piece ID (piece 001 of puzzle 001)
 - `x100_y150_x170_y220`: Bounding box coordinates (x1, y1, x2, y2)
 - `r0`: Rotation in degrees (0, 90, 180, or 270)
 
@@ -121,7 +127,7 @@ python resize_puzzles.py datasets/example --output-dir datasets/example/resized
 python resize_puzzles.py datasets/example --output-dir datasets/example/resized --width 800 --height 600
 
 # Visualize a puzzle piece placement
-python visualize_piece.py datasets/example/resized/puzzle_002.jpg datasets/example/pieces/puzzle_002/piece_001_x73_y0_x146_y73_r180.png
+python visualize_piece.py datasets/example/puzzle_002.jpg datasets/example/pieces/puzzle_002_piece_001_x73_y0_x146_y73_r180.png
 ```
 
 ## Model Training

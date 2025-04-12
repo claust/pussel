@@ -178,8 +178,7 @@ Thumbs.db
 .cursor/
 
 # Generated puzzle data
-network/datasets/*/processed/
-network/datasets/*/raw/
+network/datasets/*
 
 # Model checkpoints
 network/checkpoints/
