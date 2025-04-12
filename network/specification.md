@@ -15,19 +15,30 @@ Create a deep learning model that can predict the correct position and rotation 
 ### Model Architecture
 
 #### 1. Feature Extraction
-- **Backbone Network**: CNN architecture (ResNet-50 or EfficientNet-B3)
-- **Input**: RGB puzzle piece images, resized to 224×224 pixels
-- **Feature Maps**: Output from the backbone will be high-dimensional feature representations
+- **Dual Backbone Network**: Two identical CNN backbones (ResNet-50 or other timm models)
+  - One backbone processes the puzzle piece image
+  - One backbone processes the complete puzzle image
+- **Input**: RGB images resized to 224×224 pixels
+- **Feature Maps**: High-dimensional feature representations from both backbones
 
-#### 2. Position Prediction Head
-- **Architecture**: Multiple fully-connected layers following the CNN backbone
-- **Output**: 4 values representing normalized coordinates (x1, y1, x2, y2) of piece position
-- **Activation**: Sigmoid to bound predictions between 0 and 1 (will be scaled to original image dimensions)
+#### 2. Feature Fusion
+- **Concatenation**: Features from both backbones are concatenated
+- **Dimensionality Reduction**:
+  - First layer: 1024 units with ReLU activation and 0.3 dropout
+  - Second layer: 512 units with ReLU activation and 0.2 dropout
+- **Output**: 512-dimensional fused feature vector
 
-#### 3. Rotation Prediction Head
-- **Architecture**: Fully-connected layers branching from the same backbone
-- **Output**: 4-class classification (0°, 90°, 180°, 270°)
-- **Activation**: Softmax to produce rotation class probabilities
+#### 3. Position Prediction Head
+- **Architecture**: Two fully-connected layers
+  - First layer: 256 units with ReLU activation and 0.1 dropout
+  - Second layer: 4 units (x1, y1, x2, y2) with Sigmoid activation
+- **Output**: Normalized coordinates (0-1) representing piece position
+
+#### 4. Rotation Prediction Head
+- **Architecture**: Two fully-connected layers
+  - First layer: 256 units with ReLU activation and 0.1 dropout
+  - Second layer: 4 units (one per rotation class)
+- **Output**: Logits for 4-class classification (0°, 90°, 180°, 270°)
 
 ### Data Preprocessing and Augmentation
 
@@ -46,43 +57,44 @@ Create a deep learning model that can predict the correct position and rotation 
 ### Loss Functions
 
 #### Position Loss
-- **Primary Loss**: Mean Squared Error (MSE) or Smooth L1 Loss
-- **Formula**: L_pos = MSE(predicted_position, ground_truth_position)
+- **Primary Loss**: Mean Squared Error (MSE)
+- **Additional Metric**: IoU (Intersection over Union) for bounding box evaluation
 
 #### Rotation Loss
-- **Primary Loss**: Categorical Cross-Entropy
-- **Formula**: L_rot = CrossEntropy(predicted_rotation, ground_truth_rotation)
+- **Primary Loss**: Cross-Entropy Loss
+- **Additional Metrics**:
+  - Classification Accuracy
+  - Confusion Matrix for rotation classes
 
 #### Combined Loss
 - **Formula**: L_total = α * L_pos + β * L_rot
-- **Hyperparameters**: α, β to balance the contribution of each loss
+- **Default Weights**: α = 1.0, β = 1.0 (configurable)
 
 ### Training Strategy
 
 #### Setup
-- **Batch Size**: 32-64 depending on memory constraints
-- **Optimizer**: Adam with learning rate 1e-4
-- **Scheduler**: ReduceLROnPlateau or CosineAnnealingLR
-- **Epochs**: 100-200 (with early stopping)
+- **Optimizer**: Adam with configurable learning rate (default: 1e-4)
+- **Scheduler**: ReduceLROnPlateau
+  - Factor: 0.5
+  - Patience: 5 epochs
+  - Monitors: validation total loss
+- **Regularization**: Dropout at multiple levels (0.1-0.3)
 
 #### Curriculum
 1. **Stage 1**: Train on easy pieces (edge pieces, distinctive pieces)
 2. **Stage 2**: Include more challenging pieces
 3. **Optional Stage 3**: Fine-tuning with pieces from unseen puzzles
 
-### Evaluation Metrics
-
-#### Position Accuracy
-- **Mean Absolute Error**: Average pixel distance between predicted and ground truth positions
-- **IOU (Intersection over Union)**: For bounding box overlap measurement
-
-#### Rotation Accuracy
-- **Classification Accuracy**: Percentage of correctly predicted rotations
-- **Confusion Matrix**: To analyze rotation prediction patterns
-
-#### Combined Metric
-- **Correct Placement Rate**: Percentage of pieces with both position and rotation correct (within thresholds)
-- **Placement Error**: Weighted combination of position and rotation errors
+#### Evaluation
+- **Position Metrics**:
+  - Mean Squared Error
+  - Mean IoU
+- **Rotation Metrics**:
+  - Classification Accuracy
+  - Confusion Matrix
+- **Combined Metrics**:
+  - Total Loss (weighted combination)
+  - Individual component losses
 
 ### Implementation Requirements
 

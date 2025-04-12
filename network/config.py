@@ -16,7 +16,8 @@ def get_default_config() -> Dict[str, Any]:
             "data_dir": "datasets/example/processed",
             "batch_size": 32,
             "num_workers": 4,
-            "input_size": (224, 224),
+            "piece_size": (224, 224),
+            "puzzle_size": (224, 224),
         },
         # Model configuration
         "model": {
@@ -32,6 +33,7 @@ def get_default_config() -> Dict[str, Any]:
             "early_stop_patience": 10,
             "checkpoint_dir": "checkpoints",
             "log_dir": "logs",
+            "experiment_name": "dual_input_model",
         },
     }
 

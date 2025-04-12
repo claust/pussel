@@ -80,6 +80,20 @@ def parse_args() -> Dict[str, Any]:
         default=config["data"]["num_workers"],
         help="Number of data loading workers",
     )
+    parser.add_argument(
+        "--piece_size",
+        type=int,
+        nargs=2,
+        default=config["data"]["piece_size"],
+        help="Size of piece images (height width)",
+    )
+    parser.add_argument(
+        "--puzzle_size",
+        type=int,
+        nargs=2,
+        default=config["data"]["puzzle_size"],
+        help="Size of puzzle images (height width)",
+    )
 
     # Training arguments
     parser.add_argument(
@@ -106,6 +120,12 @@ def parse_args() -> Dict[str, Any]:
         default=config["training"]["log_dir"],
         help="Directory to save training logs",
     )
+    parser.add_argument(
+        "--experiment_name",
+        type=str,
+        default=config["training"]["experiment_name"],
+        help="Name for the experiment run",
+    )
 
     # Parse arguments
     args = parser.parse_args()
@@ -120,11 +140,14 @@ def parse_args() -> Dict[str, Any]:
     config["data"]["data_dir"] = args.data_dir
     config["data"]["batch_size"] = args.batch_size
     config["data"]["num_workers"] = args.num_workers
+    config["data"]["piece_size"] = tuple(args.piece_size)
+    config["data"]["puzzle_size"] = tuple(args.puzzle_size)
 
     config["training"]["max_epochs"] = args.max_epochs
     config["training"]["early_stop_patience"] = args.early_stop_patience
     config["training"]["checkpoint_dir"] = args.checkpoint_dir
     config["training"]["log_dir"] = args.log_dir
+    config["training"]["experiment_name"] = args.experiment_name
 
     return config
 
@@ -138,15 +161,16 @@ def main():
     os.makedirs(config["training"]["checkpoint_dir"], exist_ok=True)
     os.makedirs(config["training"]["log_dir"], exist_ok=True)
 
-    # Initialize data module
+    # Initialize data module for dual-input model
     data_module = PuzzleDataModule(
         data_dir=config["data"]["data_dir"],
         batch_size=config["data"]["batch_size"],
         num_workers=config["data"]["num_workers"],
-        input_size=config["data"]["input_size"],
+        piece_size=config["data"]["piece_size"],
+        puzzle_size=config["data"]["puzzle_size"],
     )
 
-    # Initialize model
+    # Initialize dual-input model
     model = PuzzleCNN(
         backbone_name=config["model"]["backbone_name"],
         pretrained=config["model"]["pretrained"],
@@ -158,7 +182,7 @@ def main():
     # Setup callbacks
     checkpoint_callback = ModelCheckpoint(
         dirpath=config["training"]["checkpoint_dir"],
-        filename="puzzle-cnn-{epoch:02d}-{val_loss:.4f}",
+        filename="puzzle-dual-{epoch:02d}-{val_loss:.4f}",
         monitor="val/total_loss",
         mode="min",
         save_top_k=3,
@@ -177,7 +201,7 @@ def main():
     # Setup logger
     logger = TensorBoardLogger(
         save_dir=config["training"]["log_dir"],
-        name="puzzle_cnn",
+        name=config["training"]["experiment_name"],
     )
 
     # Initialize trainer
