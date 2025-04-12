@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 
 import torch
-import torchvision.transforms as transforms
+import torchvision.transforms as transforms  # type: ignore[import-untyped]
 from fastapi import UploadFile
 from PIL import Image
 

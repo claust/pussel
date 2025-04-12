@@ -86,4 +86,4 @@ async def process_piece(
         raise HTTPException(status_code=404, detail="Puzzle not found")
 
     processor = ImageProcessor()
-    return processor.process_piece(file)
+    return await processor.process_piece(file)

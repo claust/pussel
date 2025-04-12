@@ -22,6 +22,9 @@ setup(
             "flake8",
             "mypy",
             "isort",
+            "types-setuptools",
+            "torch-stubs",
+            "torchvision-stubs",
         ],
     },
 )
