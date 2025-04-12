@@ -4,7 +4,7 @@
 from typing import Dict, Tuple
 
 import pytorch_lightning as pl
-import timm
+import timm  # type: ignore
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -37,25 +37,36 @@ class PuzzleCNN(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters()
 
-        # Create model backbone using timm
-        self.backbone = timm.create_model(
-            backbone_name,
-            pretrained=pretrained,
-            num_classes=0,  # Remove classification head
+        # Create separate backbones for piece and puzzle
+        self.piece_backbone = timm.create_model(
+            backbone_name, pretrained=pretrained, num_classes=0
+        )
+        self.puzzle_backbone = timm.create_model(
+            backbone_name, pretrained=pretrained, num_classes=0
         )
 
-        # Get feature dimensions from backbone
+        # Get feature dimensions from backbones
         with torch.no_grad():
             dummy_input = torch.zeros(1, 3, 224, 224)
-            features = self.backbone(dummy_input)
-            self.feature_dim = features.shape[1]
+            piece_features = self.piece_backbone(dummy_input)
+            puzzle_features = self.puzzle_backbone(dummy_input)
+            self.piece_feature_dim = piece_features.shape[1]
+            self.puzzle_feature_dim = puzzle_features.shape[1]
+
+        # Simple concatenation fusion followed by dimensionality reduction
+        self.fusion_layer = nn.Sequential(
+            nn.Linear(self.piece_feature_dim + self.puzzle_feature_dim, 1024),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(1024, 512),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+        )
+        self.fused_dim = 512
 
         # Position prediction head (x1, y1, x2, y2)
         self.position_head = nn.Sequential(
-            nn.Linear(self.feature_dim, 512),
-            nn.ReLU(),
-            nn.Dropout(0.2),
-            nn.Linear(512, 256),
+            nn.Linear(self.fused_dim, 256),
             nn.ReLU(),
             nn.Dropout(0.1),
             nn.Linear(256, 4),
@@ -64,10 +75,7 @@ class PuzzleCNN(pl.LightningModule):
 
         # Rotation prediction head (4 classes: 0°, 90°, 180°, 270°)
         self.rotation_head = nn.Sequential(
-            nn.Linear(self.feature_dim, 512),
-            nn.ReLU(),
-            nn.Dropout(0.2),
-            nn.Linear(512, 256),
+            nn.Linear(self.fused_dim, 256),
             nn.ReLU(),
             nn.Dropout(0.1),
             nn.Linear(256, 4),  # No activation (will use CrossEntropyLoss)
@@ -138,21 +146,29 @@ class PuzzleCNN(pl.LightningModule):
 
         return iou
 
-    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(
+        self, piece_img: torch.Tensor, puzzle_img: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Forward pass through the model.
 
         Args:
-            x: Input tensor of shape (batch_size, 3, height, width)
+            piece_img: Puzzle piece tensor of shape (batch_size, 3, height, width)
+            puzzle_img: Full puzzle tensor of shape (batch_size, 3, height, width)
 
         Returns:
-            Tuple of (position_pred, rotation_pred)
+            Tuple of (position_pred, rotation_logits)
         """
-        # Extract features from backbone
-        features = self.backbone(x)
+        # Extract features from backbones
+        piece_features = self.piece_backbone(piece_img)
+        puzzle_features = self.puzzle_backbone(puzzle_img)
+
+        # Simple concatenation and fusion
+        combined = torch.cat([piece_features, puzzle_features], dim=1)
+        fused_features = self.fusion_layer(combined)
 
         # Get position and rotation predictions
-        position_pred = self.position_head(features)
-        rotation_logits = self.rotation_head(features)
+        position_pred = self.position_head(fused_features)
+        rotation_logits = self.rotation_head(fused_features)
 
         return position_pred, rotation_logits
 
@@ -168,8 +184,8 @@ class PuzzleCNN(pl.LightningModule):
         Returns:
             Loss tensor
         """
-        # Get predictions
-        position_pred, rotation_logits = self(batch["piece"])
+        # Get predictions using both inputs
+        position_pred, rotation_logits = self(batch["piece"], batch["puzzle"])
 
         # Calculate position loss (MSE)
         position_loss = F.mse_loss(position_pred, batch["position"])
@@ -199,102 +215,64 @@ class PuzzleCNN(pl.LightningModule):
             batch_idx: Index of batch
 
         Returns:
-            Dict of metrics
+            Dictionary of validation metrics
         """
         # Get predictions
-        position_pred, rotation_logits = self(batch["piece"])
+        position_pred, rotation_logits = self(batch["piece"], batch["puzzle"])
 
         # Calculate position loss (MSE)
         position_loss = F.mse_loss(position_pred, batch["position"])
 
+        # Calculate IoU between predicted and ground truth boxes
+        iou = self.calculate_iou(position_pred, batch["position"])
+        mean_iou = torch.mean(iou)
+
         # Calculate rotation loss and accuracy
         rotation_loss = F.cross_entropy(rotation_logits, batch["rotation"])
-        rotation_pred = torch.argmax(rotation_logits, dim=1)
-        rotation_acc = (rotation_pred == batch["rotation"]).float().mean()
+        rotation_preds = torch.argmax(rotation_logits, dim=1)
+        rotation_acc = torch.sum(rotation_preds == batch["rotation"]).float() / len(
+            batch["rotation"]
+        )
 
         # Update confusion matrix
-        self.val_confusion.update(rotation_pred, batch["rotation"])
-
-        # Calculate IoU for position
-        iou = self.calculate_iou(position_pred, batch["position"])
-        mean_iou = iou.mean()
+        self.val_confusion(rotation_preds, batch["rotation"])
 
         # Calculate total loss
         total_loss = (
             self.position_weight * position_loss + self.rotation_weight * rotation_loss
         )
 
-        # Calculate combined metric (correct placement rate)
-        # A piece is correctly placed if IoU > 0.5 and rotation is correct
-        correct_rotation = (rotation_pred == batch["rotation"]).float()
-        correct_position = (iou > 0.5).float()
-        correct_placement = (correct_rotation * correct_position).mean()
-
         # Log metrics
         self.log("val/position_loss", position_loss, prog_bar=True)
         self.log("val/rotation_loss", rotation_loss, prog_bar=True)
-        self.log("val/rotation_acc", rotation_acc, prog_bar=True)
         self.log("val/total_loss", total_loss, prog_bar=True)
-        self.log("val/mean_iou", mean_iou, prog_bar=True)
-        self.log("val/correct_placement_rate", correct_placement, prog_bar=True)
+        self.log("val/iou", mean_iou, prog_bar=True)
+        self.log("val/rotation_acc", rotation_acc, prog_bar=True)
 
         return {
             "val_loss": total_loss,
             "val_pos_loss": position_loss,
             "val_rot_loss": rotation_loss,
-            "val_rot_acc": rotation_acc,
             "val_iou": mean_iou,
-            "val_correct_placement": correct_placement,
-        }
-
-    def on_validation_epoch_end(self) -> None:
-        """Called at the end of validation to compute epoch-level metrics."""
-        # Compute and get confusion matrix
-        self.val_confusion.compute()  # Updates internal state
-
-        # You could log the confusion matrix here, but it's not straightforward
-        # with Lightning. Instead, we'll print it for now (in a real-world scenario,
-        # you might use a custom callback)
-        self.print(f"Rotation Confusion Matrix:\n{self.val_confusion}")
-
-        # Reset confusion matrix for next epoch
-        self.val_confusion.reset()
-
-    def configure_optimizers(self) -> OptimizerLRSchedulerConfig:
-        """Configure optimizers and learning rate schedulers.
-
-        Returns:
-            Dict containing optimizer and scheduler config
-        """
-        optimizer = Adam(self.parameters(), lr=self.hparams["learning_rate"])
-        scheduler = ReduceLROnPlateau(
-            optimizer, mode="min", factor=0.5, patience=5, verbose=True
-        )
-
-        return {
-            "optimizer": optimizer,
-            "lr_scheduler": {
-                "scheduler": scheduler,
-                "monitor": "val/total_loss",
-                "frequency": 1,
-            },
+            "val_rot_acc": rotation_acc,
         }
 
     def predict_piece(
-        self, piece_img: torch.Tensor
+        self, piece_img: torch.Tensor, puzzle_img: torch.Tensor
     ) -> Tuple[torch.Tensor, int, torch.Tensor]:
-        """Make prediction for a single puzzle piece.
+        """Make prediction for a single puzzle piece with puzzle context.
 
         Args:
             piece_img: Preprocessed puzzle piece tensor of shape (1, 3, H, W)
+            puzzle_img: Preprocessed full puzzle tensor of shape (1, 3, H, W)
 
         Returns:
             Tuple of (position, rotation_class, rotation_probabilities)
         """
         self.eval()
         with torch.no_grad():
-            # Forward pass
-            position_pred, rotation_logits = self(piece_img)
+            # Forward pass with both inputs
+            position_pred, rotation_logits = self(piece_img, puzzle_img)
 
             # Get rotation class and probabilities
             rotation_probs = F.softmax(rotation_logits, dim=1)
@@ -302,3 +280,26 @@ class PuzzleCNN(pl.LightningModule):
             rotation_class = int(torch.argmax(rotation_logits, dim=1).item())
 
             return position_pred[0], rotation_class, rotation_probs[0]
+
+    def configure_optimizers(self) -> OptimizerLRSchedulerConfig:
+        """Configure optimizers and learning rate schedulers.
+
+        Returns:
+            Dictionary containing optimizer and lr_scheduler
+        """
+        optimizer = Adam(
+            self.parameters(),
+            lr=self.hparams["learning_rate"],
+        )
+        scheduler = ReduceLROnPlateau(
+            optimizer, mode="min", factor=0.5, patience=5, verbose=True
+        )
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": {
+                "scheduler": scheduler,
+                "monitor": "val/total_loss",
+                "interval": "epoch",
+                "frequency": 1,
+            },
+        }
