@@ -2,15 +2,14 @@
 """Visualization script for puzzle piece predictions."""
 
 import argparse
-from typing import Tuple, Optional
+from typing import Optional, Tuple
 
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from PIL import Image
-
 from model import PuzzleCNN
+from PIL import Image
 
 
 def load_model(checkpoint_path: str) -> PuzzleCNN:
@@ -78,7 +77,14 @@ def visualize_prediction(
 
     # Get prediction
     with torch.no_grad():
-        position, rotation_class, rotation_probs = model.predict_piece(piece_tensor)
+        position, rotation_class, rotation_probs = model.predict_piece(
+            piece_tensor,
+            (
+                torch.zeros_like(piece_tensor)
+                if puzzle_path is None
+                else preprocess_image(puzzle_path)
+            ),
+        )
 
     # Convert to numpy for visualization
     position_np = position.numpy()

@@ -25,12 +25,14 @@ repos:
     hooks:
       - id: black
         language_version: python3.12
+        args: [--line-length=88]
 
   - repo: https://github.com/pycqa/isort
     rev: 5.13.2
     hooks:
       - id: isort
         name: isort (python)
+        args: [--profile=black, --line-length=88, --multi-line=3]
 
   - repo: https://github.com/pycqa/flake8
     rev: 7.0.0
@@ -40,6 +42,8 @@ repos:
           - flake8-docstrings
           - flake8-import-order
           - flake8-bugbear
+          - flake8-comprehensions
+          - flake8-pytest-style
 
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.9.0
@@ -50,6 +54,11 @@ repos:
           - pydantic
           - fastapi
           - pytest
+          - torch
+          - numpy
+          - matplotlib
+          - pandas-stubs
+        args: [--python-version=3.12, --ignore-missing-imports]
 
   # Flutter/Dart hooks
   - repo: https://github.com/pedrox-hs/dart-pre-commit

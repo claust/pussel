@@ -19,7 +19,7 @@ pip install -r requirements.txt
 The project uses several tools to maintain code quality:
 
 - **black**: Code formatting
-- **isort**: Import sorting
+- **isort**: Import sorting (using black-compatible profile)
 - **flake8**: Linting with additional plugins:
   - flake8-docstrings
   - flake8-import-order
@@ -30,9 +30,12 @@ The project uses several tools to maintain code quality:
 ### Running Code Quality Checks
 
 ```bash
-# Format code
+# Format code (in correct order)
 black .
-isort .
+isort . --profile black  # Use black-compatible profile
+
+# Alternative: Run both formatters in one go
+black . && isort . --profile black
 
 # Run linting
 flake8
