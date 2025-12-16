@@ -84,6 +84,13 @@ tensorboard --logdir=logs
 python puzzle_generator.py datasets/example/puzzle_001.jpg
 python resize_puzzles.py datasets/example --output-dir datasets/example/resized
 python visualize_piece.py datasets/example/puzzle_001.jpg datasets/example/pieces/piece_001.png
+
+# Code quality checks (same as CI pipeline)
+make check                 # Run all checks (format, lint, typecheck)
+make format                # Auto-format code with black and isort
+make lint                  # Run flake8 linting
+make typecheck             # Run mypy type checking
+make install-dev           # Install dev dependencies (black, isort, flake8, mypy)
 ```
 
 ## Code Architecture
@@ -173,3 +180,38 @@ Pre-commit is configured at the root level and applies to:
 - Bicep files (infrastructure only)
 
 Run `pre-commit install` after cloning to enable automatic checks.
+
+## Workflow Guidelines
+
+### Before Committing Changes
+
+**IMPORTANT**: Always run the appropriate checks before committing to ensure CI will pass.
+
+#### For Network (ML) code changes:
+```bash
+cd network
+make check    # Runs black, isort, flake8, and mypy - same as CI
+```
+
+If checks fail, run `make format` to auto-fix formatting issues, then address any remaining lint or type errors.
+
+#### For Backend code changes:
+```bash
+cd backend
+black . --check && isort . --check-only && flake8 && mypy app
+```
+
+Or simply run: `pre-commit run --all-files` from the repo root.
+
+#### For Frontend code changes:
+```bash
+cd frontend
+dart analyze && dart format --output=none --set-exit-if-changed lib/
+```
+
+### Commit Workflow
+1. Make your changes
+2. Run the appropriate checks for the module you modified
+3. Fix any issues found
+4. Commit (pre-commit hooks will run automatically if installed)
+5. Push and verify CI passes
