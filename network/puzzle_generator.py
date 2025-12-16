@@ -40,6 +40,7 @@ from typing import Optional, Tuple
 import albumentations as A  # type: ignore[import]
 import numpy as np
 from PIL import Image
+from tqdm import tqdm  # type: ignore[import-untyped]
 
 # Type aliases to shorten long return type annotations
 BBox = Tuple[int, int, int, int]
@@ -464,17 +465,19 @@ def process_directory(
     # Keep track of total pieces
     total_pieces = 0
 
-    # Process each puzzle image
-    for filename in os.listdir(input_dir):
-        if not filename.lower().endswith((".png", ".jpg", ".jpeg")):
-            continue
+    # Collect all puzzle images first
+    puzzle_files = [
+        f
+        for f in os.listdir(input_dir)
+        if f.lower().endswith((".png", ".jpg", ".jpeg"))
+    ]
 
+    # Process each puzzle image with progress bar
+    for filename in tqdm(puzzle_files, desc="Processing puzzles", unit="puzzle"):
         puzzle_path = os.path.join(input_dir, filename)
         pieces_count = processor.process_puzzle(
             puzzle_path, output_dir, metadata_handler
         )
-
-        print(f"Generated {pieces_count} pieces from {filename}")
         total_pieces += pieces_count
 
     # Create the train/val split files
@@ -522,11 +525,17 @@ def process_puzzle_helper(
     width, height = std_image.size
     mask = processor.generate_mask(width, height)
 
-    # Process pieces
+    # Process pieces with progress bar
     processed_count = 0
     unique_ids = np.unique(mask)
+    piece_ids = unique_ids[1:]  # Skip background (0)
 
-    for piece_id in unique_ids[1:]:  # Skip background (0)
+    for piece_id in tqdm(
+        piece_ids,
+        desc=f"Extracting pieces from {puzzle_name}",
+        unit="piece",
+        leave=False,
+    ):
         processed_count += process_single_piece(
             processor,
             std_image,
@@ -808,6 +817,22 @@ def _create_options(args):
     return options
 
 
+def _get_default_output_dir(input_path: str) -> str:
+    """Determine the default output directory based on input path.
+
+    Goes up 2 levels from the input directory to find the dataset root.
+    E.g., datasets/example/raw/puzzles -> datasets/example
+
+    Args:
+        input_path: Absolute path to the input directory
+
+    Returns:
+        Default output directory path (grandparent of input)
+    """
+    # Go up 2 levels: input/.. -> parent, input/../.. -> grandparent
+    return os.path.dirname(os.path.dirname(input_path))
+
+
 def _process_input(input_path, output_dir_path, options):
     """Process the input image or directory.
 
@@ -822,7 +847,7 @@ def _process_input(input_path, output_dir_path, options):
     # Default output to input directory (or parent directory for single files)
     if output_dir_path is None:
         if os.path.isdir(input_path):
-            output_dir = input_path
+            output_dir = _get_default_output_dir(input_path)
         else:
             output_dir = os.path.dirname(input_path)
     else:
