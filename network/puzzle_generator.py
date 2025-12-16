@@ -670,8 +670,8 @@ def main():
     )
     parser.add_argument(
         "--output-dir",
-        default="datasets/example/processed",
-        help="Directory to save the processed data",
+        default=None,
+        help="Directory to save the processed data (defaults to input directory)",
     )
     parser.add_argument(
         "--pieces",
@@ -807,15 +807,24 @@ def _process_input(input_path, output_dir_path, options):
 
     Args:
         input_path: Path to the input image or directory
-        output_dir_path: Path to the output directory
+        output_dir_path: Path to the output directory (None to use input directory)
         options: Processing options
     """
-    # Create full output path
-    output_dir = os.path.abspath(output_dir_path)
+    # Process the input path first to determine default output
+    input_path = os.path.abspath(input_path)
+
+    # Default output to input directory (or parent directory for single files)
+    if output_dir_path is None:
+        if os.path.isdir(input_path):
+            output_dir = input_path
+        else:
+            output_dir = os.path.dirname(input_path)
+    else:
+        output_dir = os.path.abspath(output_dir_path)
+
     os.makedirs(output_dir, exist_ok=True)
 
     # Process the input
-    input_path = os.path.abspath(input_path)
     if os.path.isdir(input_path):
         total_pieces = process_directory(input_path, output_dir, options)
         print(f"Total: Generated {total_pieces} pieces in {output_dir}")
