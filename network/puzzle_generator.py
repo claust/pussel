@@ -366,13 +366,16 @@ class PuzzleProcessor:
 
         # Handle alpha channel properly
         if img_array.shape[-1] == 4:  # RGBA
-            # Normalize RGB channels to 0-1
+            # Normalize RGB channels to 0-1, then back to 0-255
+            # Keep alpha channel unchanged to preserve transparency
             img_array[..., :3] = img_array[..., :3] / 255.0
+            img_array[..., :3] = img_array[..., :3] * 255.0
         else:  # RGB
             img_array = img_array / 255.0
+            img_array = img_array * 255.0
 
         # Convert back to PIL
-        return Image.fromarray((img_array * 255).astype(np.uint8))
+        return Image.fromarray(img_array.astype(np.uint8))
 
     def extract_piece(
         self, image: Image.Image, mask: np.ndarray, piece_id: int
