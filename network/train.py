@@ -6,15 +6,16 @@ import os
 from typing import Any, Dict
 
 import pytorch_lightning as pl
-from config import get_default_config
-from dataset import PuzzleDataModule
-from model import PuzzleCNN
 from pytorch_lightning.callbacks import (
     EarlyStopping,
     LearningRateMonitor,
     ModelCheckpoint,
 )
 from pytorch_lightning.loggers import TensorBoardLogger
+
+from config import get_default_config
+from dataset import PuzzleDataModule
+from model import PuzzleCNN
 
 
 def parse_args() -> Dict[str, Any]:

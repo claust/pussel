@@ -8,8 +8,9 @@ import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from model import PuzzleCNN
 from PIL import Image
+
+from model import PuzzleCNN
 
 
 def load_model(checkpoint_path: str) -> PuzzleCNN:

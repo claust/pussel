@@ -40,7 +40,7 @@ jobs:
       run: black . --check
 
     - name: Check imports with isort
-      run: isort . --check-only
+      run: isort . --check-only --profile=black --line-length=88
 
     - name: Lint with flake8
       run: flake8 . --extend-ignore=I100,I201
