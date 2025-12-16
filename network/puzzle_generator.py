@@ -410,8 +410,10 @@ class PuzzleProcessor:
                     pixel = image.getpixel((x, y))
                     if isinstance(pixel, tuple):
                         r, g, b = pixel[:3]
-                    else:
+                    elif pixel is not None:
                         r = g = b = int(pixel)
+                    else:
+                        r = g = b = 0
                     piece_img.putpixel((x - x1, y - y1), (r, g, b, 255))
                 else:
                     piece_img.putpixel((x - x1, y - y1), (0, 0, 0, 0))
