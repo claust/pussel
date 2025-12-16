@@ -37,9 +37,9 @@ def parse_piece_filename(filename):
         raise ValueError(f"Invalid puzzle piece filename format: {filename}")
 
     puzzle_id = match.group(1)
-    piece_number = int(match.group(2))
+    piece_number_str = match.group(2)  # Keep as string to preserve leading zeros
     rotation = int(match.group(3))
-    piece_id = f"{puzzle_id}_{piece_number}"
+    piece_id = f"{puzzle_id}_{piece_number_str}"
 
     return piece_id, rotation
 
