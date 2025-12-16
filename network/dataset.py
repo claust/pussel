@@ -8,7 +8,7 @@ from typing import Dict, Optional, Set, Tuple
 # Type ignore for missing stubs
 import albumentations as A  # type: ignore
 import numpy as np
-import pandas as pd
+import pandas as pd  # type: ignore[import-untyped]
 import pytorch_lightning as pl
 import torch
 from PIL import Image
