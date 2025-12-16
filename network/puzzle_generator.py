@@ -407,7 +407,11 @@ class PuzzleProcessor:
         for y in range(y1, y2):
             for x in range(x1, x2):
                 if mask[y, x] == piece_id:
-                    r, g, b = image.getpixel((x, y))[:3]
+                    pixel = image.getpixel((x, y))
+                    if isinstance(pixel, tuple):
+                        r, g, b = pixel[:3]
+                    else:
+                        r = g = b = int(pixel)
                     piece_img.putpixel((x - x1, y - y1), (r, g, b, 255))
                 else:
                     piece_img.putpixel((x - x1, y - y1), (0, 0, 0, 0))
