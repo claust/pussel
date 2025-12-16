@@ -199,9 +199,14 @@ class PuzzleCNN(pl.LightningModule):
         )
 
         # Log metrics
-        self.log("train/position_loss", position_loss, prog_bar=True)
-        self.log("train/rotation_loss", rotation_loss, prog_bar=True)
-        self.log("train/total_loss", total_loss, prog_bar=True)
+        batch_size = batch["piece"].size(0)
+        self.log(
+            "train/position_loss", position_loss, prog_bar=True, batch_size=batch_size
+        )
+        self.log(
+            "train/rotation_loss", rotation_loss, prog_bar=True, batch_size=batch_size
+        )
+        self.log("train/total_loss", total_loss, prog_bar=True, batch_size=batch_size)
 
         return total_loss
 
@@ -243,11 +248,16 @@ class PuzzleCNN(pl.LightningModule):
         )
 
         # Log metrics
-        self.log("val/position_loss", position_loss, prog_bar=True)
-        self.log("val/rotation_loss", rotation_loss, prog_bar=True)
-        self.log("val/total_loss", total_loss, prog_bar=True)
-        self.log("val/iou", mean_iou, prog_bar=True)
-        self.log("val/rotation_acc", rotation_acc, prog_bar=True)
+        batch_size = batch["piece"].size(0)
+        self.log(
+            "val/position_loss", position_loss, prog_bar=True, batch_size=batch_size
+        )
+        self.log(
+            "val/rotation_loss", rotation_loss, prog_bar=True, batch_size=batch_size
+        )
+        self.log("val/total_loss", total_loss, prog_bar=True, batch_size=batch_size)
+        self.log("val/iou", mean_iou, prog_bar=True, batch_size=batch_size)
+        self.log("val/rotation_acc", rotation_acc, prog_bar=True, batch_size=batch_size)
 
         return {
             "val_loss": total_loss,

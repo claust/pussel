@@ -13,17 +13,17 @@ def get_default_config() -> Dict[str, Any]:
     config = {
         # Data configuration
         "data": {
-            "data_dir": "datasets/example/processed",
+            "data_dir": "datasets/example",
             "batch_size": 32,
             "num_workers": 4,
-            "piece_size": (224, 224),
-            "puzzle_size": (224, 224),
+            "piece_size": (128, 128),  # Reduced from 224 for faster training
+            "puzzle_size": (128, 128),  # Reduced from 224 for faster training
         },
         # Model configuration
         "model": {
-            "backbone_name": "resnet50",
+            "backbone_name": "resnet18",  # Changed from resnet50 for faster training
             "pretrained": True,
-            "learning_rate": 1e-4,
+            "learning_rate": 3e-3,  # Increased from 1e-4 based on LR finder results
             "position_weight": 1.0,
             "rotation_weight": 1.0,
         },

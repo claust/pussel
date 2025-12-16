@@ -22,7 +22,7 @@ def load_model(checkpoint_path: str) -> PuzzleCNN:
     Returns:
         Loaded model
     """
-    model = PuzzleCNN.load_from_checkpoint(checkpoint_path)
+    model = PuzzleCNN.load_from_checkpoint(checkpoint_path, map_location="cpu")
     model.eval()
     return model
 
@@ -91,6 +91,15 @@ def visualize_prediction(
     position_np = position.numpy()
     rotation_degrees = rotation_class * 90
 
+    # Print prediction results
+    print("\n=== Prediction Results ===")
+    print(f"Predicted position (normalized): {position_np}")
+    print(f"Predicted rotation: {rotation_degrees}°")
+    print("Rotation probabilities:")
+    for i, prob in enumerate(rotation_probs.numpy()):
+        print(f"  {i * 90}°: {prob:.4f}")
+    print("========================\n")
+
     # Load original images
     piece_img = Image.open(piece_path).convert("RGB")
     piece_np = np.array(piece_img)
@@ -119,6 +128,10 @@ def visualize_prediction(
         y1 = int(position_np[1] * puzzle_h)
         x2 = int(position_np[2] * puzzle_w)
         y2 = int(position_np[3] * puzzle_h)
+
+        print(f"Puzzle dimensions: {puzzle_w}x{puzzle_h}")
+        print(f"Predicted bbox (pixels): ({x1}, {y1}, {x2}, {y2})")
+        print(f"Bbox width: {x2 - x1}, height: {y2 - y1}")
 
         # Plot puzzle
         axes[1].imshow(puzzle_np)

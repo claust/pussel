@@ -345,6 +345,7 @@ class PuzzleDataModule(pl.LightningDataModule):
             num_workers=self.num_workers,
             shuffle=True,
             pin_memory=True,
+            persistent_workers=self.num_workers > 0,
         )
 
     def val_dataloader(self) -> DataLoader:
@@ -362,6 +363,7 @@ class PuzzleDataModule(pl.LightningDataModule):
             num_workers=self.num_workers,
             shuffle=False,
             pin_memory=True,
+            persistent_workers=self.num_workers > 0,
         )
 
 

@@ -183,7 +183,7 @@ def main():
     # Setup callbacks
     checkpoint_callback = ModelCheckpoint(
         dirpath=config["training"]["checkpoint_dir"],
-        filename="puzzle-dual-{epoch:02d}-{val_loss:.4f}",
+        filename="puzzle-dual-{epoch:02d}-{val/total_loss:.4f}",
         monitor="val/total_loss",
         mode="min",
         save_top_k=3,
