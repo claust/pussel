@@ -6,7 +6,8 @@ A FastAPI-based backend service for the Puzzle Solver application that helps use
 
 - Upload complete puzzle images
 - Process individual puzzle pieces
-- Mock implementation of puzzle piece detection (to be replaced with ML model)
+- **⚠️ MOCK IMPLEMENTATION**: Current puzzle piece detection uses random values, not a trained ML model
+- See [MODEL_ARCHITECTURE_ANALYSIS.md](MODEL_ARCHITECTURE_ANALYSIS.md) for detailed analysis and improvement plan
 - REST API endpoints
 - File upload handling
 - Comprehensive test suite
@@ -95,11 +96,14 @@ POST /api/v1/puzzle/upload
 ```
 POST /api/v1/puzzle/{puzzle_id}/piece
 ```
+- **⚠️ MOCK IMPLEMENTATION**: Returns random position/rotation with 0.0 confidence
+- Currently NO actual image analysis or ML prediction occurs
+- See [MODEL_ARCHITECTURE_ANALYSIS.md](MODEL_ARCHITECTURE_ANALYSIS.md) for implementation roadmap
 - Accepts multipart form data with piece image
 - Returns:
-  - Predicted position (x, y coordinates)
-  - Confidence score (0.5-1.0)
-  - Rotation angle (0, 90, 180, or 270 degrees)
+  - Predicted position (x, y coordinates) - Currently random values (0-100)
+  - Confidence score - Set to 0.0 to indicate no real prediction
+  - Rotation angle (0, 90, 180, or 270 degrees) - Currently random
 - Requires existing puzzle ID
 - Supported formats: Image files only
 
@@ -171,13 +175,18 @@ The workflow is triggered on:
 
 ## Future Improvements
 
-1. Implement actual computer vision model for puzzle piece detection
-2. Add authentication and authorization
-3. Add rate limiting
-4. Implement proper image validation and sanitization
-5. Add image compression and optimization
-6. Implement proper error handling and logging
-7. Add database for storing puzzle and piece information
-8. Add CI/CD pipeline
-9. Add Docker support
-10. Implement caching for processed images
+### Critical - Machine Learning Model (See MODEL_ARCHITECTURE_ANALYSIS.md)
+1. **Collect training data**: Need 1,000+ puzzle images with labeled pieces
+2. **Implement ML model**: Siamese network or CNN-based architecture
+3. **Train and validate**: Achieve 85-95% accuracy before production
+4. **Replace mock implementation**: Deploy actual inference pipeline
+
+### Infrastructure and Features
+5. Add authentication and authorization
+6. Add rate limiting
+7. Implement proper image validation and sanitization
+8. Add image compression and optimization
+9. Implement proper error handling and logging
+10. Add database for storing puzzle and piece information
+11. Add Docker support
+12. Implement caching for processed images
