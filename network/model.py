@@ -14,6 +14,84 @@ from torch.optim import Adam
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 
+class CrossAttentionFusion(nn.Module):
+    """Cross-attention inspired fusion for globally-pooled features.
+
+    Uses piece features to compute attention weights that modulate puzzle features,
+    learning which aspects of the puzzle context are relevant for the piece.
+    """
+
+    def __init__(self, dim: int, output_dim: int = 512):
+        """Initialize the CrossAttentionFusion module.
+
+        Args:
+            dim: Feature dimension from backbones
+            output_dim: Desired output dimension
+        """
+        super().__init__()
+
+        # Attention computation: use piece to attend over puzzle
+        self.attention = nn.Sequential(
+            nn.Linear(dim * 2, dim),  # Combine piece and puzzle context
+            nn.Tanh(),
+            nn.Linear(dim, dim),  # Generate attention logits
+        )
+
+        # Feature projections
+        self.piece_proj = nn.Linear(dim, dim)
+        self.puzzle_proj = nn.Linear(dim, dim)
+
+        # Layer normalization
+        self.norm_piece = nn.LayerNorm(dim)
+        self.norm_puzzle = nn.LayerNorm(dim)
+
+        # Output fusion network
+        self.fusion = nn.Sequential(
+            nn.Linear(dim * 2, output_dim),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(output_dim, output_dim),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+        )
+
+    def forward(
+        self, piece_feat: torch.Tensor, puzzle_feat: torch.Tensor
+    ) -> torch.Tensor:
+        """Forward pass with attention-based fusion.
+
+        Args:
+            piece_feat: Piece features (batch_size, dim)
+            puzzle_feat: Puzzle features (batch_size, dim)
+
+        Returns:
+            Fused features (batch_size, output_dim)
+        """
+        # Normalize inputs
+        piece_feat = self.norm_piece(piece_feat)
+        puzzle_feat = self.norm_puzzle(puzzle_feat)
+
+        # Project features
+        piece_proj = self.piece_proj(piece_feat)
+        puzzle_proj = self.puzzle_proj(puzzle_feat)
+
+        # Compute attention weights: use piece context to gate puzzle features
+        combined = torch.cat([piece_proj, puzzle_proj], dim=1)
+        attn_logits = self.attention(combined)  # (batch_size, dim)
+        attn_weights = torch.sigmoid(attn_logits)  # Gate values in [0, 1]
+
+        # Apply attention to puzzle features (element-wise gating)
+        attended_puzzle = attn_weights * puzzle_proj
+
+        # Concatenate piece with attended puzzle
+        fused = torch.cat([piece_proj, attended_puzzle], dim=1)
+
+        # Final projection
+        output = self.fusion(fused)
+
+        return output
+
+
 class PuzzleCNN(pl.LightningModule):
     """LightningModule for puzzle piece position and rotation prediction."""
 
@@ -46,6 +124,9 @@ class PuzzleCNN(pl.LightningModule):
         )
 
         # Get feature dimensions from backbones
+        # Note: Input size is arbitrary here - only used to probe feature dimensions
+        # Actual input sizes are determined by dataset transforms (config.py)
+        # Backbones use adaptive pooling, so feature dims are size-agnostic
         with torch.no_grad():
             dummy_input = torch.zeros(1, 3, 224, 224)
             piece_features = self.piece_backbone(dummy_input)
@@ -53,14 +134,10 @@ class PuzzleCNN(pl.LightningModule):
             self.piece_feature_dim = piece_features.shape[1]
             self.puzzle_feature_dim = puzzle_features.shape[1]
 
-        # Simple concatenation fusion followed by dimensionality reduction
-        self.fusion_layer = nn.Sequential(
-            nn.Linear(self.piece_feature_dim + self.puzzle_feature_dim, 1024),
-            nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(1024, 512),
-            nn.ReLU(),
-            nn.Dropout(0.2),
+        # Cross-attention fusion with learned piece-puzzle interactions
+        self.fusion_layer = CrossAttentionFusion(
+            dim=self.piece_feature_dim,
+            output_dim=512,
         )
         self.fused_dim = 512
 
@@ -162,9 +239,8 @@ class PuzzleCNN(pl.LightningModule):
         piece_features = self.piece_backbone(piece_img)
         puzzle_features = self.puzzle_backbone(puzzle_img)
 
-        # Simple concatenation and fusion
-        combined = torch.cat([piece_features, puzzle_features], dim=1)
-        fused_features = self.fusion_layer(combined)
+        # Cross-attention fusion: piece queries attend to puzzle context
+        fused_features = self.fusion_layer(piece_features, puzzle_features)
 
         # Get position and rotation predictions
         position_pred = self.position_head(fused_features)
