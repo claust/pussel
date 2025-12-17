@@ -45,20 +45,17 @@ repos:
           - flake8-comprehensions
           - flake8-pytest-style
 
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.9.0
+  # Mypy type checking - automatically activates venv (works in VS Code)
+  - repo: local
     hooks:
       - id: mypy
-        additional_dependencies:
-          - types-pillow
-          - pydantic
-          - fastapi
-          - pytest
-          - torch
-          - numpy
-          - matplotlib
-          - pandas-stubs
-        args: [--python-version=3.12, --ignore-missing-imports]
+        name: mypy
+        description: Type check Python files using mypy with project venv
+        entry: scripts/mypy_check.sh
+        language: script
+        types: [python]
+        require_serial: true
+        pass_filenames: true
 
   # Flutter/Dart hooks
   - repo: https://github.com/pedrox-hs/dart-pre-commit
