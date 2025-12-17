@@ -6,7 +6,7 @@
 # Install development dependencies
 install-dev:
 	pip install -r requirements.txt
-	pip install black isort flake8 flake8-docstrings mypy
+	pip install black isort flake8 flake8-docstrings mypy pandas-stubs types-requests
 
 # Run all checks (same as CI)
 check: format-check lint typecheck

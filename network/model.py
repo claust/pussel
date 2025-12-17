@@ -89,9 +89,7 @@ class SpatialCorrelationModule(nn.Module):
         puzzle_flat = puzzle_proj.view(batch_size, D, H * W)  # (B, D, H*W)
 
         # Correlation scores
-        correlation = torch.bmm(
-            piece_vec.unsqueeze(1), puzzle_flat
-        )  # (B, 1, H*W)
+        correlation = torch.bmm(piece_vec.unsqueeze(1), puzzle_flat)  # (B, 1, H*W)
         correlation = correlation / self.temperature
 
         # Reshape to spatial map
