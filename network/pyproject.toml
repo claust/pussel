@@ -1,0 +1,13 @@
+[tool.isort]
+profile = "black"
+line_length = 88
+skip_glob = [
+    "datasets/*",
+    "checkpoints/*",
+    "logs/*",
+    "__pycache__/*",
+    ".mypy_cache/*",
+    "*.csv*",
+    "*.png",
+    "*.jpg",
+]
