@@ -13,6 +13,7 @@ import torchmetrics
 from pytorch_lightning.utilities.types import OptimizerLRSchedulerConfig
 from torch.optim import Adam
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torchvision.ops import generalized_box_iou_loss  # type: ignore
 
 
 class SpatialCorrelationModule(nn.Module):
@@ -341,6 +342,28 @@ class PuzzleCNN(pl.LightningModule):
 
         return iou
 
+    @staticmethod
+    def _ensure_valid_boxes(boxes: torch.Tensor) -> torch.Tensor:
+        """Ensure boxes have valid coordinates (x1 < x2, y1 < y2).
+
+        GIoU loss requires strict ordering of coordinates. This method
+        ensures the constraint is met by swapping coordinates if needed
+        and adding a small epsilon to ensure strict inequality.
+
+        Args:
+            boxes: Bounding boxes with shape (N, 4) in format (x1, y1, x2, y2)
+
+        Returns:
+            Valid boxes with guaranteed x1 < x2 and y1 < y2
+        """
+        x1, y1, x2, y2 = boxes.unbind(dim=-1)
+        # Ensure min/max ordering
+        x1_valid = torch.min(x1, x2)
+        x2_valid = torch.max(x1, x2) + 1e-4  # Small epsilon for strict inequality
+        y1_valid = torch.min(y1, y2)
+        y2_valid = torch.max(y1, y2) + 1e-4
+        return torch.stack([x1_valid, y1_valid, x2_valid, y2_valid], dim=-1)
+
     def forward(
         self, piece_img: torch.Tensor, puzzle_img: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -395,8 +418,11 @@ class PuzzleCNN(pl.LightningModule):
         # Get predictions using both inputs
         position_pred, rotation_logits = self(batch["piece"], batch["puzzle"])
 
-        # Calculate position loss (MSE)
-        position_loss = F.mse_loss(position_pred, batch["position"])
+        # Calculate position loss (GIoU - Generalized IoU)
+        # GIoU provides better gradient signal for bounding box regression than MSE
+        pred_boxes = self._ensure_valid_boxes(position_pred)
+        gt_boxes = self._ensure_valid_boxes(batch["position"])
+        position_loss = generalized_box_iou_loss(pred_boxes, gt_boxes, reduction="mean")
 
         # Calculate rotation loss (CrossEntropy)
         rotation_loss = F.cross_entropy(rotation_logits, batch["rotation"])
@@ -433,10 +459,12 @@ class PuzzleCNN(pl.LightningModule):
         # Get predictions
         position_pred, rotation_logits = self(batch["piece"], batch["puzzle"])
 
-        # Calculate position loss (MSE)
-        position_loss = F.mse_loss(position_pred, batch["position"])
+        # Calculate position loss (GIoU - Generalized IoU)
+        pred_boxes = self._ensure_valid_boxes(position_pred)
+        gt_boxes = self._ensure_valid_boxes(batch["position"])
+        position_loss = generalized_box_iou_loss(pred_boxes, gt_boxes, reduction="mean")
 
-        # Calculate IoU between predicted and ground truth boxes
+        # Calculate IoU between predicted and ground truth boxes (for metrics)
         iou = self.calculate_iou(position_pred, batch["position"])
         mean_iou = torch.mean(iou)
 
