@@ -659,15 +659,19 @@ def _save_and_record_piece(processor, piece_info, pieces_dir, metadata_handler):
         piece_info["piece"], piece_info["bbox"], piece_info["rotation"]
     )
 
-    # Save the processed piece
-    piece_path = os.path.join(pieces_dir, piece_info["filename"])
+    # Save the processed piece in puzzle-specific subdirectory
+    puzzle_id = piece_info["id"].split("_")[0]
+    puzzle_subdir = os.path.join(pieces_dir, puzzle_id)
+    os.makedirs(puzzle_subdir, exist_ok=True)
+
+    piece_path = os.path.join(puzzle_subdir, piece_info["filename"])
     processed_piece.save(piece_path)
 
     # Add to metadata
     metadata_handler.add_piece(
         piece_id=piece_info["id"],
-        puzzle_id=piece_info["id"].split("_")[0],
-        filename=os.path.join("pieces", piece_info["filename"]),
+        puzzle_id=puzzle_id,
+        filename=os.path.join("pieces", puzzle_id, piece_info["filename"]),
         bbox=piece_info["bbox"],
         rotation=piece_info["rotation"],
         puzzle_size=processor.options.puzzle_size,
