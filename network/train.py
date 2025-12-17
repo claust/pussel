@@ -61,6 +61,12 @@ def parse_args() -> Dict[str, Any]:
         default=config["model"]["rotation_weight"],
         help="Weight for rotation loss (β)",
     )
+    parser.add_argument(
+        "--use_spatial_correlation",
+        type=bool,
+        default=config["model"]["use_spatial_correlation"],
+        help="Whether to use spatial correlation module for position prediction",
+    )
 
     # Data arguments
     parser.add_argument(
@@ -137,6 +143,7 @@ def parse_args() -> Dict[str, Any]:
     config["model"]["learning_rate"] = args.learning_rate
     config["model"]["position_weight"] = args.position_weight
     config["model"]["rotation_weight"] = args.rotation_weight
+    config["model"]["use_spatial_correlation"] = args.use_spatial_correlation
 
     config["data"]["data_dir"] = args.data_dir
     config["data"]["batch_size"] = args.batch_size
@@ -171,13 +178,14 @@ def main():
         puzzle_size=config["data"]["puzzle_size"],
     )
 
-    # Initialize dual-input model
+    # Initialize dual-input model with spatial correlation
     model = PuzzleCNN(
         backbone_name=config["model"]["backbone_name"],
         pretrained=config["model"]["pretrained"],
         learning_rate=config["model"]["learning_rate"],
         position_weight=config["model"]["position_weight"],
         rotation_weight=config["model"]["rotation_weight"],
+        use_spatial_correlation=config["model"]["use_spatial_correlation"],
     )
 
     # Setup callbacks
