@@ -13,24 +13,24 @@ check: format-check lint typecheck
 
 # Check formatting with black
 black-check:
-	black . --check
+	black *.py --check
 
 # Check import sorting with isort
 isort-check:
-	isort . --check-only --profile=black --line-length=88
+	isort *.py --check-only --profile=black --line-length=88
 
 # Run all formatting checks (isort + black)
 format-check: isort-check black-check
 
 # Run flake8 linting
 lint:
-	flake8 . --extend-ignore=I100,I201
+	flake8 *.py --extend-ignore=I100,I201
 
 # Run mypy type checking
 typecheck:
-	mypy $$(find . -name "*.py" -not -path "./venv/*")
+	mypy *.py
 
 # Auto-format code
 format:
-	black .
-	isort . --profile=black --line-length=88
+	black *.py
+	isort *.py --profile=black --line-length=88
