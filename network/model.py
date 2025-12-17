@@ -239,8 +239,9 @@ class PuzzleCNN(pl.LightningModule):
 
         # Spatial correlation module for position-aware features
         if use_spatial_correlation:
-            # Create spatial backbone that preserves feature maps (no GAP)
-            self.puzzle_spatial_backbone = timm.create_model(
+            # Shared spatial backbone for both piece and puzzle (Siamese-style)
+            # Preserves feature maps (no GAP) for spatial correlation computation
+            self.spatial_backbone = timm.create_model(
                 backbone_name,
                 pretrained=pretrained,
                 features_only=True,
@@ -249,7 +250,7 @@ class PuzzleCNN(pl.LightningModule):
 
             # Get spatial feature dimensions
             with torch.no_grad():
-                spatial_features = self.puzzle_spatial_backbone(dummy_input)
+                spatial_features = self.spatial_backbone(dummy_input)
                 # features_only returns a list, get the last one
                 self.spatial_feature_dim = spatial_features[-1].shape[1]
 
@@ -374,9 +375,9 @@ class PuzzleCNN(pl.LightningModule):
 
         # Add spatial correlation features if enabled
         if self.use_spatial_correlation:
-            # Get spatial feature maps (preserves spatial dimensions)
-            piece_spatial_maps = self.puzzle_spatial_backbone(piece_img)[-1]
-            puzzle_spatial_maps = self.puzzle_spatial_backbone(puzzle_img)[-1]
+            # Get spatial feature maps using shared backbone (Siamese-style)
+            piece_spatial_maps = self.spatial_backbone(piece_img)[-1]
+            puzzle_spatial_maps = self.spatial_backbone(puzzle_img)[-1]
 
             # Compute spatial correlation
             correlation_features, _ = self.spatial_correlation(
