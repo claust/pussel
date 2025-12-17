@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """CNN-based model for puzzle piece position and rotation prediction."""
 
+import math
 from typing import Dict, Tuple
 
 import pytorch_lightning as pl
@@ -12,6 +13,100 @@ import torchmetrics
 from pytorch_lightning.utilities.types import OptimizerLRSchedulerConfig
 from torch.optim import Adam
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+
+
+class SpatialCorrelationModule(nn.Module):
+    """Computes spatial correlation between piece and puzzle feature maps.
+
+    This module preserves spatial information from the puzzle backbone and computes
+    a correlation map showing where the piece features match in the puzzle.
+    The correlation map provides explicit spatial position hints.
+    """
+
+    def __init__(self, feature_dim: int, correlation_dim: int = 64):
+        """Initialize the SpatialCorrelationModule.
+
+        Args:
+            feature_dim: Feature dimension from backbone (e.g., 512 for ResNet18)
+            correlation_dim: Reduced dimension for correlation computation
+        """
+        super().__init__()
+
+        # Project features to lower dimension for efficient correlation
+        self.piece_proj = nn.Sequential(
+            nn.Conv2d(feature_dim, correlation_dim, 1),
+            nn.BatchNorm2d(correlation_dim),
+            nn.ReLU(),
+        )
+        self.puzzle_proj = nn.Sequential(
+            nn.Conv2d(feature_dim, correlation_dim, 1),
+            nn.BatchNorm2d(correlation_dim),
+            nn.ReLU(),
+        )
+
+        # Learnable temperature for scaled dot-product attention.
+        # Initialized to sqrt(d) per standard attention: softmax(QK^T / sqrt(d))
+        # Dividing by sqrt(d) prevents softmax from becoming too sharp.
+        self.temperature = nn.Parameter(torch.ones(1) * math.sqrt(correlation_dim))
+
+        # Process correlation map to extract position features
+        self.correlation_processor = nn.Sequential(
+            nn.Conv2d(1, 32, 3, padding=1),
+            nn.BatchNorm2d(32),
+            nn.ReLU(),
+            nn.Conv2d(32, 64, 3, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.AdaptiveAvgPool2d(1),
+        )
+
+        self.correlation_feat_dim = 64
+
+    def forward(
+        self, piece_feat_map: torch.Tensor, puzzle_feat_map: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Compute spatial correlation between piece and puzzle.
+
+        Args:
+            piece_feat_map: Piece feature map (B, C, Hp, Wp)
+            puzzle_feat_map: Puzzle feature map (B, C, H, W)
+
+        Returns:
+            Tuple of:
+                - correlation_features: Processed correlation features (B, 64)
+                - correlation_map: Raw correlation map (B, 1, H, W) for visualization
+        """
+        batch_size = piece_feat_map.shape[0]
+
+        # Project to lower dimension
+        piece_proj = self.piece_proj(piece_feat_map)  # (B, D, Hp, Wp)
+        puzzle_proj = self.puzzle_proj(puzzle_feat_map)  # (B, D, H, W)
+
+        # Global average pool piece features to get a single descriptor
+        piece_vec = piece_proj.mean(dim=[2, 3])  # (B, D)
+
+        # Compute correlation: how well does each puzzle location match the piece?
+        # Reshape for batch matrix multiplication
+        _, D, H, W = puzzle_proj.shape
+        puzzle_flat = puzzle_proj.view(batch_size, D, H * W)  # (B, D, H*W)
+
+        # Correlation scores
+        correlation = torch.bmm(piece_vec.unsqueeze(1), puzzle_flat)  # (B, 1, H*W)
+        correlation = correlation / self.temperature
+
+        # Reshape to spatial map
+        correlation_map = correlation.view(batch_size, 1, H, W)  # (B, 1, H, W)
+
+        # Apply softmax to get attention-like weights
+        correlation_softmax = F.softmax(
+            correlation_map.view(batch_size, -1), dim=-1
+        ).view(batch_size, 1, H, W)
+
+        # Process correlation map to extract position-aware features
+        correlation_features = self.correlation_processor(correlation_softmax)
+        correlation_features = correlation_features.view(batch_size, -1)  # (B, 64)
+
+        return correlation_features, correlation_map
 
 
 class CrossAttentionFusion(nn.Module):
@@ -93,7 +188,14 @@ class CrossAttentionFusion(nn.Module):
 
 
 class PuzzleCNN(pl.LightningModule):
-    """LightningModule for puzzle piece position and rotation prediction."""
+    """LightningModule for puzzle piece position and rotation prediction.
+
+    This model uses a dual-backbone architecture with spatial correlation:
+    - Piece backbone: Extracts features from puzzle pieces (with GAP for fusion)
+    - Puzzle spatial backbone: Preserves spatial feature maps for correlation
+    - Spatial correlation: Computes where piece features match in the puzzle
+    - Cross-attention fusion: Combines piece and puzzle context features
+    """
 
     def __init__(
         self,
@@ -102,6 +204,7 @@ class PuzzleCNN(pl.LightningModule):
         learning_rate: float = 1e-4,
         position_weight: float = 1.0,
         rotation_weight: float = 1.0,
+        use_spatial_correlation: bool = True,
     ):
         """Initialize the PuzzleCNN model.
 
@@ -111,37 +214,52 @@ class PuzzleCNN(pl.LightningModule):
             learning_rate: Initial learning rate
             position_weight: Weight for position loss (α)
             rotation_weight: Weight for rotation loss (β)
+            use_spatial_correlation: Whether to use spatial correlation module
         """
         super().__init__()
         self.save_hyperparameters()
+        self.use_spatial_correlation = use_spatial_correlation
 
-        # Create separate backbones for piece and puzzle
-        self.piece_backbone = timm.create_model(
-            backbone_name, pretrained=pretrained, num_classes=0
-        )
-        self.puzzle_backbone = timm.create_model(
-            backbone_name, pretrained=pretrained, num_classes=0
+        # Single shared backbone with features_only=True for efficiency
+        # Returns spatial feature maps; we apply GAP manually for global features
+        # This avoids redundant forward passes (2 instead of 4 when spatial enabled)
+        self.backbone = timm.create_model(
+            backbone_name,
+            pretrained=pretrained,
+            features_only=True,
+            out_indices=[-1],  # Final feature map (works across backbone types)
         )
 
-        # Get feature dimensions from backbones
-        # Note: Input size is arbitrary here - only used to probe feature dimensions
-        # Actual input sizes are determined by dataset transforms (config.py)
-        # Backbones use adaptive pooling, so feature dims are size-agnostic
+        # Global average pooling to convert spatial maps to global features
+        self.global_pool = nn.AdaptiveAvgPool2d(1)
+
+        # Get feature dimensions from backbone
         with torch.no_grad():
             dummy_input = torch.zeros(1, 3, 224, 224)
-            piece_features = self.piece_backbone(dummy_input)
-            puzzle_features = self.puzzle_backbone(dummy_input)
-            self.piece_feature_dim = piece_features.shape[1]
-            self.puzzle_feature_dim = puzzle_features.shape[1]
+            spatial_features = self.backbone(dummy_input)[-1]
+            self.feature_dim = spatial_features.shape[1]
+
+        # Spatial correlation module for position-aware features
+        if use_spatial_correlation:
+            self.spatial_correlation = SpatialCorrelationModule(
+                feature_dim=self.feature_dim,
+                correlation_dim=64,
+            )
+            spatial_feat_dim = self.spatial_correlation.correlation_feat_dim
+        else:
+            spatial_feat_dim = 0
 
         # Cross-attention fusion with learned piece-puzzle interactions
         self.fusion_layer = CrossAttentionFusion(
-            dim=self.piece_feature_dim,
+            dim=self.feature_dim,
             output_dim=512,
         )
-        self.fused_dim = 512
+
+        # Combined feature dimension: fusion features + spatial correlation features
+        self.fused_dim = 512 + spatial_feat_dim
 
         # Position prediction head (x1, y1, x2, y2)
+        # Spatial correlation features are particularly helpful here
         self.position_head = nn.Sequential(
             nn.Linear(self.fused_dim, 256),
             nn.ReLU(),
@@ -235,12 +353,26 @@ class PuzzleCNN(pl.LightningModule):
         Returns:
             Tuple of (position_pred, rotation_logits)
         """
-        # Extract features from backbones
-        piece_features = self.piece_backbone(piece_img)
-        puzzle_features = self.puzzle_backbone(puzzle_img)
+        # Extract spatial feature maps from shared backbone (2 forward passes total)
+        piece_spatial_maps = self.backbone(piece_img)[-1]
+        puzzle_spatial_maps = self.backbone(puzzle_img)[-1]
+
+        # Apply GAP to get global features for cross-attention fusion
+        piece_features = self.global_pool(piece_spatial_maps).flatten(1)
+        puzzle_features = self.global_pool(puzzle_spatial_maps).flatten(1)
 
         # Cross-attention fusion: piece queries attend to puzzle context
         fused_features = self.fusion_layer(piece_features, puzzle_features)
+
+        # Add spatial correlation features if enabled
+        if self.use_spatial_correlation:
+            # Reuse spatial maps from above (no extra forward passes)
+            correlation_features, _ = self.spatial_correlation(
+                piece_spatial_maps, puzzle_spatial_maps
+            )
+
+            # Concatenate spatial correlation features with fusion features
+            fused_features = torch.cat([fused_features, correlation_features], dim=1)
 
         # Get position and rotation predictions
         position_pred = self.position_head(fused_features)

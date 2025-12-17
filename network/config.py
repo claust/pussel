@@ -26,6 +26,7 @@ def get_default_config() -> Dict[str, Any]:
             "learning_rate": 3e-3,  # Increased from 1e-4 based on LR finder results
             "position_weight": 1.0,
             "rotation_weight": 1.0,
+            "use_spatial_correlation": True,  # Enable spatial correlation for position
         },
         # Training configuration
         "training": {
