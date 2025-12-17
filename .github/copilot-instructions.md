@@ -65,6 +65,7 @@ pussel/
    - Use **black** for code formatting (line length: 88 characters)
    - Use **isort** for import sorting with black profile
    - Format before committing
+   - Note: flake8 enforces 79 character line length for docstrings and comments
 
 2. **Import Order** (isort with black profile):
    - Future imports
@@ -85,7 +86,7 @@ pussel/
    - Test files can omit some docstrings (per flake8 config)
 
 5. **Linting**:
-   - Max line length: 79 characters (flake8)
+   - Max line length: 79 characters for docstrings/comments (flake8), 88 for code (black)
    - Max complexity: 10 (cyclomatic complexity)
    - Follow flake8-bugbear recommendations
    - Ignore E203, W503 (conflicts with Black)
