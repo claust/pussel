@@ -220,12 +220,13 @@ class PuzzleCNN(pl.LightningModule):
         self.save_hyperparameters()
         self.use_spatial_correlation = use_spatial_correlation
 
-        # Create piece backbone (with global average pooling for fusion)
+        # Backbone for piece features with GAP (provides global context for fusion)
         self.piece_backbone = timm.create_model(
             backbone_name, pretrained=pretrained, num_classes=0
         )
 
-        # Create puzzle backbone for cross-attention fusion (with GAP)
+        # Backbone for puzzle features with GAP (provides global context for fusion)
+        # Note: spatial_backbone (below) handles spatial features without GAP
         self.puzzle_backbone = timm.create_model(
             backbone_name, pretrained=pretrained, num_classes=0
         )
