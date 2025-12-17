@@ -13,7 +13,7 @@ def get_default_config() -> Dict[str, Any]:
     config = {
         # Data configuration
         "data": {
-            "data_dir": "datasets/example",
+            "data_dir": "datasets",
             "batch_size": 32,
             "num_workers": 4,
             "piece_size": (128, 128),  # Small and focused on piece detail
