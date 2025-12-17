@@ -29,8 +29,18 @@ flutter pub get
 
 ### Network (ML Training)
 ```bash
+# Create and activate virtual environment (from repo root)
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
 cd network
 pip install -r requirements.txt
+```
+
+**IMPORTANT**: Always activate the virtual environment before working with network code:
+```bash
+source venv/bin/activate  # From repo root, or:
+source ../venv/bin/activate  # From network/ directory
 ```
 
 ## Common Commands
@@ -70,8 +80,12 @@ dart format --output=write lib/  # Format code
 ```
 
 ### ML Model Training
+**Note**: Always activate the venv first: `source ../venv/bin/activate` (from network/)
+
 ```bash
 cd network
+source ../venv/bin/activate  # Activate venv before running any commands
+
 python train.py            # Train with default config
 
 # Custom training parameters
@@ -190,8 +204,11 @@ Run `pre-commit install` after cloning to enable automatic checks.
 #### For Network (ML) code changes:
 ```bash
 cd network
+source ../venv/bin/activate  # IMPORTANT: Activate venv first!
 make check    # Runs black, isort, flake8, and mypy - same as CI
 ```
+
+**IMPORTANT**: You must activate the venv before running `make check` manually. However, **git commit hooks automatically activate the venv**, so committing from VS Code or the terminal works without manual activation.
 
 If checks fail, run `make format` to auto-fix formatting issues, then address any remaining lint or type errors.
 

@@ -1,6 +1,7 @@
 # Puzzle Piece Prediction Model
 
 This project consists of two main components:
+
 1. Utilities for generating and processing puzzle datasets
 2. A CNN-based model for predicting puzzle piece positions and rotations
 
@@ -86,10 +87,38 @@ python visualize_piece.py path/to/puzzle.jpg path/to/piece.png --output path/to/
 ```
 
 Features:
+
 - Shows the piece in its original position with a red bounding box
 - Makes the piece semi-transparent (50% opacity) for better visualization
 - Automatically rotates the piece back to its original orientation
 - Handles different piece formats and rotations
+
+#### 4. Image Downloader
+
+Downloads puzzle images from a CSV file containing Unsplash URLs.
+
+https://github.com/unsplash/datasets
+
+```bash
+# Download 1000 images (default)
+python download_images.py
+
+# Download a specific number of images
+python download_images.py --count 500
+
+# Specify output directory
+python download_images.py --output-dir datasets/custom/raw
+
+# Use a different CSV file
+python download_images.py --csv-file my_dataset.csv
+```
+
+Features:
+
+- Skips images that already exist in the output folder
+- Shows progress bar during download
+- Handles download failures gracefully
+- Names images sequentially as `puzzle_001.jpg`, `puzzle_002.jpg`, etc.
 
 ### Dataset Output Format
 
@@ -110,6 +139,7 @@ datasets/example/
 ```
 
 Each piece filename encodes its position and rotation:
+
 - `puzzle_001_piece_001`: Piece ID (piece 001 of puzzle 001)
 - `x100_y150_x170_y220`: Bounding box coordinates (x1, y1, x2, y2)
 - `r0`: Rotation in degrees (0, 90, 180, or 270)
@@ -117,6 +147,9 @@ Each piece filename encodes its position and rotation:
 ### Dataset Preparation Examples
 
 ```bash
+# Download 1000 images from Unsplash dataset
+python download_images.py --count 1000
+
 # Generate ~500 pieces from example puzzle
 python puzzle_generator.py datasets/example/puzzle_001.jpg
 
@@ -171,18 +204,23 @@ cd network
 tensorboard --logdir=logs
 ```
 
-Then open http://localhost:6006/ in your web browser to view training metrics, including:
+Then open http://localhost:6006/ in your web browser to view training metrics,
+including:
+
 - Position and rotation losses
 - Rotation accuracy
 - Confusion matrix
 
 ### Model Checkpoints
 
-Model checkpoints are saved in the `network/checkpoints/` directory. The training process saves:
+Model checkpoints are saved in the `network/checkpoints/` directory. The
+training process saves:
+
 - The top 3 best-performing models based on validation loss
 - The latest model checkpoint as `last.ckpt`
 
-You can resume training from a checkpoint by using the Lightning CLI or implementing a custom resume function.
+You can resume training from a checkpoint by using the Lightning CLI or
+implementing a custom resume function.
 
 ### Training Examples
 
