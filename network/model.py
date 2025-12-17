@@ -246,7 +246,7 @@ class PuzzleCNN(pl.LightningModule):
                 backbone_name,
                 pretrained=pretrained,
                 features_only=True,
-                out_indices=[4],  # Get final feature map before GAP
+                out_indices=[-1],  # Final feature map (works across backbone types)
             )
 
             # Get spatial feature dimensions
