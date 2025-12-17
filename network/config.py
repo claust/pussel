@@ -16,8 +16,8 @@ def get_default_config() -> Dict[str, Any]:
             "data_dir": "datasets/example",
             "batch_size": 32,
             "num_workers": 4,
-            "piece_size": (128, 128),  # Reduced from 224 for faster training
-            "puzzle_size": (128, 128),  # Reduced from 224 for faster training
+            "piece_size": (128, 128),  # Small and focused on piece detail
+            "puzzle_size": (512, 512),  # Larger to preserve spatial context
         },
         # Model configuration
         "model": {
