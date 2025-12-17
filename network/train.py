@@ -18,6 +18,25 @@ from dataset import PuzzleDataModule
 from model import PuzzleCNN
 
 
+def str_to_bool(value: str) -> bool:
+    """Convert string to boolean for argparse.
+
+    Args:
+        value: String representation of boolean
+
+    Returns:
+        Boolean value
+
+    Raises:
+        argparse.ArgumentTypeError: If value cannot be parsed as boolean
+    """
+    if value.lower() in ("true", "1", "yes"):
+        return True
+    elif value.lower() in ("false", "0", "no"):
+        return False
+    raise argparse.ArgumentTypeError(f"Boolean value expected, got '{value}'")
+
+
 def parse_args() -> Dict[str, Any]:
     """Parse command line arguments and update default config.
 
@@ -63,9 +82,9 @@ def parse_args() -> Dict[str, Any]:
     )
     parser.add_argument(
         "--use_spatial_correlation",
-        type=bool,
+        type=str_to_bool,
         default=config["model"]["use_spatial_correlation"],
-        help="Whether to use spatial correlation module for position prediction",
+        help="Use spatial correlation module (true/false)",
     )
 
     # Data arguments
