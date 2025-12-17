@@ -44,7 +44,9 @@ class SpatialCorrelationModule(nn.Module):
             nn.ReLU(),
         )
 
-        # Learnable temperature for softmax
+        # Learnable temperature for scaled dot-product attention.
+        # Initialized to sqrt(d) per standard attention: softmax(QK^T / sqrt(d))
+        # Dividing by sqrt(d) prevents softmax from becoming too sharp.
         self.temperature = nn.Parameter(torch.ones(1) * math.sqrt(correlation_dim))
 
         # Process correlation map to extract position features
