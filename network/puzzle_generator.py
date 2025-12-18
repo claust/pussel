@@ -34,8 +34,9 @@ import csv
 import json
 import os
 import random
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 import albumentations as A  # type: ignore[import]
 import numpy as np
@@ -52,7 +53,7 @@ class ProcessingOptions:
     """Options for processing puzzle pieces."""
 
     # Piece generation options
-    num_pieces: int = 500
+    num_pieces: int = 1000
     piece_output_size: Tuple[int, int] = (224, 224)  # Size to save pieces at
 
     # Puzzle context image options (pieces are cut from original, not this)
@@ -74,6 +75,11 @@ class ProcessingOptions:
 
     # Processing options
     normalize_pixels: bool = True
+
+    # Output format options
+    output_format: str = "jpeg"  # "jpeg" (fast) or "png" (with transparency)
+    jpeg_quality: int = 85  # JPEG quality (1-100)
+    save_threads: int = 4  # Number of threads for parallel piece saving
 
     @classmethod
     def from_json(cls, json_path: str) -> "ProcessingOptions":
@@ -394,33 +400,51 @@ class PuzzleProcessor:
         Returns:
             Tuple of (original piece image, bounding box, rotation) or None
         """
-        # Create a binary mask for this piece
-        piece_mask = (mask == piece_id).astype(np.uint8) * 255
-        piece_mask_img = Image.fromarray(piece_mask)
+        img_array = np.array(image)
+        return self.extract_piece_from_array(img_array, mask, piece_id)
 
-        # Find bounding box
-        bbox = piece_mask_img.getbbox()
-        if bbox is None:
+    def extract_piece_from_array(
+        self, img_array: np.ndarray, mask: np.ndarray, piece_id: int
+    ) -> Optional[PieceData]:
+        """Extract and process a single puzzle piece from numpy array.
+
+        Args:
+            img_array: Source puzzle image as numpy array
+            mask: Piece mask array
+            piece_id: ID of the piece to extract
+
+        Returns:
+            Tuple of (original piece image, bounding box, rotation) or None
+        """
+        # Create a binary mask for this piece
+        piece_mask = mask == piece_id
+
+        # Find bounding box using numpy (faster than PIL)
+        rows = np.any(piece_mask, axis=1)
+        cols = np.any(piece_mask, axis=0)
+        if not rows.any() or not cols.any():
             return None
 
-        # Extract piece
-        x1, y1, x2, y2 = bbox
-        piece_img = Image.new("RGBA", (x2 - x1, y2 - y1), (0, 0, 0, 0))
+        y1, y2 = np.where(rows)[0][[0, -1]]
+        x1, x2 = np.where(cols)[0][[0, -1]]
+        y2 += 1  # Make exclusive
+        x2 += 1
 
-        # Extract pixel data with proper alpha channel
-        for y in range(y1, y2):
-            for x in range(x1, x2):
-                if mask[y, x] == piece_id:
-                    pixel = image.getpixel((x, y))
-                    if isinstance(pixel, tuple):
-                        r, g, b = pixel[:3]
-                    elif pixel is not None:
-                        r = g = b = int(pixel)
-                    else:
-                        r = g = b = 0
-                    piece_img.putpixel((x - x1, y - y1), (r, g, b, 255))
-                else:
-                    piece_img.putpixel((x - x1, y - y1), (0, 0, 0, 0))
+        bbox = (x1, y1, x2, y2)
+
+        # Extract region from image and mask using numpy (vectorized)
+        region = img_array[y1:y2, x1:x2].copy()
+        mask_region = piece_mask[y1:y2, x1:x2]
+
+        # Create RGBA output array
+        h, w = region.shape[:2]
+        rgba = np.zeros((h, w, 4), dtype=np.uint8)
+
+        # Copy RGB where mask is True, set alpha to 255
+        rgba[mask_region, :3] = region[mask_region, :3]
+        rgba[mask_region, 3] = 255
+
+        piece_img = Image.fromarray(rgba, mode="RGBA")
 
         # Random rotation for training diversity
         rotation = random.choice([0, 90, 180, 270])
@@ -445,8 +469,163 @@ class PuzzleProcessor:
         return process_puzzle_helper(self, puzzle_path, output_dir, metadata_handler)
 
 
+def _process_single_puzzle_worker(
+    args: Tuple[str, str, ProcessingOptions],
+) -> List[dict]:
+    """Worker function to process a single puzzle image.
+
+    This function is designed to be called by ProcessPoolExecutor.
+    It returns metadata entries instead of writing directly to avoid
+    concurrent file access issues.
+
+    Args:
+        args: Tuple of (puzzle_path, output_dir, options)
+
+    Returns:
+        List of metadata entry dictionaries
+    """
+    puzzle_path, output_dir, options = args
+    processor = PuzzleProcessor(options)
+
+    # Create directories
+    dirs = _prepare_directories(output_dir)
+
+    # Get puzzle name and ID
+    puzzle_name = os.path.splitext(os.path.basename(puzzle_path))[0]
+    puzzle_id = puzzle_name
+
+    # Load and process puzzle image
+    original_image, original_size = _process_puzzle_image(
+        processor, puzzle_path, dirs["puzzles"], puzzle_name
+    )
+
+    # Convert image to numpy once (avoid repeated conversion per piece)
+    img_array = np.array(original_image)
+
+    # Generate mask
+    width, height = original_size
+    mask = processor.generate_mask(width, height)
+
+    # Process pieces
+    unique_ids = np.unique(mask)
+    piece_ids = unique_ids[1:]  # Skip background (0)
+
+    # Create puzzle subdirectory once
+    puzzle_subdir = os.path.join(dirs["pieces"], puzzle_id)
+    os.makedirs(puzzle_subdir, exist_ok=True)
+
+    # Process pieces in parallel using threads (I/O bound)
+    def process_one_piece(pid: int) -> Optional[dict]:
+        return _process_piece_for_worker(
+            processor,
+            img_array,
+            mask,
+            pid,
+            dirs["pieces"],
+            puzzle_id,
+            original_size,
+            options,
+        )
+
+    metadata_entries: List[dict] = []
+
+    if options.save_threads > 1:
+        # Parallel piece processing with threads
+        with ThreadPoolExecutor(max_workers=options.save_threads) as executor:
+            results = executor.map(process_one_piece, piece_ids)
+            metadata_entries = [e for e in results if e is not None]
+    else:
+        # Sequential processing
+        for piece_id in piece_ids:
+            entry = process_one_piece(piece_id)
+            if entry:
+                metadata_entries.append(entry)
+
+    return metadata_entries
+
+
+def _process_piece_for_worker(
+    processor: PuzzleProcessor,
+    img_array: np.ndarray,
+    mask: np.ndarray,
+    piece_id: int,
+    pieces_dir: str,
+    puzzle_id: str,
+    original_size: Tuple[int, int],
+    options: ProcessingOptions,
+) -> Optional[dict]:
+    """Process a single piece and return metadata entry.
+
+    Args:
+        processor: The PuzzleProcessor instance
+        img_array: Original high-resolution puzzle image as numpy array
+        mask: Piece mask array
+        piece_id: ID of the piece to extract
+        pieces_dir: Directory to save piece images
+        puzzle_id: ID of the source puzzle
+        original_size: Original puzzle dimensions (width, height)
+        options: Processing options
+
+    Returns:
+        Metadata entry dictionary or None
+    """
+    # Extract the piece
+    piece_data = processor.extract_piece_from_array(img_array, mask, piece_id)
+    if piece_data is None:
+        return None
+
+    original_piece, bbox, rotation = piece_data
+
+    # Determine split
+    split = "validation" if random.random() < options.validation_split else "train"
+
+    # Create filename based on output format
+    piece_id_str = f"{puzzle_id}_{piece_id:03d}"
+    ext = "jpg" if options.output_format == "jpeg" else "png"
+    filename = f"{piece_id_str}_r{rotation}.{ext}"
+
+    # Process and save piece
+    processed_piece = processor.process_piece(original_piece, bbox, rotation)
+
+    # Save in puzzle-specific subdirectory
+    puzzle_subdir = os.path.join(pieces_dir, puzzle_id)
+    piece_path = os.path.join(puzzle_subdir, filename)
+
+    # Save with format-specific options
+    if options.output_format == "jpeg":
+        # Convert RGBA to RGB for JPEG (no alpha channel support)
+        if processed_piece.mode == "RGBA":
+            rgb_piece = Image.new("RGB", processed_piece.size, (255, 255, 255))
+            rgb_piece.paste(processed_piece, mask=processed_piece.split()[3])
+            processed_piece = rgb_piece
+        processed_piece.save(piece_path, "JPEG", quality=options.jpeg_quality)
+    else:
+        # PNG with minimal compression for speed
+        processed_piece.save(piece_path, "PNG", compress_level=1)
+
+    # Return metadata entry (don't write to file yet)
+    x1, y1, x2, y2 = bbox
+    width, height = original_size
+
+    return {
+        "piece_id": piece_id_str,
+        "puzzle_id": puzzle_id,
+        "filename": os.path.join("pieces", puzzle_id, filename),
+        "x1": x1,
+        "y1": y1,
+        "x2": x2,
+        "y2": y2,
+        "rotation": rotation,
+        "normalized_x1": x1 / width,
+        "normalized_y1": y1 / height,
+        "normalized_x2": x2 / width,
+        "normalized_y2": y2 / height,
+        "split": split,
+    }
+
+
 def process_directory(
-    input_dir: str, output_dir: str, options: ProcessingOptions
+    input_dir: str, output_dir: str, options: ProcessingOptions, num_workers: int = 1
 ) -> int:
     """Process all puzzle images in a directory.
 
@@ -454,20 +633,11 @@ def process_directory(
         input_dir: Input directory containing puzzle images
         output_dir: Output directory for processed data
         options: Processing options
+        num_workers: Number of parallel workers (default: 1)
 
     Returns:
         Total number of pieces generated
     """
-    # Setup the metadata handler
-    metadata_path = os.path.join(output_dir, "metadata.csv")
-    metadata_handler = MetadataHandler(metadata_path, create_new=True)
-
-    # Initialize the processor
-    processor = PuzzleProcessor(options)
-
-    # Keep track of total pieces
-    total_pieces = 0
-
     # Collect all puzzle images first
     puzzle_files = [
         f
@@ -475,18 +645,95 @@ def process_directory(
         if f.lower().endswith((".png", ".jpg", ".jpeg"))
     ]
 
-    # Process each puzzle image with progress bar
-    for filename in tqdm(puzzle_files, desc="Processing puzzles", unit="puzzle"):
-        puzzle_path = os.path.join(input_dir, filename)
-        pieces_count = processor.process_puzzle(
-            puzzle_path, output_dir, metadata_handler
-        )
-        total_pieces += pieces_count
+    # Prepare worker arguments
+    worker_args = [
+        (os.path.join(input_dir, filename), output_dir, options)
+        for filename in puzzle_files
+    ]
 
-    # Create the train/val split files
-    metadata_handler.create_split_files(output_dir)
+    # Collect all metadata entries
+    all_metadata: List[dict] = []
 
-    return total_pieces
+    if num_workers > 1:
+        # Parallel processing
+        with ProcessPoolExecutor(max_workers=num_workers) as executor:
+            futures = {
+                executor.submit(_process_single_puzzle_worker, args): args[0]
+                for args in worker_args
+            }
+
+            for future in tqdm(
+                as_completed(futures),
+                total=len(futures),
+                desc="Processing puzzles",
+                unit="puzzle",
+            ):
+                metadata_entries = future.result()
+                all_metadata.extend(metadata_entries)
+    else:
+        # Sequential processing (original behavior)
+        for args in tqdm(worker_args, desc="Processing puzzles", unit="puzzle"):
+            metadata_entries = _process_single_puzzle_worker(args)
+            all_metadata.extend(metadata_entries)
+
+    # Write all metadata at once
+    metadata_path = os.path.join(output_dir, "metadata.csv")
+    _write_metadata(metadata_path, all_metadata)
+
+    # Create split files
+    _create_split_files_from_metadata(all_metadata, output_dir)
+
+    return len(all_metadata)
+
+
+def _write_metadata(metadata_path: str, entries: List[dict]) -> None:
+    """Write all metadata entries to CSV file.
+
+    Args:
+        metadata_path: Path to the metadata CSV file
+        entries: List of metadata entry dictionaries
+    """
+    header = [
+        "piece_id",
+        "puzzle_id",
+        "filename",
+        "x1",
+        "y1",
+        "x2",
+        "y2",
+        "rotation",
+        "normalized_x1",
+        "normalized_y1",
+        "normalized_x2",
+        "normalized_y2",
+        "split",
+    ]
+
+    os.makedirs(os.path.dirname(metadata_path), exist_ok=True)
+
+    with open(metadata_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=header)
+        writer.writeheader()
+        writer.writerows(entries)
+
+
+def _create_split_files_from_metadata(entries: List[dict], output_dir: str) -> None:
+    """Create train.txt and val.txt files from metadata entries.
+
+    Args:
+        entries: List of metadata entry dictionaries
+        output_dir: Directory to save the split files
+    """
+    train_pieces = [e["piece_id"] for e in entries if e["split"] == "train"]
+    val_pieces = [e["piece_id"] for e in entries if e["split"] == "validation"]
+
+    train_path = os.path.join(output_dir, "train.txt")
+    with open(train_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(train_pieces))
+
+    val_path = os.path.join(output_dir, "val.txt")
+    with open(val_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(val_pieces))
 
 
 def process_puzzle_helper(
@@ -718,7 +965,7 @@ def main():
     parser.add_argument(
         "--pieces",
         type=int,
-        default=500,
+        default=1000,
         help="Approximate number of pieces to generate per puzzle",
     )
     parser.add_argument(
@@ -742,6 +989,30 @@ def main():
         type=float,
         default=0.2,
         help="Fraction of pieces to use for validation",
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=5,
+        help="Number of parallel workers for processing (default: 5)",
+    )
+    parser.add_argument(
+        "--format",
+        choices=["jpeg", "png"],
+        default="jpeg",
+        help="Output format for pieces: jpeg (fast) or png (with transparency)",
+    )
+    parser.add_argument(
+        "--jpeg-quality",
+        type=int,
+        default=85,
+        help="JPEG quality 1-100 (default: 85)",
+    )
+    parser.add_argument(
+        "--save-threads",
+        type=int,
+        default=8,
+        help="Threads for parallel piece saving per puzzle (default: 8)",
     )
     parser.add_argument("--config", help="Path to JSON configuration file")
 
@@ -808,7 +1079,7 @@ def main():
     options = _create_options(args)
 
     # Process the input
-    _process_input(args.input_path, args.output_dir, options)
+    _process_input(args.input_path, args.output_dir, options, args.workers)
 
 
 def _create_options(args):
@@ -828,6 +1099,9 @@ def _create_options(args):
         puzzle_context_size=tuple(args.context_size),
         piece_output_size=tuple(args.piece_size),
         validation_split=args.validation_split,
+        output_format=args.format,
+        jpeg_quality=args.jpeg_quality,
+        save_threads=args.save_threads,
     )
 
     # Set augmentation options
@@ -860,13 +1134,14 @@ def _get_default_output_dir(input_path: str) -> str:
     return os.path.dirname(os.path.dirname(input_path))
 
 
-def _process_input(input_path, output_dir_path, options):
+def _process_input(input_path, output_dir_path, options, num_workers=1):
     """Process the input image or directory.
 
     Args:
         input_path: Path to the input image or directory
         output_dir_path: Path to the output directory (None to use input directory)
         options: Processing options
+        num_workers: Number of parallel workers for processing
     """
     # Process the input path first to determine default output
     input_path = os.path.abspath(input_path)
@@ -884,7 +1159,7 @@ def _process_input(input_path, output_dir_path, options):
 
     # Process the input
     if os.path.isdir(input_path):
-        total_pieces = process_directory(input_path, output_dir, options)
+        total_pieces = process_directory(input_path, output_dir, options, num_workers)
         print(f"Total: Generated {total_pieces} pieces in {output_dir}")
     else:
         _process_single_file(input_path, output_dir, options)
