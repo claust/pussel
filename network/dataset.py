@@ -182,9 +182,9 @@ class PuzzleDataset(Dataset):
             transformed_puzzle = self.puzzle_transform(image=puzzle_array)
             puzzle_array = transformed_puzzle["image"]
 
-        # Convert to PyTorch tensors
-        piece_tensor = torch.from_numpy(piece_array).permute(2, 0, 1).float() / 255.0
-        puzzle_tensor = torch.from_numpy(puzzle_array).permute(2, 0, 1).float() / 255.0
+        # Convert to PyTorch tensors (already normalized by Albumentations)
+        piece_tensor = torch.from_numpy(piece_array).permute(2, 0, 1).float()
+        puzzle_tensor = torch.from_numpy(puzzle_array).permute(2, 0, 1).float()
 
         # Get position target (normalized coordinates)
         position = torch.tensor(
