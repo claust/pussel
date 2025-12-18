@@ -23,7 +23,7 @@ def get_default_config() -> Dict[str, Any]:
         "model": {
             "backbone_name": "mobilenetv3_small_100",
             "pretrained": True,
-            "learning_rate": 6e-4,  # Increased from 1e-4 based on LR finder results
+            "learning_rate": 1e-3,  # Increased from 1e-4 based on LR finder results
             "position_weight": 1.0,
             "rotation_weight": 1.0,
             "use_spatial_correlation": True,  # Enable spatial correlation for position
