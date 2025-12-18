@@ -13,7 +13,7 @@ import torchmetrics
 from pytorch_lightning.utilities.types import OptimizerLRSchedulerConfig
 from torch.optim import Adam
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from torchvision.ops import generalized_box_iou_loss  # type: ignore
+from torchvision.ops import complete_box_iou_loss  # type: ignore
 
 
 class SpatialCorrelationModule(nn.Module):
@@ -418,11 +418,13 @@ class PuzzleCNN(pl.LightningModule):
         # Get predictions using both inputs
         position_pred, rotation_logits = self(batch["piece"], batch["puzzle"])
 
-        # Calculate position loss (GIoU - Generalized IoU)
-        # GIoU provides better gradient signal for bounding box regression than MSE
+        # Calculate position loss (CIoU - Complete IoU)
+        # CIoU provides better gradient signal than GIoU by considering:
+        # 1. IoU overlap, 2. Center distance, 3. Aspect ratio consistency
+        # This solves gradient stalling when boxes don't overlap (IoU=0)
         pred_boxes = self._ensure_valid_boxes(position_pred)
         gt_boxes = self._ensure_valid_boxes(batch["position"])
-        position_loss = generalized_box_iou_loss(pred_boxes, gt_boxes, reduction="mean")
+        position_loss = complete_box_iou_loss(pred_boxes, gt_boxes, reduction="mean")
 
         # Calculate rotation loss (CrossEntropy)
         rotation_loss = F.cross_entropy(rotation_logits, batch["rotation"])
@@ -459,10 +461,10 @@ class PuzzleCNN(pl.LightningModule):
         # Get predictions
         position_pred, rotation_logits = self(batch["piece"], batch["puzzle"])
 
-        # Calculate position loss (GIoU - Generalized IoU)
+        # Calculate position loss (CIoU - Complete IoU)
         pred_boxes = self._ensure_valid_boxes(position_pred)
         gt_boxes = self._ensure_valid_boxes(batch["position"])
-        position_loss = generalized_box_iou_loss(pred_boxes, gt_boxes, reduction="mean")
+        position_loss = complete_box_iou_loss(pred_boxes, gt_boxes, reduction="mean")
 
         # Calculate IoU between predicted and ground truth boxes (for metrics)
         iou = self.calculate_iou(position_pred, batch["position"])
