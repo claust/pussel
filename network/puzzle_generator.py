@@ -23,9 +23,9 @@ Example usage:
     --color-shift-range 0.9 1.1 --rotation-range 15 \
     --zoom-range 0.9 1.1 --random-crop 0.1
 
-  # With custom piece and puzzle sizes
+  # With custom piece and context sizes
   python puzzle_generator.py puzzles/ --output-dir datasets/processed \
-    --puzzle-size 512 512 --piece-size 224 224 --validation-split 0.2
+    --context-size 256 256 --piece-size 224 224 --validation-split 0.2
 """
 
 
@@ -53,10 +53,10 @@ class ProcessingOptions:
 
     # Piece generation options
     num_pieces: int = 500
-    piece_size: Tuple[int, int] = (224, 224)
+    piece_output_size: Tuple[int, int] = (224, 224)  # Size to save pieces at
 
-    # Puzzle standardization options
-    puzzle_size: Tuple[int, int] = (512, 512)
+    # Puzzle context image options (pieces are cut from original, not this)
+    puzzle_context_size: Tuple[int, int] = (256, 256)  # Size for context image
 
     # Training/validation split
     validation_split: float = 0.2
@@ -126,7 +126,7 @@ class MetadataHandler:
         filename: str,
         bbox: BBox,
         rotation: int,
-        puzzle_size: Tuple[int, int],
+        original_size: Tuple[int, int],
         split: str = "train",
     ) -> None:
         """Add a puzzle piece to the metadata file.
@@ -137,12 +137,12 @@ class MetadataHandler:
             filename: Relative path to the piece image
             bbox: Original bounding box (x1, y1, x2, y2)
             rotation: Rotation value (0, 90, 180, 270)
-            puzzle_size: Size of the standardized puzzle (width, height)
+            original_size: Original puzzle dimensions (width, height) for normalization
             split: Dataset split ('train' or 'validation')
         """
-        # Calculate normalized coordinates
+        # Calculate normalized coordinates using original puzzle dimensions
         x1, y1, x2, y2 = bbox
-        width, height = puzzle_size
+        width, height = original_size
 
         # Calculate normalized coordinates
         normalized_coords = {
@@ -267,16 +267,19 @@ class PuzzleProcessor:
             ]
         )
 
-    def standardize_puzzle(self, image: Image.Image) -> Image.Image:
-        """Resize a puzzle image to standard dimensions.
+    def create_context_image(self, image: Image.Image) -> Image.Image:
+        """Create a smaller context image for training.
+
+        The context image is used as puzzle context during training,
+        while pieces are cut from the original high-resolution image.
 
         Args:
-            image: Input puzzle image
+            image: Input puzzle image (original resolution)
 
         Returns:
-            Standardized puzzle image
+            Context image at puzzle_context_size
         """
-        width, height = self.options.puzzle_size
+        width, height = self.options.puzzle_context_size
         return image.resize((width, height), Image.Resampling.LANCZOS)
 
     def generate_mask(self, width: int, height: int) -> np.ndarray:
@@ -341,8 +344,8 @@ class PuzzleProcessor:
             # Convert back to PIL
             piece_img = Image.fromarray(augmented["image"])
 
-        # Resize the piece to the target size
-        target_width, target_height = self.options.piece_size
+        # Resize the piece to the output size
+        target_width, target_height = self.options.piece_output_size
         processed_img = piece_img.resize(
             (target_width, target_height), Image.Resampling.LANCZOS
         )
@@ -516,13 +519,13 @@ def process_puzzle_helper(
     if puzzle_id is None:
         puzzle_id = puzzle_name
 
-    # Load and process image
-    std_image = _process_puzzle_image(
+    # Load original image and create context image
+    original_image, original_size = _process_puzzle_image(
         processor, puzzle_path, dirs["puzzles"], puzzle_name
     )
 
-    # Generate mask
-    width, height = std_image.size
+    # Generate mask from original high-resolution image
+    width, height = original_size
     mask = processor.generate_mask(width, height)
 
     # Process pieces with progress bar
@@ -538,12 +541,13 @@ def process_puzzle_helper(
     ):
         processed_count += process_single_piece(
             processor,
-            std_image,
+            original_image,
             mask,
             piece_id,
             dirs["pieces"],
             puzzle_id,
             metadata_handler,
+            original_size,
         )
 
     return processed_count
@@ -567,53 +571,68 @@ def _prepare_directories(output_dir):
 
 
 def _process_puzzle_image(processor, puzzle_path, puzzles_dir, puzzle_name):
-    """Load and process the puzzle image.
+    """Load the puzzle image and create context image for training.
+
+    Pieces are cut from the original high-resolution image to preserve detail.
+    A smaller context image is saved for use during training.
 
     Args:
         processor: The PuzzleProcessor instance
         puzzle_path: Path to the puzzle image
-        puzzles_dir: Directory to save processed puzzles
+        puzzles_dir: Directory to save context images
         puzzle_name: Name of the puzzle
 
     Returns:
-        Standardized puzzle image
+        Tuple of (original_image, original_size) where original_size is (width, height)
     """
-    # Load the image
+    # Load the image at original resolution
     original_image = Image.open(puzzle_path).convert("RGB")
-    std_image = processor.standardize_puzzle(original_image)
+    original_size = original_image.size  # (width, height)
 
-    # Save the standardized puzzle
-    std_puzzle_path = os.path.join(puzzles_dir, f"{puzzle_name}.jpg")
-    std_image.save(std_puzzle_path)
+    # Create and save context image (smaller, for training)
+    context_image = processor.create_context_image(original_image)
+    context_path = os.path.join(puzzles_dir, f"{puzzle_name}.jpg")
+    context_image.save(context_path)
 
-    return std_image
+    # Return original for piece extraction, plus dimensions for normalization
+    return original_image, original_size
 
 
 def process_single_piece(
-    processor, std_image, mask, piece_id, pieces_dir, puzzle_id, metadata_handler
+    processor,
+    original_image,
+    mask,
+    piece_id,
+    pieces_dir,
+    puzzle_id,
+    metadata_handler,
+    original_size,
 ):
     """Process a single puzzle piece to reduce complexity.
 
     Args:
         processor: The PuzzleProcessor instance
-        std_image: Standardized puzzle image
+        original_image: Original high-resolution puzzle image
         mask: Piece mask array
         piece_id: ID of the piece to extract
         pieces_dir: Directory to save piece images
         puzzle_id: ID of the source puzzle
         metadata_handler: Handler for piece metadata
+        original_size: Original puzzle dimensions (width, height) for normalization
 
     Returns:
         1 if piece was processed, 0 otherwise
     """
-    # Extract the piece
-    piece_data = processor.extract_piece(std_image, mask, piece_id)
+    # Extract the piece from original high-resolution image
+    piece_data = processor.extract_piece(original_image, mask, piece_id)
     if piece_data is None:
         return 0
 
     # Process piece and save
     piece_info = _create_piece_info(piece_data, puzzle_id, piece_id, processor.options)
-    _save_and_record_piece(processor, piece_info, pieces_dir, metadata_handler)
+    _save_and_record_piece(
+        processor, piece_info, pieces_dir, metadata_handler, original_size
+    )
 
     return 1
 
@@ -640,12 +659,15 @@ def _create_piece_info(piece_data, puzzle_id, piece_id, options):
         "bbox": bbox,
         "rotation": rotation,
         "id": f"{puzzle_id}_{piece_id:03d}",
+        "puzzle_id": puzzle_id,
         "split": split,
         "filename": f"{puzzle_id}_{piece_id:03d}_r{rotation}.png",
     }
 
 
-def _save_and_record_piece(processor, piece_info, pieces_dir, metadata_handler):
+def _save_and_record_piece(
+    processor, piece_info, pieces_dir, metadata_handler, original_size
+):
     """Save processed piece and record its metadata.
 
     Args:
@@ -653,6 +675,7 @@ def _save_and_record_piece(processor, piece_info, pieces_dir, metadata_handler):
         piece_info: Dictionary with piece information
         pieces_dir: Directory to save piece images
         metadata_handler: Handler for piece metadata
+        original_size: Original puzzle dimensions (width, height) for normalization
     """
     # Process the piece for the model
     processed_piece = processor.process_piece(
@@ -660,21 +683,21 @@ def _save_and_record_piece(processor, piece_info, pieces_dir, metadata_handler):
     )
 
     # Save the processed piece in puzzle-specific subdirectory
-    puzzle_id = piece_info["id"].split("_")[0]
+    puzzle_id = piece_info["puzzle_id"]
     puzzle_subdir = os.path.join(pieces_dir, puzzle_id)
     os.makedirs(puzzle_subdir, exist_ok=True)
 
     piece_path = os.path.join(puzzle_subdir, piece_info["filename"])
     processed_piece.save(piece_path)
 
-    # Add to metadata
+    # Add to metadata (normalized by original puzzle dimensions)
     metadata_handler.add_piece(
         piece_id=piece_info["id"],
         puzzle_id=puzzle_id,
         filename=os.path.join("pieces", puzzle_id, piece_info["filename"]),
         bbox=piece_info["bbox"],
         rotation=piece_info["rotation"],
-        puzzle_size=processor.options.puzzle_size,
+        original_size=original_size,
         split=piece_info["split"],
     )
 
@@ -699,12 +722,12 @@ def main():
         help="Approximate number of pieces to generate per puzzle",
     )
     parser.add_argument(
-        "--puzzle-size",
+        "--context-size",
         type=int,
         nargs=2,
-        default=[512, 512],
+        default=[256, 256],
         metavar=("WIDTH", "HEIGHT"),
-        help="Size to resize puzzles to",
+        help="Size for puzzle context image (pieces are cut from original resolution)",
     )
     parser.add_argument(
         "--piece-size",
@@ -712,7 +735,7 @@ def main():
         nargs=2,
         default=[224, 224],
         metavar=("WIDTH", "HEIGHT"),
-        help="Size to resize pieces to",
+        help="Size to resize pieces to after extraction",
     )
     parser.add_argument(
         "--validation-split",
@@ -802,8 +825,8 @@ def _create_options(args):
 
     options = ProcessingOptions(
         num_pieces=args.pieces,
-        puzzle_size=tuple(args.puzzle_size),
-        piece_size=tuple(args.piece_size),
+        puzzle_context_size=tuple(args.context_size),
+        piece_output_size=tuple(args.piece_size),
         validation_split=args.validation_split,
     )
 
