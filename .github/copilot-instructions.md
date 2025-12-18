@@ -22,7 +22,7 @@ The backend provides REST API endpoints for uploading puzzle images and processi
 ### Development Tools
 - **Testing**: pytest, pytest-cov
 - **Type Checking**: mypy (strict mode enabled)
-- **Linting**: flake8 with plugins (flake8-docstrings, flake8-import-order, flake8-bugbear)
+- **Linting**: flake8
 - **Formatting**: black (line length: 88), isort
 - **Pre-commit Hooks**: Automated code quality checks
 - **CI/CD**: GitHub Actions
