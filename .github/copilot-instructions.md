@@ -88,7 +88,6 @@ pussel/
 5. **Linting**:
    - Max line length: 79 characters for docstrings/comments (flake8), 88 for code (black)
    - Max complexity: 10 (cyclomatic complexity)
-   - Follow flake8-bugbear recommendations
    - Ignore E203, W503 (conflicts with Black)
 
 6. **Error Handling**:
