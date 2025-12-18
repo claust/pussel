@@ -13,6 +13,7 @@ import torchmetrics
 from pytorch_lightning.utilities.types import OptimizerLRSchedulerConfig
 from torch.optim import Adam
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torchvision.ops import complete_box_iou_loss  # type: ignore
 
 
 class SpatialCorrelationModule(nn.Module):
@@ -342,104 +343,6 @@ class PuzzleCNN(pl.LightningModule):
         return iou
 
     @staticmethod
-    def calculate_ciou_loss(
-        pred_boxes: torch.Tensor, gt_boxes: torch.Tensor, eps: float = 1e-7
-    ) -> torch.Tensor:
-        """Calculate Complete IoU (CIoU) loss for bounding box regression.
-
-        CIoU loss improves upon GIoU by considering:
-        1. IoU overlap
-        2. Distance between box centers (DIoU component)
-        3. Aspect ratio consistency
-
-        This provides better gradient signal even when boxes don't overlap,
-        solving the gradient stalling issue with vanilla IoU loss.
-
-        Args:
-            pred_boxes: Predicted boxes (N, 4) in format (x1, y1, x2, y2)
-            gt_boxes: Ground truth boxes (N, 4) in format (x1, y1, x2, y2)
-            eps: Small epsilon for numerical stability
-
-        Returns:
-            CIoU loss values, shape (N,)
-
-        References:
-            Zheng et al. "Distance-IoU Loss: Faster and Better Learning for
-            Bounding Box Regression" AAAI 2020.
-            https://arxiv.org/abs/1911.08287
-        """
-        # Extract coordinates
-        pred_x1, pred_y1, pred_x2, pred_y2 = pred_boxes.unbind(dim=-1)
-        gt_x1, gt_y1, gt_x2, gt_y2 = gt_boxes.unbind(dim=-1)
-
-        # Calculate box areas
-        pred_area = (pred_x2 - pred_x1) * (pred_y2 - pred_y1)
-        gt_area = (gt_x2 - gt_x1) * (gt_y2 - gt_y1)
-
-        # Calculate intersection coordinates
-        inter_x1 = torch.max(pred_x1, gt_x1)
-        inter_y1 = torch.max(pred_y1, gt_y1)
-        inter_x2 = torch.min(pred_x2, gt_x2)
-        inter_y2 = torch.min(pred_y2, gt_y2)
-
-        # Calculate intersection area
-        inter_width = torch.clamp(inter_x2 - inter_x1, min=0)
-        inter_height = torch.clamp(inter_y2 - inter_y1, min=0)
-        intersection = inter_width * inter_height
-
-        # Calculate union and IoU
-        union = pred_area + gt_area - intersection
-        iou = intersection / (union + eps)
-
-        # Calculate center points
-        pred_center_x = (pred_x1 + pred_x2) / 2
-        pred_center_y = (pred_y1 + pred_y2) / 2
-        gt_center_x = (gt_x1 + gt_x2) / 2
-        gt_center_y = (gt_y1 + gt_y2) / 2
-
-        # Calculate center distance squared
-        center_distance_sq = (pred_center_x - gt_center_x) ** 2 + (
-            pred_center_y - gt_center_y
-        ) ** 2
-
-        # Calculate diagonal length of smallest enclosing box
-        enclose_x1 = torch.min(pred_x1, gt_x1)
-        enclose_y1 = torch.min(pred_y1, gt_y1)
-        enclose_x2 = torch.max(pred_x2, gt_x2)
-        enclose_y2 = torch.max(pred_y2, gt_y2)
-        enclose_diagonal_sq = (enclose_x2 - enclose_x1) ** 2 + (
-            enclose_y2 - enclose_y1
-        ) ** 2
-
-        # DIoU term: normalized center distance
-        diou_term = center_distance_sq / (enclose_diagonal_sq + eps)
-
-        # Calculate aspect ratio consistency term
-        pred_width = pred_x2 - pred_x1
-        pred_height = pred_y2 - pred_y1
-        gt_width = gt_x2 - gt_x1
-        gt_height = gt_y2 - gt_y1
-
-        # Aspect ratio term with arctan
-        v = (4 / (math.pi**2)) * torch.pow(
-            torch.atan(gt_width / (gt_height + eps))
-            - torch.atan(pred_width / (pred_height + eps)),
-            2,
-        )
-
-        # Calculate alpha parameter (trade-off parameter)
-        with torch.no_grad():
-            alpha = v / (1 - iou + v + eps)
-
-        # CIoU = IoU - (center_distance / diagonal_distance) - alpha * v
-        ciou = iou - diou_term - alpha * v
-
-        # Return CIoU loss (1 - CIoU)
-        ciou_loss = 1 - ciou
-
-        return ciou_loss
-
-    @staticmethod
     def _ensure_valid_boxes(boxes: torch.Tensor) -> torch.Tensor:
         """Ensure boxes have valid coordinates (x1 < x2, y1 < y2).
 
@@ -521,7 +424,7 @@ class PuzzleCNN(pl.LightningModule):
         # This solves gradient stalling when boxes don't overlap (IoU=0)
         pred_boxes = self._ensure_valid_boxes(position_pred)
         gt_boxes = self._ensure_valid_boxes(batch["position"])
-        position_loss = self.calculate_ciou_loss(pred_boxes, gt_boxes).mean()
+        position_loss = complete_box_iou_loss(pred_boxes, gt_boxes, reduction="mean")
 
         # Calculate rotation loss (CrossEntropy)
         rotation_loss = F.cross_entropy(rotation_logits, batch["rotation"])
@@ -561,7 +464,7 @@ class PuzzleCNN(pl.LightningModule):
         # Calculate position loss (CIoU - Complete IoU)
         pred_boxes = self._ensure_valid_boxes(position_pred)
         gt_boxes = self._ensure_valid_boxes(batch["position"])
-        position_loss = self.calculate_ciou_loss(pred_boxes, gt_boxes).mean()
+        position_loss = complete_box_iou_loss(pred_boxes, gt_boxes, reduction="mean")
 
         # Calculate IoU between predicted and ground truth boxes (for metrics)
         iou = self.calculate_iou(position_pred, batch["position"])

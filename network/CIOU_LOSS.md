@@ -56,18 +56,13 @@ CIoU Loss = 1 - CIoU
 
 ### Location in Codebase
 
-The CIoU loss is implemented in `network/model.py` as a static method of the `PuzzleCNN` class:
+The CIoU loss uses the official PyTorch implementation from `torchvision.ops`:
 
 ```python
-@staticmethod
-def calculate_ciou_loss(
-    pred_boxes: torch.Tensor, 
-    gt_boxes: torch.Tensor, 
-    eps: float = 1e-7
-) -> torch.Tensor:
-    """Calculate Complete IoU (CIoU) loss for bounding box regression."""
-    # Implementation details...
+from torchvision.ops import complete_box_iou_loss
 ```
+
+This is the reference implementation that follows the paper exactly and is maintained by the PyTorch team.
 
 ### Usage in Training
 
@@ -77,7 +72,7 @@ The CIoU loss replaces the previous GIoU loss in both training and validation st
 # In training_step and validation_step
 pred_boxes = self._ensure_valid_boxes(position_pred)
 gt_boxes = self._ensure_valid_boxes(batch["position"])
-position_loss = self.calculate_ciou_loss(pred_boxes, gt_boxes).mean()
+position_loss = complete_box_iou_loss(pred_boxes, gt_boxes, reduction="mean")
 ```
 
 ### Input Format
@@ -138,13 +133,13 @@ Run the demonstration to see CIoU advantages:
 cd network
 python -c "
 import torch
-from model import PuzzleCNN
+from torchvision.ops import complete_box_iou_loss
 
 # Non-overlapping boxes
 pred = torch.tensor([[0.0, 0.0, 0.2, 0.2]], requires_grad=True)
 gt = torch.tensor([[0.8, 0.8, 1.0, 1.0]])
 
-loss = PuzzleCNN.calculate_ciou_loss(pred, gt)
+loss = complete_box_iou_loss(pred, gt, reduction='mean')
 loss.backward()
 
 print(f'Loss: {loss.item():.4f}')
@@ -168,8 +163,8 @@ print('✓ Non-zero gradients enable training!')
 
 ### Changes Made
 
-1. **Removed dependency**: Removed `from torchvision.ops import generalized_box_iou_loss`
-2. **Added CIoU implementation**: New static method `calculate_ciou_loss`
+1. **Replaced dependency**: Changed from `generalized_box_iou_loss` to `complete_box_iou_loss`
+2. **Using torchvision implementation**: Uses the official PyTorch implementation from `torchvision.ops`
 3. **Updated training_step**: Replaced GIoU with CIoU
 4. **Updated validation_step**: Replaced GIoU with CIoU
 5. **Added comprehensive tests**: Test suite in `tests/test_ciou_loss.py`
