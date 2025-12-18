@@ -16,8 +16,8 @@ def get_default_config() -> Dict[str, Any]:
             "data_dir": "datasets",
             "batch_size": 32,
             "num_workers": 4,
-            "piece_size": (128, 128),  # Small and focused on piece detail
-            "puzzle_size": (512, 512),  # Larger to preserve spatial context
+            "piece_size": (224, 224),  # Model input for pieces (saved at this size)
+            "puzzle_size": (256, 256),  # Puzzle context image size
         },
         # Model configuration
         "model": {
