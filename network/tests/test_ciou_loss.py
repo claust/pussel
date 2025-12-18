@@ -3,8 +3,7 @@
 
 import pytest
 import torch
-
-from model import PuzzleCNN
+from torchvision.ops import complete_box_iou_loss
 
 
 class TestCIoULoss:
@@ -15,7 +14,7 @@ class TestCIoULoss:
         pred_boxes = torch.tensor([[0.2, 0.3, 0.5, 0.6]])
         gt_boxes = torch.tensor([[0.2, 0.3, 0.5, 0.6]])
 
-        loss = PuzzleCNN.calculate_ciou_loss(pred_boxes, gt_boxes)
+        loss = complete_box_iou_loss(pred_boxes, gt_boxes, reduction="none")
 
         assert loss.shape == (1,)
         # Allow for floating-point precision errors
@@ -27,7 +26,7 @@ class TestCIoULoss:
         pred_boxes = torch.tensor([[0.0, 0.0, 0.2, 0.2]])
         gt_boxes = torch.tensor([[0.8, 0.8, 1.0, 1.0]])
 
-        loss = PuzzleCNN.calculate_ciou_loss(pred_boxes, gt_boxes)
+        loss = complete_box_iou_loss(pred_boxes, gt_boxes, reduction="none")
 
         assert loss.shape == (1,)
         # Loss should be positive (boxes don't overlap)
@@ -37,7 +36,7 @@ class TestCIoULoss:
 
         # Verify gradients are non-zero (no gradient stalling)
         pred_boxes_grad = pred_boxes.clone().requires_grad_(True)
-        loss_grad = PuzzleCNN.calculate_ciou_loss(pred_boxes_grad, gt_boxes)
+        loss_grad = complete_box_iou_loss(pred_boxes_grad, gt_boxes, reduction="sum")
         loss_grad.sum().backward()
         assert pred_boxes_grad.grad is not None
         assert not torch.all(pred_boxes_grad.grad == 0)
@@ -47,7 +46,7 @@ class TestCIoULoss:
         pred_boxes = torch.tensor([[0.0, 0.0, 0.5, 0.5]])
         gt_boxes = torch.tensor([[0.25, 0.25, 0.75, 0.75]])
 
-        loss = PuzzleCNN.calculate_ciou_loss(pred_boxes, gt_boxes)
+        loss = complete_box_iou_loss(pred_boxes, gt_boxes, reduction="none")
 
         assert loss.shape == (1,)
         # Loss should be positive but less than 1 (partial overlap)
@@ -70,7 +69,7 @@ class TestCIoULoss:
             ]
         )
 
-        loss = PuzzleCNN.calculate_ciou_loss(pred_boxes, gt_boxes)
+        loss = complete_box_iou_loss(pred_boxes, gt_boxes, reduction="none")
 
         assert loss.shape == (3,)
         # First box should have ~0 loss (identical)
@@ -86,7 +85,7 @@ class TestCIoULoss:
         pred_boxes = torch.tensor([[0.2, 0.3, 0.8, 0.5]])  # Wide box
         gt_boxes = torch.tensor([[0.3, 0.2, 0.5, 0.8]])  # Tall box
 
-        loss = PuzzleCNN.calculate_ciou_loss(pred_boxes, gt_boxes)
+        loss = complete_box_iou_loss(pred_boxes, gt_boxes, reduction="none")
 
         # Loss should reflect aspect ratio mismatch
         assert loss > 0
@@ -97,7 +96,7 @@ class TestCIoULoss:
         pred_boxes = torch.tensor([[0.0, 0.0, 0.2, 0.2]])
         gt_boxes = torch.tensor([[0.3, 0.3, 0.5, 0.5]])
 
-        loss = PuzzleCNN.calculate_ciou_loss(pred_boxes, gt_boxes)
+        loss = complete_box_iou_loss(pred_boxes, gt_boxes, reduction="none")
 
         # Loss should reflect center distance
         assert loss > 0.5
@@ -107,7 +106,7 @@ class TestCIoULoss:
         pred_boxes = torch.tensor([[0.2, 0.3, 0.5, 0.6]], requires_grad=True)
         gt_boxes = torch.tensor([[0.25, 0.35, 0.55, 0.65]])
 
-        loss = PuzzleCNN.calculate_ciou_loss(pred_boxes, gt_boxes)
+        loss = complete_box_iou_loss(pred_boxes, gt_boxes, reduction="none")
         loss.sum().backward()
 
         assert pred_boxes.grad is not None
@@ -121,7 +120,7 @@ class TestCIoULoss:
         pred_boxes = torch.tensor([[0.49, 0.49, 0.51, 0.51]])
         gt_boxes = torch.tensor([[0.495, 0.495, 0.505, 0.505]])
 
-        loss = PuzzleCNN.calculate_ciou_loss(pred_boxes, gt_boxes)
+        loss = complete_box_iou_loss(pred_boxes, gt_boxes, reduction="none")
 
         assert torch.isfinite(loss).all()
         assert loss >= 0
@@ -131,7 +130,7 @@ class TestCIoULoss:
         pred_boxes = torch.tensor([[0.1, 0.2, 0.9, 0.8]])
         gt_boxes = torch.tensor([[0.15, 0.25, 0.85, 0.75]])
 
-        loss = PuzzleCNN.calculate_ciou_loss(pred_boxes, gt_boxes)
+        loss = complete_box_iou_loss(pred_boxes, gt_boxes, reduction="none")
 
         assert loss.shape == (1,)
         assert torch.isfinite(loss).all()
@@ -145,8 +144,8 @@ class TestCIoULoss:
         pred_boxes_far = torch.tensor([[0.0, 0.0, 0.1, 0.1]])
         gt_boxes = torch.tensor([[0.5, 0.5, 0.7, 0.7]])
 
-        loss_close = PuzzleCNN.calculate_ciou_loss(pred_boxes_close, gt_boxes)
-        loss_far = PuzzleCNN.calculate_ciou_loss(pred_boxes_far, gt_boxes)
+        loss_close = complete_box_iou_loss(pred_boxes_close, gt_boxes, reduction="none")
+        loss_far = complete_box_iou_loss(pred_boxes_far, gt_boxes, reduction="none")
 
         # Both should have non-zero loss
         assert loss_close > 0
