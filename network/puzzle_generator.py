@@ -508,7 +508,7 @@ def _process_single_puzzle_worker(
 
     # Process pieces
     unique_ids = np.unique(mask)
-    piece_ids = unique_ids[1:]  # Skip background (0)
+    piece_ids = unique_ids[unique_ids > 0]  # Skip background if present
 
     # Create puzzle subdirectory once
     puzzle_subdir = os.path.join(dirs["pieces"], puzzle_id)
@@ -778,7 +778,7 @@ def process_puzzle_helper(
     # Process pieces with progress bar
     processed_count = 0
     unique_ids = np.unique(mask)
-    piece_ids = unique_ids[1:]  # Skip background (0)
+    piece_ids = unique_ids[unique_ids > 0]  # Skip background if present
 
     for piece_id in tqdm(
         piece_ids,
