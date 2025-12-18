@@ -5,25 +5,6 @@ This project consists of two main components:
 1. Utilities for generating and processing puzzle datasets
 2. A CNN-based model for predicting puzzle piece positions and rotations
 
-## Key Features
-
-### Advanced Loss Function: CIoU Loss
-
-The model uses **Complete Intersection over Union (CIoU) loss** for bounding box regression, which solves the gradient stalling problem that occurs with vanilla IoU loss:
-
-- ✓ **No Gradient Stalling**: Provides meaningful gradients even when predicted boxes don't overlap with ground truth (IoU=0)
-- ✓ **Distance Awareness**: Considers the distance between predicted and ground truth box centers
-- ✓ **Aspect Ratio Consistency**: Penalizes aspect ratio differences between predicted and ground truth boxes
-- ✓ **Faster Convergence**: Better gradient signals lead to more efficient training
-
-See [CIOU_LOSS.md](CIOU_LOSS.md) for detailed documentation, examples, and references.
-
-### Model Architecture
-
-- Dual-backbone architecture with spatial correlation
-- Cross-attention fusion for piece-puzzle interactions
-- Separate heads for position and rotation prediction
-
 ## Setup
 
 Install the required dependencies:
