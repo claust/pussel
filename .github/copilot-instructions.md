@@ -11,7 +11,7 @@ The backend provides REST API endpoints for uploading puzzle images and processi
 ## Tech Stack
 
 ### Backend (Python)
-- **Framework**: FastAPI 0.109.2
+- **Framework**: FastAPI
 - **Python Version**: 3.12
 - **Key Libraries**:
   - Pydantic 2.6.1 (data validation and settings)
