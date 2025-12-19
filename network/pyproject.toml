@@ -6,7 +6,6 @@ skip_glob = [
     "checkpoints/*",
     "logs/*",
     "__pycache__/*",
-    ".mypy_cache/*",
     "*.csv*",
     "*.png",
     "*.jpg",

@@ -103,8 +103,8 @@ python visualize_piece.py datasets/example/puzzle_001.jpg datasets/example/piece
 make check                 # Run all checks (format, lint, typecheck)
 make format                # Auto-format code with black and isort
 make lint                  # Run flake8 linting
-make typecheck             # Run mypy type checking
-make install-dev           # Install dev dependencies (black, isort, flake8, mypy)
+make typecheck             # Run pyright type checking
+make install-dev           # Install dev dependencies (black, isort, flake8, pyright)
 ```
 
 ## Code Architecture
@@ -205,7 +205,7 @@ Run `pre-commit install` after cloning to enable automatic checks.
 ```bash
 cd network
 source ../venv/bin/activate  # IMPORTANT: Activate venv first!
-make check    # Runs black, isort, flake8, and mypy - same as CI
+make check    # Runs black, isort, flake8, and pyright - same as CI
 ```
 
 **IMPORTANT**: You must activate the venv before running `make check` manually. However, **git commit hooks automatically activate the venv**, so committing from VS Code or the terminal works without manual activation.

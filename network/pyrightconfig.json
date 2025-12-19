@@ -1,0 +1,11 @@
+{
+  "include": ["."],
+  "exclude": [
+    "datasets",
+    "checkpoints",
+    "logs",
+    "**/__pycache__"
+  ],
+  "pythonVersion": "3.12",
+  "typeCheckingMode": "standard"
+}
