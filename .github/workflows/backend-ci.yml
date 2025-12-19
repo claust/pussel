@@ -1,16 +1,23 @@
-name: Backend CI
+name: Backend CI/CD
 
 on:
   push:
-    branches: [ master, main ]
+    branches: [ master, main, dev ]
     paths:
       - 'backend/**'
       - '.github/workflows/backend-ci.yml'
+      - 'infrastructure/**'
   pull_request:
-    branches: [ master, main ]
+    branches: [ master, main, dev ]
     paths:
       - 'backend/**'
       - '.github/workflows/backend-ci.yml'
+  workflow_dispatch:
+
+# Add permissions for OIDC authentication
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
   test:
@@ -34,6 +41,7 @@ jobs:
         pip install -r requirements.txt
         pip install -e .
 
+    # Check code formatting
     - name: Check formatting with black
       run: black . --check
 
@@ -41,10 +49,10 @@ jobs:
       run: isort . --check-only
 
     - name: Lint with flake8
-      run: flake8 .
+      run: flake8 . --extend-ignore=I100,I201
 
     - name: Type check with mypy
-      run: mypy app
+      run: mypy $(find app -name "*.py")
 
     - name: Run tests
       env:
@@ -61,3 +69,113 @@ jobs:
         flags: backend
         name: backend-coverage
         fail_ci_if_error: true
+
+  infrastructure:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/dev' && github.event_name != 'pull_request'
+    outputs:
+      resource_group: ${{ steps.infra_output.outputs.resource_group }}
+      acr_name: ${{ steps.infra_output.outputs.acr_name }}
+      app_name: ${{ steps.infra_output.outputs.app_name }}
+      infra_changed: ${{ steps.check_changes.outputs.infra_changed }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check for infrastructure changes
+        id: check_changes
+        run: |
+          CHANGED_FILES=$(git diff --name-only HEAD^ HEAD)
+          if echo "$CHANGED_FILES" | grep -q "infrastructure/"; then
+            echo "infra_changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "infra_changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Azure CLI
+        if: steps.check_changes.outputs.infra_changed == 'true'
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup Bicep
+        if: steps.check_changes.outputs.infra_changed == 'true'
+        uses: anthony-c-martin/setup-bicep@v0.3
+
+      - name: Deploy infrastructure
+        if: steps.check_changes.outputs.infra_changed == 'true'
+        id: deploy_infra
+        run: |
+          az deployment group create \
+            --resource-group ski-dev-clth-pussel \
+            --template-file infrastructure/main.bicep \
+            --parameters environmentName=dev \
+            --output json > deployment-output.json
+
+      - name: Set infrastructure outputs
+        id: infra_output
+        run: |
+          echo "resource_group=ski-dev-clth-pussel" >> $GITHUB_OUTPUT
+          if [[ "${{ steps.check_changes.outputs.infra_changed }}" == "true" ]]; then
+            echo "acr_name=$(jq -r '.properties.outputs.containerRegistryName.value' deployment-output.json)" >> $GITHUB_OUTPUT
+            echo "app_name=$(jq -r '.properties.outputs.appServiceName.value' deployment-output.json)" >> $GITHUB_OUTPUT
+          else
+            echo "acr_name=skidevclthpusselacr" >> $GITHUB_OUTPUT
+            echo "app_name=ski-dev-clth-pussel-app" >> $GITHUB_OUTPUT
+          fi
+
+  build:
+    needs: [test, infrastructure]
+    if: github.ref == 'refs/heads/dev' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Azure CLI
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to registry
+        uses: docker/login-action@v2
+        with:
+          registry: https://skidevclthpusselacr.azurecr.io/
+          username: ${{ secrets.AzureAppService_ContainerUsername_4a936ba86a5848c3b88e895db9a5b7e2 }}
+          password: ${{ secrets.AzureAppService_ContainerPassword_fb5d4695e2e0483da95d5aa96ebc281d }}
+
+      - name: Build and push container image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./backend
+          push: true
+          tags: skidevclthpusselacr.azurecr.io/${{ secrets.AzureAppService_ContainerUsername_4a936ba86a5848c3b88e895db9a5b7e2 }}/pussel-backend:${{ github.sha }}
+          cache-from: type=registry,ref=skidevclthpusselacr.azurecr.io/${{ secrets.AzureAppService_ContainerUsername_4a936ba86a5848c3b88e895db9a5b7e2 }}/pussel-backend:latest
+          cache-to: type=inline
+
+  deploy:
+    needs: [build, infrastructure]
+    if: github.ref == 'refs/heads/dev' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to Azure Web App
+        id: deploy-to-webapp
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: '${{ needs.infrastructure.outputs.app_name }}'
+          slot-name: 'production'
+          publish-profile: ${{ secrets.AzureAppService_PublishProfile_bd043e1cdeca4a1885009f476dac2e93 }}
+          images: 'skidevclthpusselacr.azurecr.io/${{ secrets.AzureAppService_ContainerUsername_4a936ba86a5848c3b88e895db9a5b7e2 }}/pussel-backend:${{ github.sha }}'
