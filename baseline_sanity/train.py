@@ -34,9 +34,21 @@ def print_gradient_norms(model: torch.nn.Module) -> dict[str, float]:
 
 
 def overfit_single_sample(model: torch.nn.Module, dataset: SquareDataset, device: torch.device, max_steps: int = 2000) -> bool:
-    """
-    Test 1: Overfit on a single sample.
-    Should reach near-zero loss quickly. If not, something is fundamentally broken.
+    """Test 1: Overfit on a single sample.
+
+    Should reach near-zero loss quickly. If not, something is
+    fundamentally broken.
+
+    Args:
+        model: Model to train on the single sample.
+        dataset: Dataset providing training samples; the first item
+            is used as the single sample.
+        device: Device on which to perform the computation.
+        max_steps: Maximum number of optimization steps to run.
+
+    Returns:
+        bool: True if the model successfully overfits the single
+        sample according to the loss thresholds, otherwise False.
     """
     print("\n" + "=" * 60)
     print("TEST 1: Overfit single sample")
