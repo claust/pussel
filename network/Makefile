@@ -23,8 +23,9 @@ isort-check:
 format-check: isort-check black-check
 
 # Run flake8 linting
+# E203 is ignored because Black adds spaces around colons in slices (a[b : c])
 lint:
-	flake8 *.py --extend-ignore=I100,I201
+	flake8 *.py --extend-ignore=I100,I201,E203
 
 # Run mypy type checking
 typecheck:
