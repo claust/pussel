@@ -23,7 +23,7 @@ CHECKPOINT_PATH = os.environ.get(
 class ImageProcessor:
     """Image processing service for puzzle piece detection."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the image processor with the trained model."""
         # Load the model when the class is instantiated
         self.device = self._get_device()
@@ -58,7 +58,7 @@ class ImageProcessor:
         """
         # Load checkpoint
         checkpoint = torch.load(CHECKPOINT_PATH, map_location=self.device)
-        model = checkpoint["hyper_parameters"]["_model_class"](
+        model: torch.nn.Module = checkpoint["hyper_parameters"]["_model_class"](
             **checkpoint["hyper_parameters"]
         )
         model.load_state_dict(checkpoint["state_dict"])
