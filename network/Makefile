@@ -13,11 +13,11 @@ check: format-check lint typecheck
 
 # Check formatting with black
 black-check:
-	black *.py --check
+	black . --check --line-length=120
 
 # Check import sorting with isort
 isort-check:
-	isort *.py --check-only --profile=black --line-length=88
+	isort . --check-only --profile=black --line-length=120
 
 # Run all formatting checks (isort + black)
 format-check: isort-check black-check
@@ -25,7 +25,7 @@ format-check: isort-check black-check
 # Run flake8 linting
 # E203 is ignored because Black adds spaces around colons in slices (a[b : c])
 lint:
-	flake8 *.py --extend-ignore=I100,I201,E203
+	flake8 . --extend-ignore=I100,I201,E203
 
 # Run mypy type checking
 typecheck:
@@ -33,5 +33,5 @@ typecheck:
 
 # Auto-format code
 format:
-	black *.py
-	isort *.py --profile=black --line-length=88
+	black .
+	isort . --profile=black --line-length=120

@@ -373,9 +373,7 @@ if __name__ == "__main__":
 
     # Set up test dataset
     test_data_dir = "datasets/example/processed"
-    dataset = PuzzleDataset(
-        test_data_dir, os.path.join(test_data_dir, "metadata.csv"), split="train"
-    )
+    dataset = PuzzleDataset(test_data_dir, os.path.join(test_data_dir, "metadata.csv"), split="train")
 
     # Display sample
     sample = dataset[0]

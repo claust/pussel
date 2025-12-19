@@ -34,9 +34,7 @@ def resize_image(input_path: str, output_path: str, size: tuple = (512, 512)):
         print(f"Resized {input_path} → {output_path}")
 
 
-def resize_dataset(
-    dataset_dir: str, output_dir: str | None = None, size: tuple = (512, 512)
-):
+def resize_dataset(dataset_dir: str, output_dir: str | None = None, size: tuple = (512, 512)):
     """Resize all puzzle images in a dataset directory.
 
     Args:
@@ -52,9 +50,7 @@ def resize_dataset(
     # Find all puzzle images
     count = 0
     for filename in os.listdir(dataset_dir):
-        if filename.lower().startswith("puzzle_") and filename.lower().endswith(
-            (".jpg", ".jpeg", ".png")
-        ):
+        if filename.lower().startswith("puzzle_") and filename.lower().endswith((".jpg", ".jpeg", ".png")):
             input_path = os.path.join(dataset_dir, filename)
 
             # Generate output filename
@@ -72,9 +68,7 @@ def main():
     """Process command-line arguments and run the puzzle image resizer."""
     parser = argparse.ArgumentParser(description="Resize puzzle images to 512x512")
     parser.add_argument("dataset_dir", help="Directory containing puzzle images")
-    parser.add_argument(
-        "--output-dir", help="Directory to save resized images (default: same as input)"
-    )
+    parser.add_argument("--output-dir", help="Directory to save resized images (default: same as input)")
     parser.add_argument("--width", type=int, default=512, help="Target width")
     parser.add_argument("--height", type=int, default=512, help="Target height")
 

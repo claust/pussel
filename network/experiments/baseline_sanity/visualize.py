@@ -1,13 +1,13 @@
-"""
-Helper functions to visualize predictions vs ground truth.
+"""Helper functions to visualize predictions vs ground truth.
 
 Draws boxes on images:
 - Red: Predicted center
 - Green: Ground truth center
 """
 
-import numpy as np
 from pathlib import Path
+
+import numpy as np
 import torch
 
 # Try to import PIL, fall back to matplotlib if not available
@@ -33,17 +33,16 @@ def draw_center_marker(
     color: tuple[int, int, int],
     marker_size: int = 5,
 ) -> np.ndarray:
-    """
-    Draw a cross marker at the center position.
+    """Draw a cross marker at the center position.
 
     Args:
-        image: RGB image as numpy array (H, W, 3)
-        cx, cy: Normalized center coordinates [0, 1]
-        color: RGB color tuple
-        marker_size: Size of the cross marker
+        image: RGB image as numpy array (H, W, 3).
+        cx, cy: Normalized center coordinates [0, 1].
+        color: RGB color tuple.
+        marker_size: Size of the cross marker.
 
     Returns:
-        Image with marker drawn
+        Image with marker drawn.
     """
     img = image.copy()
     h, w = img.shape[:2]
@@ -73,18 +72,17 @@ def draw_box_from_center(
     color: tuple[int, int, int],
     thickness: int = 1,
 ) -> np.ndarray:
-    """
-    Draw a box centered at the given position.
+    """Draw a box centered at the given position.
 
     Args:
-        image: RGB image as numpy array (H, W, 3)
-        cx, cy: Normalized center coordinates [0, 1]
-        box_size: Size of the box in pixels
-        color: RGB color tuple
-        thickness: Line thickness
+        image: RGB image as numpy array (H, W, 3).
+        cx, cy: Normalized center coordinates [0, 1].
+        box_size: Size of the box in pixels.
+        color: RGB color tuple.
+        thickness: Line thickness.
 
     Returns:
-        Image with box drawn
+        Image with box drawn.
     """
     img = image.copy()
     h, w = img.shape[:2]
@@ -125,18 +123,17 @@ def visualize_prediction(
     square_size: int = 16,
     save_path: str | Path | None = None,
 ) -> np.ndarray:
-    """
-    Visualize prediction vs ground truth on an image.
+    """Visualize prediction vs ground truth on an image.
 
     Args:
-        image: Image tensor (C, H, W) or numpy array (H, W, C)
-        pred_xy: Predicted (cx, cy) normalized
-        target_xy: Ground truth (cx, cy) normalized
-        square_size: Size of the square being detected
-        save_path: Optional path to save the image
+        image: Image tensor (C, H, W) or numpy array (H, W, C).
+        pred_xy: Predicted (cx, cy) normalized.
+        target_xy: Ground truth (cx, cy) normalized.
+        square_size: Size of the square being detected.
+        save_path: Optional path to save the image.
 
     Returns:
-        Annotated image as numpy array
+        Annotated image as numpy array.
     """
     # Convert tensor to numpy if needed
     if isinstance(image, torch.Tensor):
@@ -179,16 +176,15 @@ def create_grid_visualization(
     square_size: int = 16,
     grid_size: tuple[int, int] = (2, 4),
 ) -> None:
-    """
-    Create a grid of visualizations.
+    """Create a grid of visualizations.
 
     Args:
-        images: List of image tensors
-        preds: List of predicted (cx, cy)
-        targets: List of ground truth (cx, cy)
-        save_path: Path to save the grid image
-        square_size: Size of the detected squares
-        grid_size: (rows, cols) for the grid
+        images: List of image tensors.
+        preds: List of predicted (cx, cy).
+        targets: List of ground truth (cx, cy).
+        save_path: Path to save the grid image.
+        square_size: Size of the detected squares.
+        grid_size: (rows, cols) for the grid.
     """
     rows, cols = grid_size
     n_samples = min(len(images), rows * cols)
@@ -223,7 +219,7 @@ def create_grid_visualization(
 
 if __name__ == "__main__":
     # Quick test
-    from dataset import SquareDataset
+    from experiments.baseline_sanity.dataset import SquareDataset
 
     dataset = SquareDataset(size=8, seed=42)
 
@@ -238,7 +234,5 @@ if __name__ == "__main__":
         # Fake predictions: slightly offset from ground truth
         fake_preds.append((tgt[0].item() + 0.05, tgt[1].item() - 0.03))
 
-    create_grid_visualization(
-        images, fake_preds, targets, "outputs/test_visualization.png", grid_size=(2, 4)
-    )
+    create_grid_visualization(images, fake_preds, targets, "outputs/test_visualization.png", grid_size=(2, 4))
     print("Saved test visualization to outputs/test_visualization.png")

@@ -352,9 +352,7 @@ class PuzzleProcessor:
 
         # Resize the piece to the output size
         target_width, target_height = self.options.piece_output_size
-        processed_img = piece_img.resize(
-            (target_width, target_height), Image.Resampling.LANCZOS
-        )
+        processed_img = piece_img.resize((target_width, target_height), Image.Resampling.LANCZOS)
 
         # Normalize pixel values if requested
         if self.options.normalize_pixels:
@@ -387,9 +385,7 @@ class PuzzleProcessor:
         # Convert back to PIL
         return Image.fromarray(img_array.astype(np.uint8))
 
-    def extract_piece(
-        self, image: Image.Image, mask: np.ndarray, piece_id: int
-    ) -> Optional[PieceData]:
+    def extract_piece(self, image: Image.Image, mask: np.ndarray, piece_id: int) -> Optional[PieceData]:
         """Extract and process a single puzzle piece.
 
         Args:
@@ -403,9 +399,7 @@ class PuzzleProcessor:
         img_array = np.array(image)
         return self.extract_piece_from_array(img_array, mask, piece_id)
 
-    def extract_piece_from_array(
-        self, img_array: np.ndarray, mask: np.ndarray, piece_id: int
-    ) -> Optional[PieceData]:
+    def extract_piece_from_array(self, img_array: np.ndarray, mask: np.ndarray, piece_id: int) -> Optional[PieceData]:
         """Extract and process a single puzzle piece from numpy array.
 
         Args:
@@ -453,9 +447,7 @@ class PuzzleProcessor:
 
         return piece_img, bbox, rotation
 
-    def process_puzzle(
-        self, puzzle_path: str, output_dir: str, metadata_handler: MetadataHandler
-    ) -> int:
+    def process_puzzle(self, puzzle_path: str, output_dir: str, metadata_handler: MetadataHandler) -> int:
         """Process a puzzle image into pieces for model training.
 
         Args:
@@ -495,9 +487,7 @@ def _process_single_puzzle_worker(
     puzzle_id = puzzle_name
 
     # Load and process puzzle image
-    original_image, original_size = _process_puzzle_image(
-        processor, puzzle_path, dirs["puzzles"], puzzle_name
-    )
+    original_image, original_size = _process_puzzle_image(processor, puzzle_path, dirs["puzzles"], puzzle_name)
 
     # Convert image to numpy once (avoid repeated conversion per piece)
     img_array = np.array(original_image)
@@ -624,9 +614,7 @@ def _process_piece_for_worker(
     }
 
 
-def process_directory(
-    input_dir: str, output_dir: str, options: ProcessingOptions, num_workers: int = 1
-) -> int:
+def process_directory(input_dir: str, output_dir: str, options: ProcessingOptions, num_workers: int = 1) -> int:
     """Process all puzzle images in a directory.
 
     Args:
@@ -639,17 +627,10 @@ def process_directory(
         Total number of pieces generated
     """
     # Collect all puzzle images first
-    puzzle_files = [
-        f
-        for f in os.listdir(input_dir)
-        if f.lower().endswith((".png", ".jpg", ".jpeg"))
-    ]
+    puzzle_files = [f for f in os.listdir(input_dir) if f.lower().endswith((".png", ".jpg", ".jpeg"))]
 
     # Prepare worker arguments
-    worker_args = [
-        (os.path.join(input_dir, filename), output_dir, options)
-        for filename in puzzle_files
-    ]
+    worker_args = [(os.path.join(input_dir, filename), output_dir, options) for filename in puzzle_files]
 
     # Collect all metadata entries
     all_metadata: List[dict] = []
@@ -657,10 +638,7 @@ def process_directory(
     if num_workers > 1:
         # Parallel processing
         with ProcessPoolExecutor(max_workers=num_workers) as executor:
-            futures = {
-                executor.submit(_process_single_puzzle_worker, args): args[0]
-                for args in worker_args
-            }
+            futures = {executor.submit(_process_single_puzzle_worker, args): args[0] for args in worker_args}
 
             for future in tqdm(
                 as_completed(futures),
@@ -767,9 +745,7 @@ def process_puzzle_helper(
         puzzle_id = puzzle_name
 
     # Load original image and create context image
-    original_image, original_size = _process_puzzle_image(
-        processor, puzzle_path, dirs["puzzles"], puzzle_name
-    )
+    original_image, original_size = _process_puzzle_image(processor, puzzle_path, dirs["puzzles"], puzzle_name)
 
     # Generate mask from original high-resolution image
     width, height = original_size
@@ -877,9 +853,7 @@ def process_single_piece(
 
     # Process piece and save
     piece_info = _create_piece_info(piece_data, puzzle_id, piece_id, processor.options)
-    _save_and_record_piece(
-        processor, piece_info, pieces_dir, metadata_handler, original_size
-    )
+    _save_and_record_piece(processor, piece_info, pieces_dir, metadata_handler, original_size)
 
     return 1
 
@@ -912,9 +886,7 @@ def _create_piece_info(piece_data, puzzle_id, piece_id, options):
     }
 
 
-def _save_and_record_piece(
-    processor, piece_info, pieces_dir, metadata_handler, original_size
-):
+def _save_and_record_piece(processor, piece_info, pieces_dir, metadata_handler, original_size):
     """Save processed piece and record its metadata.
 
     Args:
@@ -925,9 +897,7 @@ def _save_and_record_piece(
         original_size: Original puzzle dimensions (width, height) for normalization
     """
     # Process the piece for the model
-    processed_piece = processor.process_piece(
-        piece_info["piece"], piece_info["bbox"], piece_info["rotation"]
-    )
+    processed_piece = processor.process_piece(piece_info["piece"], piece_info["bbox"], piece_info["rotation"])
 
     # Save the processed piece in puzzle-specific subdirectory
     puzzle_id = piece_info["puzzle_id"]
@@ -951,12 +921,8 @@ def _save_and_record_piece(
 
 def main():
     """Process command-line arguments and run the puzzle processor."""
-    parser = argparse.ArgumentParser(
-        description="Generate and process puzzle pieces for model training"
-    )
-    parser.add_argument(
-        "input_path", help="Path to a puzzle image or directory of puzzle images"
-    )
+    parser = argparse.ArgumentParser(description="Generate and process puzzle pieces for model training")
+    parser.add_argument("input_path", help="Path to a puzzle image or directory of puzzle images")
     parser.add_argument(
         "--output-dir",
         default=None,

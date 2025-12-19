@@ -27,9 +27,7 @@ def load_model(checkpoint_path: str) -> PuzzleCNN:
     return model
 
 
-def preprocess_image(
-    image_path: str, input_size: Tuple[int, int] = (224, 224)
-) -> torch.Tensor:
+def preprocess_image(image_path: str, input_size: Tuple[int, int] = (224, 224)) -> torch.Tensor:
     """Preprocess a puzzle piece image for model input.
 
     Args:
@@ -80,11 +78,7 @@ def visualize_prediction(
     with torch.no_grad():
         position, rotation_class, rotation_probs = model.predict_piece(
             piece_tensor,
-            (
-                torch.zeros_like(piece_tensor)
-                if puzzle_path is None
-                else preprocess_image(puzzle_path)
-            ),
+            (torch.zeros_like(piece_tensor) if puzzle_path is None else preprocess_image(puzzle_path)),
         )
 
     # Convert to numpy for visualization
@@ -138,18 +132,14 @@ def visualize_prediction(
         axes[1].set_title("Puzzle with Predicted Position")
 
         # Create rectangle patch for predicted position
-        rect = patches.Rectangle(
-            (x1, y1), x2 - x1, y2 - y1, linewidth=2, edgecolor="r", facecolor="none"
-        )
+        rect = patches.Rectangle((x1, y1), x2 - x1, y2 - y1, linewidth=2, edgecolor="r", facecolor="none")
 
         # Add patch to plot
         axes[1].add_patch(rect)
         axes[1].axis("off")
 
     # Add rotation probabilities as text
-    rotation_text = "\n".join(
-        [f"{i * 90}°: {prob:.2f}" for i, prob in enumerate(rotation_probs.numpy())]
-    )
+    rotation_text = "\n".join([f"{i * 90}°: {prob:.2f}" for i, prob in enumerate(rotation_probs.numpy())])
     plt.figtext(0.02, 0.02, f"Rotation Probabilities:\n{rotation_text}", fontsize=10)
 
     # Adjust layout
@@ -172,24 +162,16 @@ def main():
     parser = argparse.ArgumentParser(description="Visualize puzzle piece predictions")
 
     # Add arguments
-    parser.add_argument(
-        "--checkpoint", type=str, required=True, help="Path to model checkpoint file"
-    )
-    parser.add_argument(
-        "--piece", type=str, required=True, help="Path to puzzle piece image"
-    )
+    parser.add_argument("--checkpoint", type=str, required=True, help="Path to model checkpoint file")
+    parser.add_argument("--piece", type=str, required=True, help="Path to puzzle piece image")
     parser.add_argument(
         "--puzzle",
         type=str,
         default=None,
         help="Path to complete puzzle image (optional)",
     )
-    parser.add_argument(
-        "--output", type=str, default=None, help="Path to save visualization (optional)"
-    )
-    parser.add_argument(
-        "--no-show", action="store_true", help="Don't display visualization"
-    )
+    parser.add_argument("--output", type=str, default=None, help="Path to save visualization (optional)")
+    parser.add_argument("--no-show", action="store_true", help="Don't display visualization")
 
     # Parse arguments
     args = parser.parse_args()
