@@ -259,7 +259,12 @@ def full_training(
 
 
 def main():
-    """Run all verification checks."""
+    """Run all verification checks.
+
+    Returns:
+        dict[str, bool | float]: Mapping of verification check names to
+            their outcomes and metrics.
+    """
     print("=" * 60)
     print("BASELINE SANITY CHECK")
     print("=" * 60)
