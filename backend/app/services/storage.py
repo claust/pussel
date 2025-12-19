@@ -4,9 +4,8 @@ import os
 from io import BytesIO
 from typing import Optional, cast
 
-from fastapi import UploadFile
-
 from app.config import settings
+from fastapi import UploadFile
 
 
 class StorageService:
@@ -24,9 +23,7 @@ class StorageService:
                 self.blob_service_client = BlobServiceClient.from_connection_string(
                     settings.AZURE_STORAGE_CONNECTION_STRING
                 )
-                self.container_client = self.blob_service_client.get_container_client(
-                    self.container_name
-                )
+                self.container_client = self.blob_service_client.get_container_client(self.container_name)
             except (ImportError, AttributeError) as e:
                 print(f"Azure Storage not configured properly: {e}")
                 self.use_azure = False
@@ -41,9 +38,7 @@ class StorageService:
                 file_contents = await file.read()
 
                 content_settings = ContentSettings(content_type=file.content_type)
-                blob_client.upload_blob(
-                    file_contents, overwrite=True, content_settings=content_settings
-                )
+                blob_client.upload_blob(file_contents, overwrite=True, content_settings=content_settings)
                 # Cast to ensure mypy knows this is a string
                 return cast(str, blob_client.url)
             except Exception as e:

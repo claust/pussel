@@ -220,7 +220,7 @@ def create_grid_visualization(
 
 if __name__ == "__main__":
     # Quick test
-    from experiments.baseline_sanity.dataset import SquareDataset
+    from .dataset import SquareDataset
 
     dataset = SquareDataset(size=8, seed=42)
 

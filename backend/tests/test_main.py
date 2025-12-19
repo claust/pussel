@@ -9,10 +9,9 @@ from pathlib import Path
 from typing import Generator, cast
 
 import pytest
+from app.main import app, settings
 from fastapi.testclient import TestClient
 from typing_extensions import TypeAlias
-
-from app.main import app, settings
 
 # Add the backend directory to the Python path
 backend_dir = Path(__file__).parent.parent
