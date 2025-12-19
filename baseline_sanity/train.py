@@ -138,8 +138,22 @@ def full_training(
     lr: float = 1e-3,
     output_dir: Path = Path("outputs"),
 ) -> dict:
-    """
-    Full training with all verification checks.
+    """Full training with all verification checks.
+
+    Args:
+        model: Neural network model to train.
+        train_dataset: Dataset used for training.
+        val_dataset: Dataset used for validation.
+        device: Device on which to run the training (e.g. CPU or CUDA).
+        epochs: Number of training epochs to run.
+        batch_size: Batch size for training and validation data loaders.
+        lr: Learning rate for the optimizer.
+        output_dir: Directory where training outputs such as visualizations
+            are saved.
+
+    Returns:
+        dict: History dictionary containing per-epoch losses with keys
+        ``"train_loss"`` and ``"val_loss"``.
     """
     print("\n" + "=" * 60)
     print("FULL TRAINING")
