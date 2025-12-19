@@ -44,9 +44,7 @@ def download_images(
             tqdm.write(f"Failed to download {url}: {e}")
 
     downloaded = count - failed - skipped
-    print(
-        f"Done. Downloaded {downloaded}, skipped {skipped} existing, {failed} failed."
-    )
+    print(f"Done. Downloaded {downloaded}, skipped {skipped} existing, {failed} failed.")
 
 
 def main() -> None:

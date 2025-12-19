@@ -1,5 +1,4 @@
-"""
-Simplest possible CNN for bounding box regression (~15K params).
+"""Simplest possible CNN for bounding box regression (~15K params).
 
 Architecture:
     Input: 64x64x3
@@ -21,6 +20,7 @@ class TinyLocNet(nn.Module):
     """Minimal CNN for square localization."""
 
     def __init__(self):
+        """Initialize the network layers."""
         super().__init__()
 
         # Convolutional layers
@@ -39,6 +39,7 @@ class TinyLocNet(nn.Module):
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Forward pass through the network."""
         # Conv layers with ReLU
         x = self.relu(self.conv1(x))  # 64x64x3 -> 32x32x16
         x = self.relu(self.conv2(x))  # 32x32x16 -> 16x16x32

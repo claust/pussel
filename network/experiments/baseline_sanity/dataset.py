@@ -1,5 +1,4 @@
-"""
-On-the-fly square image generator for baseline sanity check.
+"""On-the-fly square image generator for baseline sanity check.
 
 Generates 64x64 RGB images with:
 - Solid gray background (random shade 100-180)
@@ -8,24 +7,31 @@ Generates 64x64 RGB images with:
 - Target: normalized center coordinates (cx, cy) in [0, 1]
 """
 
+import numpy as np
 import torch
 from torch.utils.data import Dataset
-import numpy as np
 
 
 class SquareDataset(Dataset):
-    """
-    Generates random images with a single colored square.
+    """Generates random images with a single colored square.
+
     Returns (image, target) where target is normalized (cx, cy).
     """
 
-    def __init__(self, size: int = 1000, image_size: int = 64, square_size: int = 16, seed: int | None = None):
-        """
+    def __init__(
+        self,
+        size: int = 1000,
+        image_size: int = 64,
+        square_size: int = 16,
+        seed: int | None = None,
+    ):
+        """Initialize the dataset.
+
         Args:
-            size: Number of samples in the dataset
-            image_size: Size of the square image (64x64)
-            square_size: Size of the colored square (16x16)
-            seed: Random seed for reproducibility (None for random each time)
+            size: Number of samples in the dataset.
+            image_size: Size of the square image (64x64).
+            square_size: Size of the colored square (16x16).
+            seed: Random seed for reproducibility (None for random each time).
         """
         self.size = size
         self.image_size = image_size
@@ -66,9 +72,11 @@ class SquareDataset(Dataset):
         return image, (cx, cy)
 
     def __len__(self) -> int:
+        """Return the number of samples in the dataset."""
         return self.size
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
+        """Return the image and target tensors for the given index."""
         image, (cx, cy) = self.samples[idx]
 
         # Convert to tensor: (H, W, C) -> (C, H, W), normalize to [0, 1]
@@ -81,20 +89,23 @@ class SquareDataset(Dataset):
 
 
 class InfiniteSquareDataset(Dataset):
-    """
-    Generates samples on-the-fly without pre-storing.
+    """Generates samples on-the-fly without pre-storing.
+
     Useful for training with fresh random samples each epoch.
     """
 
     def __init__(self, size: int = 1000, image_size: int = 64, square_size: int = 16):
+        """Initialize the dataset with given parameters."""
         self.size = size
         self.image_size = image_size
         self.square_size = square_size
 
     def __len__(self) -> int:
+        """Return the number of samples in the dataset."""
         return self.size
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
+        """Generate and return a random sample on-the-fly."""
         # Random gray background (100-180)
         bg_gray = np.random.randint(100, 181)
         image = np.full((self.image_size, self.image_size, 3), bg_gray, dtype=np.uint8)

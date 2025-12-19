@@ -1,5 +1,4 @@
-"""
-Training script for baseline sanity check with verification checks.
+"""Training script for baseline sanity check with verification checks.
 
 Verification checklist:
 1. Overfit 1 sample first
@@ -9,14 +8,15 @@ Verification checklist:
 5. Visualize every 10 epochs
 """
 
+from pathlib import Path
+
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Subset
-from pathlib import Path
 
-from dataset import SquareDataset
-from model import TinyLocNet, count_parameters
-from visualize import create_grid_visualization
+from .dataset import SquareDataset
+from .model import TinyLocNet, count_parameters
+from .visualize import create_grid_visualization
 
 
 def print_gradient_norms(model: torch.nn.Module) -> dict[str, float]:
@@ -33,7 +33,12 @@ def print_gradient_norms(model: torch.nn.Module) -> dict[str, float]:
     return grad_norms
 
 
-def overfit_single_sample(model: torch.nn.Module, dataset: SquareDataset, device: torch.device, max_steps: int = 2000) -> bool:
+def overfit_single_sample(
+    model: torch.nn.Module,
+    dataset: SquareDataset,
+    device: torch.device,
+    max_steps: int = 2000,
+) -> bool:
     """Test 1: Overfit on a single sample.
 
     Should reach near-zero loss quickly. If not, something is
@@ -72,7 +77,9 @@ def overfit_single_sample(model: torch.nn.Module, dataset: SquareDataset, device
         optimizer.step()
 
         if step % 100 == 0:
-            print(f"Step {step:4d}: loss = {loss.item():.6f}, pred = ({pred[0, 0].item():.4f}, {pred[0, 1].item():.4f})")
+            print(
+                f"Step {step:4d}: loss = {loss.item():.6f}, pred = ({pred[0, 0].item():.4f}, {pred[0, 1].item():.4f})"
+            )
 
         if loss.item() < 1e-5:
             print(f"\n SUCCESS: Converged at step {step} with loss = {loss.item():.6f}")
@@ -88,9 +95,13 @@ def overfit_single_sample(model: torch.nn.Module, dataset: SquareDataset, device
         return False
 
 
-def overfit_ten_samples(model: torch.nn.Module, dataset: SquareDataset, device: torch.device, max_epochs: int = 500) -> bool:
-    """
-    Test 2: Overfit on 10 samples.
+def overfit_ten_samples(
+    model: torch.nn.Module,
+    dataset: SquareDataset,
+    device: torch.device,
+    max_epochs: int = 500,
+) -> bool:
+    """Test 2: Overfit on 10 samples.
 
     Args:
         model: Model to train on the subset of samples.
@@ -132,8 +143,10 @@ def overfit_ten_samples(model: torch.nn.Module, dataset: SquareDataset, device: 
             # Print a few predictions
             with torch.no_grad():
                 for i in range(min(3, len(preds))):
-                    print(f"  Sample {i}: pred=({preds[i, 0].item():.3f}, {preds[i, 1].item():.3f}) "
-                          f"target=({targets[i, 0].item():.3f}, {targets[i, 1].item():.3f})")
+                    print(
+                        f"  Sample {i}: pred=({preds[i, 0].item():.3f}, {preds[i, 1].item():.3f}) "
+                        f"target=({targets[i, 0].item():.3f}, {targets[i, 1].item():.3f})"
+                    )
 
         if loss.item() < 0.001:
             print(f"\n SUCCESS: Converged at epoch {epoch} with loss = {loss.item():.6f}")
@@ -148,6 +161,9 @@ def overfit_ten_samples(model: torch.nn.Module, dataset: SquareDataset, device: 
         return False
 
 
+_DEFAULT_OUTPUT_DIR = Path("outputs")
+
+
 def full_training(
     model: torch.nn.Module,
     train_dataset: SquareDataset,
@@ -156,7 +172,7 @@ def full_training(
     epochs: int = 50,
     batch_size: int = 32,
     lr: float = 1e-3,
-    output_dir: Path = Path("outputs"),
+    output_dir: Path = _DEFAULT_OUTPUT_DIR,
 ) -> dict:
     """Full training with all verification checks.
 
@@ -190,7 +206,7 @@ def full_training(
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    history = {"train_loss": [], "val_loss": []}
+    history: dict[str, list[float]] = {"train_loss": [], "val_loss": []}
     step = 0
 
     for epoch in range(epochs):
@@ -224,9 +240,9 @@ def full_training(
         model.eval()
         val_loss = 0.0
         val_batches = 0
-        all_preds = []
-        all_targets = []
-        all_images = []
+        all_preds: list[tuple[float, float]] = []
+        all_targets: list[tuple[float, float]] = []
+        all_images: list[torch.Tensor] = []
 
         with torch.no_grad():
             for images, targets in val_loader:
@@ -317,8 +333,13 @@ def main():
     if results["overfit_1"] and results["overfit_10"]:
         print("\nBasic tests passed. Starting full training...")
         history = full_training(
-            model, train_dataset, val_dataset, device,
-            epochs=50, batch_size=32, lr=1e-3,
+            model,
+            train_dataset,
+            val_dataset,
+            device,
+            epochs=50,
+            batch_size=32,
+            lr=1e-3,
             output_dir=Path("outputs"),
         )
         results["final_val_loss"] = history["val_loss"][-1]

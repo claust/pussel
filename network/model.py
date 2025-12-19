@@ -63,9 +63,7 @@ class SpatialCorrelationModule(nn.Module):
 
         self.correlation_feat_dim = 64
 
-    def forward(
-        self, piece_feat_map: torch.Tensor, puzzle_feat_map: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, piece_feat_map: torch.Tensor, puzzle_feat_map: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """Compute spatial correlation between piece and puzzle.
 
         Args:
@@ -99,9 +97,7 @@ class SpatialCorrelationModule(nn.Module):
         correlation_map = correlation.view(batch_size, 1, H, W)  # (B, 1, H, W)
 
         # Apply softmax to get attention-like weights
-        correlation_softmax = F.softmax(
-            correlation_map.view(batch_size, -1), dim=-1
-        ).view(batch_size, 1, H, W)
+        correlation_softmax = F.softmax(correlation_map.view(batch_size, -1), dim=-1).view(batch_size, 1, H, W)
 
         # Process correlation map to extract position-aware features
         correlation_features = self.correlation_processor(correlation_softmax)
@@ -151,9 +147,7 @@ class CrossAttentionFusion(nn.Module):
             nn.Dropout(0.2),
         )
 
-    def forward(
-        self, piece_feat: torch.Tensor, puzzle_feat: torch.Tensor
-    ) -> torch.Tensor:
+    def forward(self, piece_feat: torch.Tensor, puzzle_feat: torch.Tensor) -> torch.Tensor:
         """Forward pass with attention-based fusion.
 
         Args:
@@ -289,9 +283,7 @@ class PuzzleCNN(pl.LightningModule):
         self.val_rot_acc = 0.0
 
         # Initialize additional metrics (confusion matrix and IoU)
-        self.val_confusion = torchmetrics.ConfusionMatrix(
-            task="multiclass", num_classes=4
-        )
+        self.val_confusion = torchmetrics.ConfusionMatrix(task="multiclass", num_classes=4)
 
     @staticmethod
     def calculate_iou(pred_boxes: torch.Tensor, gt_boxes: torch.Tensor) -> torch.Tensor:
@@ -364,9 +356,7 @@ class PuzzleCNN(pl.LightningModule):
         y2_valid = torch.max(y1, y2) + 1e-4
         return torch.stack([x1_valid, y1_valid, x2_valid, y2_valid], dim=-1)
 
-    def forward(
-        self, piece_img: torch.Tensor, puzzle_img: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, piece_img: torch.Tensor, puzzle_img: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """Forward pass through the model.
 
         Args:
@@ -390,9 +380,7 @@ class PuzzleCNN(pl.LightningModule):
         # Add spatial correlation features if enabled
         if self.use_spatial_correlation:
             # Reuse spatial maps from above (no extra forward passes)
-            correlation_features, _ = self.spatial_correlation(
-                piece_spatial_maps, puzzle_spatial_maps
-            )
+            correlation_features, _ = self.spatial_correlation(piece_spatial_maps, puzzle_spatial_maps)
 
             # Concatenate spatial correlation features with fusion features
             fused_features = torch.cat([fused_features, correlation_features], dim=1)
@@ -403,9 +391,7 @@ class PuzzleCNN(pl.LightningModule):
 
         return position_pred, rotation_logits
 
-    def training_step(
-        self, batch: Dict[str, torch.Tensor], batch_idx: int
-    ) -> torch.Tensor:
+    def training_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
         """Training step.
 
         Args:
@@ -430,25 +416,17 @@ class PuzzleCNN(pl.LightningModule):
         rotation_loss = F.cross_entropy(rotation_logits, batch["rotation"])
 
         # Calculate total loss
-        total_loss = (
-            self.position_weight * position_loss + self.rotation_weight * rotation_loss
-        )
+        total_loss = self.position_weight * position_loss + self.rotation_weight * rotation_loss
 
         # Log metrics
         batch_size = batch["piece"].size(0)
-        self.log(
-            "train/position_loss", position_loss, prog_bar=True, batch_size=batch_size
-        )
-        self.log(
-            "train/rotation_loss", rotation_loss, prog_bar=True, batch_size=batch_size
-        )
+        self.log("train/position_loss", position_loss, prog_bar=True, batch_size=batch_size)
+        self.log("train/rotation_loss", rotation_loss, prog_bar=True, batch_size=batch_size)
         self.log("train/total_loss", total_loss, prog_bar=True, batch_size=batch_size)
 
         return total_loss
 
-    def validation_step(
-        self, batch: Dict[str, torch.Tensor], batch_idx: int
-    ) -> Dict[str, torch.Tensor]:
+    def validation_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> Dict[str, torch.Tensor]:
         """Validation step.
 
         Args:
@@ -473,26 +451,18 @@ class PuzzleCNN(pl.LightningModule):
         # Calculate rotation loss and accuracy
         rotation_loss = F.cross_entropy(rotation_logits, batch["rotation"])
         rotation_preds = torch.argmax(rotation_logits, dim=1)
-        rotation_acc = torch.sum(rotation_preds == batch["rotation"]).float() / len(
-            batch["rotation"]
-        )
+        rotation_acc = torch.sum(rotation_preds == batch["rotation"]).float() / len(batch["rotation"])
 
         # Update confusion matrix
         self.val_confusion(rotation_preds, batch["rotation"])
 
         # Calculate total loss
-        total_loss = (
-            self.position_weight * position_loss + self.rotation_weight * rotation_loss
-        )
+        total_loss = self.position_weight * position_loss + self.rotation_weight * rotation_loss
 
         # Log metrics
         batch_size = batch["piece"].size(0)
-        self.log(
-            "val/position_loss", position_loss, prog_bar=True, batch_size=batch_size
-        )
-        self.log(
-            "val/rotation_loss", rotation_loss, prog_bar=True, batch_size=batch_size
-        )
+        self.log("val/position_loss", position_loss, prog_bar=True, batch_size=batch_size)
+        self.log("val/rotation_loss", rotation_loss, prog_bar=True, batch_size=batch_size)
         self.log("val/total_loss", total_loss, prog_bar=True, batch_size=batch_size)
         self.log("val/iou", mean_iou, prog_bar=True, batch_size=batch_size)
         self.log("val/rotation_acc", rotation_acc, prog_bar=True, batch_size=batch_size)

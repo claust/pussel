@@ -238,8 +238,7 @@ def get_piece_info(piece_path, metadata_path=None):
         metadata_path = find_metadata_path(piece_path)
         if metadata_path is None:
             raise ValueError(
-                "Cannot determine piece position: metadata file not found. "
-                "Please provide --metadata argument."
+                "Cannot determine piece position: metadata file not found. " "Please provide --metadata argument."
             )
 
     # Load from metadata
@@ -252,9 +251,7 @@ def get_piece_info(piece_path, metadata_path=None):
     return (x1, y1, x2, y2), rotation
 
 
-def visualize_piece_placement(
-    puzzle_path, piece_path, output_path=None, metadata_path=None
-):
+def visualize_piece_placement(puzzle_path, piece_path, output_path=None, metadata_path=None):
     """Create a visualization of a puzzle piece's placement.
 
     The visualization shows the piece on the original puzzle with a
@@ -316,9 +313,7 @@ def _create_visualization(puzzle, piece, bbox):
 
 def main():
     """Process command-line arguments and run the puzzle piece visualizer."""
-    parser = argparse.ArgumentParser(
-        description="Visualize puzzle piece placement on the original puzzle"
-    )
+    parser = argparse.ArgumentParser(description="Visualize puzzle piece placement on the original puzzle")
     parser.add_argument("puzzle", help="Path to the original puzzle image")
     parser.add_argument("piece", help="Path to the puzzle piece image")
     parser.add_argument(
@@ -327,8 +322,7 @@ def main():
     )
     parser.add_argument(
         "--metadata",
-        help="Path to the metadata CSV file "
-        "(will try to find automatically if not provided)",
+        help="Path to the metadata CSV file " "(will try to find automatically if not provided)",
     )
 
     args = parser.parse_args()
