@@ -113,7 +113,7 @@ pussel/
    ```bash
    # Run tests with coverage
    pytest -v --cov=app --cov-report=term-missing
-   
+
    # Generate XML coverage report (for CI)
    pytest -v --cov=app --cov-report=xml
    ```

@@ -6,17 +6,14 @@ from pathlib import Path
 
 import torch
 import torchvision.transforms as transforms  # type: ignore[import-untyped]
+from app.models.puzzle_model import PieceResponse, Position
 from fastapi import UploadFile
 from PIL import Image
-
-from app.models.puzzle_model import PieceResponse, Position
 
 # Path to checkpoint can be configured or discovered dynamically
 CHECKPOINT_PATH = os.environ.get(
     "MODEL_CHECKPOINT_PATH",
-    str(
-        Path(__file__).resolve().parents[3] / "network" / "checkpoints" / "last-v2.ckpt"
-    ),
+    str(Path(__file__).resolve().parents[3] / "network" / "checkpoints" / "last-v2.ckpt"),
 )
 
 
@@ -58,9 +55,7 @@ class ImageProcessor:
         """
         # Load checkpoint
         checkpoint = torch.load(CHECKPOINT_PATH, map_location=self.device)
-        model: torch.nn.Module = checkpoint["hyper_parameters"]["_model_class"](
-            **checkpoint["hyper_parameters"]
-        )
+        model: torch.nn.Module = checkpoint["hyper_parameters"]["_model_class"](**checkpoint["hyper_parameters"])
         model.load_state_dict(checkpoint["state_dict"])
         model.to(self.device)
         model.eval()
@@ -86,9 +81,7 @@ class ImageProcessor:
 
             # Get model predictions
             with torch.no_grad():
-                position_pred, rotation_class, rotation_probs = (
-                    self.model.predict_piece(img_tensor)
-                )
+                position_pred, rotation_class, rotation_probs = self.model.predict_piece(img_tensor)
 
             # Convert position from (x1, y1, x2, y2) to center (x, y)
             # Assuming position_pred is in format (x1, y1, x2, y2) as per model output

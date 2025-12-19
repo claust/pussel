@@ -45,13 +45,13 @@ repos:
           - flake8-comprehensions
           - flake8-pytest-style
 
-  # Mypy type checking - automatically activates venv (works in VS Code)
+  # Pyright type checking - automatically activates venv (works in VS Code)
   - repo: local
     hooks:
-      - id: mypy
-        name: mypy
-        description: Type check Python files using mypy with project venv
-        entry: scripts/mypy_check.sh
+      - id: pyright
+        name: pyright
+        description: Type check Python files using pyright with project venv
+        entry: scripts/pyright_check.sh
         language: script
         types: [python]
         require_serial: true
