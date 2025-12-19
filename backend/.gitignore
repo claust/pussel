@@ -20,21 +20,25 @@ wheels/
 .installed.cfg
 *.egg
 
-# Coverage
-.coverage
-coverage.xml
-htmlcov/
-
 # Virtual Environment
 venv/
-env/
 ENV/
+env/
 
 # IDE
 .idea/
 .vscode/
 *.swp
 *.swo
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+.nox/
+coverage.xml
+*.cover
 
 # Project specific
 uploads/

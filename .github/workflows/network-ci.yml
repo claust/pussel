@@ -1,0 +1,49 @@
+name: Network CI
+
+on:
+  push:
+    branches: [ master, dev ]
+    paths:
+      - 'network/**'
+      - '.github/workflows/network-ci.yml'
+  pull_request:
+    branches: [ master, dev ]
+    paths:
+      - 'network/**'
+      - '.github/workflows/network-ci.yml'
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: network
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install black isort flake8 flake8-docstrings mypy pandas-stubs types-requests
+
+    # Check code formatting
+    - name: Check formatting with black
+      run: black . --check
+
+    - name: Check imports with isort
+      run: isort . --check-only --profile=black --line-length=88
+
+    - name: Lint with flake8
+      run: flake8 . --extend-ignore=I100,I201
+
+    - name: Type check with mypy
+      run: mypy $(find . -name "*.py")

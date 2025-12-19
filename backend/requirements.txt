@@ -1,3 +1,5 @@
+# Azure dependencies
+azure-storage-blob==12.19.0
 # Development dependencies
 black==24.3.0
 fastapi==0.109.2
@@ -10,10 +12,15 @@ Pillow==10.3.0
 pre-commit==3.6.0
 pydantic==2.6.1
 pydantic-settings==2.1.0
-pylint==3.0.3
 pytest==8.0.1
 pytest-cov==4.1.0
 python-multipart==0.0.18
+pytorch-lightning==2.2.1
+timm==0.9.12
+
+# ML dependencies
+torch==2.2.0
+torchvision==0.17.0
 
 # Type stubs
 types-Pillow

@@ -1,8 +1,15 @@
 [flake8]
 # Match Black's line length
-max-line-length = 79
+max-line-length = 88
 # Ignore some style errors that conflict with Black
-extend-ignore = E203, W503, I100, I201
+extend-ignore =
+    # E203: Whitespace before ':' (conflicts with Black)
+    E203,
+    # W503: Line break before binary operator (conflicts with Black)
+    W503,
+    # I100, I201: Import order (handled by isort)
+    I100,
+    I201
 exclude =
     .git,
     __pycache__,
@@ -17,15 +24,6 @@ per-file-ignores =
     tests/*:D103,D100
 max-complexity = 10
 docstring-convention = google
-import-order-style = google
+import-order-style = pep8
 application-import-names = app
 select = C,E,F,W,B,B950,D
-ignore =
-    # D100: Missing docstring in public module
-    D100,
-    # D104: Missing docstring in public package
-    D104,
-    # E203: Whitespace before ':' (conflicts with Black)
-    E203,
-    # W503: Line break before binary operator (conflicts with Black)
-    W503
