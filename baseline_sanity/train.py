@@ -79,7 +79,15 @@ def overfit_single_sample(model: torch.nn.Module, dataset: SquareDataset, device
 def overfit_ten_samples(model: torch.nn.Module, dataset: SquareDataset, device: torch.device, max_epochs: int = 500) -> bool:
     """
     Test 2: Overfit on 10 samples.
-    Should reach near-zero loss within a few hundred epochs.
+
+    Args:
+        model: Model to train on the subset of samples.
+        dataset: Dataset containing training samples.
+        device: Device on which to run training.
+        max_epochs: Maximum number of epochs to run the optimization.
+
+    Returns:
+        True if training converges below the target loss threshold, False.
     """
     print("\n" + "=" * 60)
     print("TEST 2: Overfit 10 samples")
