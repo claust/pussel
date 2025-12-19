@@ -20,7 +20,6 @@ except ImportError:
 
 try:
     import matplotlib.pyplot as plt
-    import matplotlib.patches as patches
 
     HAS_MPL = True
 except ImportError:
