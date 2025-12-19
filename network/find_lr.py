@@ -4,6 +4,7 @@
 import argparse
 
 import pytorch_lightning as pl
+from pytorch_lightning.tuner.tuning import Tuner
 
 from config import get_default_config
 from dataset import PuzzleDataModule
@@ -82,7 +83,7 @@ def main():
     print("This will test learning rates from 1e-7 to 1.0")
     print()
 
-    tuner = pl.tuner.Tuner(trainer)
+    tuner = Tuner(trainer)
     lr_finder = tuner.lr_find(
         model,
         datamodule=data_module,
@@ -95,7 +96,8 @@ def main():
     print("\n" + "=" * 60)
     print("Learning Rate Finder Results")
     print("=" * 60)
-    print(f"Suggested learning rate: {lr_finder.suggestion()}")
+    suggested_lr = lr_finder.suggestion() if lr_finder else None
+    print(f"Suggested learning rate: {suggested_lr}")
     print()
     print("To visualize the full curve, run:")
     print("  fig = lr_finder.plot(suggest=True)")
@@ -109,10 +111,13 @@ def main():
     try:
         import matplotlib.pyplot as plt
 
-        fig = lr_finder.plot(suggest=True)
-        plt.title(f"LR Finder - {backbone}")
-        fig.savefig("lr_finder_plot.png", dpi=150, bbox_inches="tight")
-        print("\nPlot saved to: lr_finder_plot.png")
+        fig = lr_finder.plot(suggest=True) if lr_finder else None
+        if fig is not None:
+            plt.title(f"LR Finder - {backbone}")
+            fig.savefig("lr_finder_plot.png", dpi=150, bbox_inches="tight")
+            print("\nPlot saved to: lr_finder_plot.png")
+        else:
+            print("\nCouldn't generate plot: lr_finder returned None")
     except Exception as e:
         print(f"\nCouldn't save plot: {e}")
 
