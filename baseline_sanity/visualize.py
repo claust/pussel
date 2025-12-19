@@ -12,7 +12,7 @@ import torch
 
 # Try to import PIL, fall back to matplotlib if not available
 try:
-    from PIL import Image, ImageDraw
+    from PIL import Image
 
     HAS_PIL = True
 except ImportError:
