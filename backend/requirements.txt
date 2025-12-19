@@ -1,19 +1,19 @@
 # Development dependencies
-black==24.1.1
+black==24.3.0
 fastapi==0.109.2
 flake8==7.0.0
 flake8-docstrings==1.7.0
 httpx==0.26.0
 isort==5.13.2
 mypy==1.8.0
-Pillow==10.2.0
+Pillow==10.3.0
 pre-commit==3.6.0
 pydantic==2.6.1
 pydantic-settings==2.1.0
 pylint==3.0.3
 pytest==8.0.1
 pytest-cov==4.1.0
-python-multipart==0.0.9
+python-multipart==0.0.18
 
 # Type stubs
 types-Pillow
