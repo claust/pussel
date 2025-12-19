@@ -6,7 +6,7 @@
 # Install development dependencies
 install-dev:
 	pip install -r requirements.txt
-	pip install black isort flake8 flake8-docstrings mypy pandas-stubs types-requests
+	pip install black isort flake8 flake8-docstrings pyright
 
 # Run all checks (same as CI)
 check: format-check lint typecheck
@@ -27,9 +27,9 @@ format-check: isort-check black-check
 lint:
 	flake8 . --extend-ignore=I100,I201,E203
 
-# Run mypy type checking
+# Run pyright type checking (same as VS Code Pylance)
 typecheck:
-	mypy *.py
+	pyright .
 
 # Auto-format code
 format:

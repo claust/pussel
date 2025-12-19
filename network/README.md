@@ -25,7 +25,7 @@ The project uses several tools to maintain code quality:
   - flake8-docstrings
   - flake8-import-order
   - flake8-bugbear
-- **mypy**: Static type checking
+- **pyright**: Static type checking (same as VS Code Pylance)
 - **pre-commit**: Git hooks for code quality checks
 
 ### Running Code Quality Checks
@@ -42,7 +42,7 @@ black . && isort . --profile black
 flake8
 
 # Run type checking
-mypy .
+pyright .
 ```
 
 ## Dataset Preparation
