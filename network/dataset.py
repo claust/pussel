@@ -262,8 +262,8 @@ class PuzzleDataModule(pl.LightningDataModule):
                 A.Resize(height=self.piece_size[0], width=self.piece_size[1]),
                 A.RandomBrightnessContrast(p=0.5),
                 A.HueSaturationValue(p=0.3),
-                A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-            ]
+                A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+            ]  # type: ignore[list-item]
         )
 
     def _get_train_puzzle_transform(self) -> A.Compose:
@@ -276,8 +276,8 @@ class PuzzleDataModule(pl.LightningDataModule):
             [
                 A.Resize(height=self.puzzle_size[0], width=self.puzzle_size[1]),
                 A.RandomBrightnessContrast(p=0.3),
-                A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-            ]
+                A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+            ]  # type: ignore[list-item]
         )
 
     def _get_val_piece_transform(self) -> A.Compose:
@@ -289,8 +289,8 @@ class PuzzleDataModule(pl.LightningDataModule):
         return A.Compose(
             [
                 A.Resize(height=self.piece_size[0], width=self.piece_size[1]),
-                A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-            ]
+                A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+            ]  # type: ignore[list-item]
         )
 
     def _get_val_puzzle_transform(self) -> A.Compose:
@@ -302,8 +302,8 @@ class PuzzleDataModule(pl.LightningDataModule):
         return A.Compose(
             [
                 A.Resize(height=self.puzzle_size[0], width=self.puzzle_size[1]),
-                A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-            ]
+                A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+            ]  # type: ignore[list-item]
         )
 
     def setup(self, stage: Optional[str] = None):

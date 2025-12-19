@@ -6,24 +6,25 @@ Draws boxes on images:
 """
 
 from pathlib import Path
+from types import ModuleType
+from typing import Any
 
 import numpy as np
 import torch
 
-# Try to import PIL, fall back to matplotlib if not available
+# Optional imports - initialize to None, then try to import
+Image: Any = None
+plt: ModuleType | None = None
+
 try:
     from PIL import Image
-
-    HAS_PIL = True
 except ImportError:
-    HAS_PIL = False
+    pass
 
 try:
-    import matplotlib.pyplot as plt
-
-    HAS_MPL = True
+    import matplotlib.pyplot as plt  # type: ignore[no-redef]
 except ImportError:
-    HAS_MPL = False
+    pass
 
 
 def draw_center_marker(
@@ -156,10 +157,10 @@ def visualize_prediction(
         save_path = Path(save_path)
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
-        if HAS_PIL:
+        if Image is not None:
             pil_img = Image.fromarray(img)
             pil_img.save(save_path)
-        elif HAS_MPL:
+        elif plt is not None:
             plt.imsave(str(save_path), img)
         else:
             # Fallback: save as raw numpy
@@ -189,7 +190,7 @@ def create_grid_visualization(
     rows, cols = grid_size
     n_samples = min(len(images), rows * cols)
 
-    if HAS_MPL:
+    if plt is not None:
         fig, axes = plt.subplots(rows, cols, figsize=(cols * 2, rows * 2))
         axes = axes.flatten() if rows * cols > 1 else [axes]
 

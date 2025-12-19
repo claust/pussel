@@ -234,7 +234,7 @@ class PuzzleProcessor:
 
         # Create transformations pipeline
         self.aug_pipeline = A.Compose(
-            [
+            [  # type: ignore[list-item]
                 # Basic color adjustments
                 A.RandomBrightnessContrast(
                     brightness_limit=(min_bright - 1.0, max_bright - 1.0),
@@ -257,17 +257,19 @@ class PuzzleProcessor:
                     border_mode=0,
                 ),
                 # Shear transformation
-                A.IAAAffine(
-                    shear=(-self.options.shear_range, self.options.shear_range),
+                A.Affine(
+                    shear={
+                        "x": (-self.options.shear_range, self.options.shear_range),
+                        "y": (-self.options.shear_range, self.options.shear_range),
+                    },
                     p=0.5 if self.options.shear_range > 0 else 0,
-                    mode="constant",
+                    border_mode=0,  # cv2.BORDER_CONSTANT
                 ),
                 # Random cropping
-                A.RandomSizedCrop(
-                    min_height=int((1.0 - self.options.random_crop_percent) * 100),
-                    max_height=100,
-                    height=100,
-                    width=100,
+                A.RandomResizedCrop(
+                    size=(100, 100),
+                    scale=(1.0 - self.options.random_crop_percent, 1.0),
+                    ratio=(0.9, 1.1),
                     p=0.5 if self.options.random_crop_percent > 0 else 0,
                 ),
             ]

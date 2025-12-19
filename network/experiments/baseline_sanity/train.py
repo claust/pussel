@@ -69,6 +69,9 @@ def overfit_single_sample(
 
     print(f"Target: ({target[0, 0].item():.4f}, {target[0, 1].item():.4f})")
 
+    # Initialize loss for type checker (will be set in first iteration)
+    loss = torch.tensor(float("inf"))
+
     for step in range(max_steps):
         optimizer.zero_grad()
         pred = model(img)
@@ -125,6 +128,11 @@ def overfit_ten_samples(
     # Create subset of 10 samples
     subset = Subset(dataset, range(10))
     loader = DataLoader(subset, batch_size=10, shuffle=False)
+
+    # Initialize variables for type checker (will be set in first iteration)
+    loss = torch.tensor(float("inf"))
+    preds = torch.zeros(10, 2)
+    targets = torch.zeros(10, 2)
 
     for epoch in range(max_epochs):
         for images, targets in loader:
@@ -209,6 +217,11 @@ def full_training(
     history: dict[str, list[float]] = {"train_loss": [], "val_loss": []}
     step = 0
 
+    # Initialize visualization lists (will be populated during validation)
+    all_preds: list[tuple[float, float]] = []
+    all_targets: list[tuple[float, float]] = []
+    all_images: list[torch.Tensor] = []
+
     for epoch in range(epochs):
         model.train()
         epoch_loss = 0.0
@@ -240,9 +253,9 @@ def full_training(
         model.eval()
         val_loss = 0.0
         val_batches = 0
-        all_preds: list[tuple[float, float]] = []
-        all_targets: list[tuple[float, float]] = []
-        all_images: list[torch.Tensor] = []
+        all_preds.clear()
+        all_targets.clear()
+        all_images.clear()
 
         with torch.no_grad():
             for images, targets in val_loader:
