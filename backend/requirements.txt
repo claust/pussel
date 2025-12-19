@@ -15,11 +15,11 @@ pydantic-settings==2.1.0
 pytest==8.0.1
 pytest-cov==4.1.0
 python-multipart==0.0.18
-pytorch-lightning==2.2.1
+pytorch-lightning==2.4.0
 timm==0.9.12
 
 # ML dependencies
-torch==2.2.0
+torch==2.8.0
 torchvision==0.17.0
 
 # Type stubs
