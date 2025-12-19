@@ -37,10 +37,10 @@ jobs:
 
     # Check code formatting
     - name: Check formatting with black
-      run: black . --check
+      run: black . --check --line-length=120
 
     - name: Check imports with isort
-      run: isort . --check-only --profile=black --line-length=88
+      run: isort . --check-only --profile=black --line-length=120
 
     - name: Lint with flake8
       run: flake8 . --extend-ignore=I100,I201

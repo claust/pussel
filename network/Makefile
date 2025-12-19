@@ -33,5 +33,5 @@ typecheck:
 
 # Auto-format code
 format:
-	black .
+	black . --line-length=120
 	isort . --profile=black --line-length=120
