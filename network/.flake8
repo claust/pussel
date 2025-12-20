@@ -1,0 +1,29 @@
+[flake8]
+# Match Black's line length
+max-line-length = 120
+# Ignore some style errors that conflict with Black
+extend-ignore =
+    # E203: Whitespace before ':' (conflicts with Black)
+    E203,
+    # W503: Line break before binary operator (conflicts with Black)
+    W503,
+    # I100, I201: Import order (handled by isort)
+    I100,
+    I201
+exclude =
+    .git,
+    __pycache__,
+    build,
+    dist,
+    *.pyc,
+    *.egg-info,
+    .eggs,
+    venv,
+    datasets,
+    checkpoints,
+    logs
+per-file-ignores =
+    __init__.py:F401,D104
+    tests/*:D103,D100
+max-complexity = 10
+docstring-convention = google
