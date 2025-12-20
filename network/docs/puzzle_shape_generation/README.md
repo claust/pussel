@@ -9,7 +9,7 @@ Puzzle pieces have a characteristic shape with four edges, where each edge can b
 - **Blank** (socket/in): An indentation that receives a tab
 - **Flat**: A straight edge (typically on border pieces)
 
-This project uses **4 cubic Bezier curves per edge** to create smooth, realistic-looking tabs and blanks with the classic "mushroom" shape.
+This project uses **5 cubic Bezier curves per edge** to create smooth, realistic-looking tabs and blanks with the classic "mushroom" shape.
 
 ## Directory Structure
 
@@ -19,13 +19,12 @@ puzzle_shape_generation/
 ├── PUZZLE_PIECE_SHAPE_GENERATION.md  # Detailed technical notes
 ├── reference_pieces.json        # JSON config defining 6 sample pieces
 ├── scripts/
-│   ├── bezier_piece_generator.py   # Main CLI wrapper (creates PNG pieces)
+│   ├── piece_generator.py          # Main CLI wrapper (creates PNG pieces)
 │   ├── models.py                   # Data classes (PieceConfig, TabParameters)
 │   ├── geometry.py                 # Core math for Bezier shape generation
 │   ├── rendering.py                # PNG rendering and visualization
 │   ├── io_utils.py                 # JSON loading and saving
 │   ├── comparison.py               # Reference comparison logic
-│   ├── legacy.py                   # Older generation algorithms
 │   ├── shape_comparator.py         # Quantitative shape comparison (IoU, Hausdorff)
 │   ├── optimize_parameters.py      # Parameter optimizer using shape metrics
 │   ├── visualize_comparison.py     # Overlay visualization for debugging
@@ -40,7 +39,7 @@ puzzle_shape_generation/
 
 ## Scripts
 
-### 1. bezier_piece_generator.py
+### 1. piece_generator.py
 
 The main CLI wrapper for generating puzzle piece shapes. It uses the modular libraries (`geometry`, `rendering`, etc.) to create PNG images with transparent backgrounds.
 
@@ -49,22 +48,22 @@ The main CLI wrapper for generating puzzle piece shapes. It uses the modular lib
 cd scripts
 
 # Generate a random puzzle piece
-python bezier_piece_generator.py
+python piece_generator.py
 
 # Specify output path and size
-python bezier_piece_generator.py -o my_piece.png --size 256
+python piece_generator.py -o my_piece.png --size 256
 
 # Use a preset configuration (ref1-ref6)
-python bezier_piece_generator.py --preset ref1
+python piece_generator.py --preset ref1
 
 # Generate from a JSON configuration file
-python bezier_piece_generator.py --json ../reference_pieces.json --output-dir ../outputs/from_json
+python piece_generator.py --json ../reference_pieces.json --output-dir ../outputs/from_json
 
 # Export preset configurations to JSON for editing
-python bezier_piece_generator.py --export-json my_presets.json
+python piece_generator.py --export-json my_presets.json
 
 # Generate comparison visualization
-python bezier_piece_generator.py --compare
+python piece_generator.py --compare
 ```
 
 **Key Features:**
@@ -82,7 +81,6 @@ The core logic is split into several modules:
 - **rendering.py**: Matplotlib-based rendering to PNG and curve visualization.
 - **io_utils.py**: JSON serialization utilities.
 - **comparison.py**: Logic for comparing generated pieces against reference images.
-- **legacy.py**: Preserves older 2, 3, and 4-curve algorithms for historical comparison.
 
 ### 3. shape_comparator.py
 
@@ -196,7 +194,7 @@ This approach provides:
 - Smooth, C1-continuous curves
 - Natural-looking, symmetric or asymmetric "mushroom" shapes
 - Robust locking mechanism appearance
-- 20 control points per edge (80 per piece)
+- 25 control points per edge (100 per piece)
 - Effectively controlled by 8 intuitive parameters
 
 See `PUZZLE_PIECE_SHAPE_GENERATION.md` for detailed technical notes on the Bezier curve mathematics and design decisions.
