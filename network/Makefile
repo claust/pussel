@@ -23,7 +23,7 @@ isort-check:
 format-check: isort-check black-check
 
 lint:
-	flake8 .
+	flake8 . --config=../.flake8
 
 # Run pyright type checking (same as VS Code Pylance)
 typecheck:

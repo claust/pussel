@@ -82,14 +82,20 @@ class TabParameters:
     @classmethod
     def random(cls) -> "TabParameters":
         """Generate random but realistic parameters for a puzzle piece tab."""
+        # Generate bulb_width first, then derive neck_width proportionally
+        bulb_width = random.uniform(0.18, 0.32)
+        # Neck should be 40-65% of bulb width to look properly attached
+        neck_ratio_to_bulb = random.uniform(0.40, 0.65)
+        neck_width = bulb_width * neck_ratio_to_bulb
+
         return cls(
-            position=random.uniform(0.35, 0.65),  # Allow off-center tabs
-            neck_width=random.uniform(0.06, 0.18),  # Thin to thick necks
-            bulb_width=random.uniform(0.15, 0.35),  # Small to large bulbs
-            height=random.uniform(0.12, 0.30),  # Short to tall tabs
-            neck_ratio=random.uniform(0.15, 0.55),  # Affects waist position
-            curvature=random.uniform(0.3, 1.0),  # Angular to very round
-            asymmetry=random.uniform(-0.15, 0.15),
+            position=random.uniform(0.40, 0.60),  # Keep tabs more centered
+            neck_width=neck_width,
+            bulb_width=bulb_width,
+            height=random.uniform(0.15, 0.28),  # Short to tall tabs
+            neck_ratio=random.uniform(0.25, 0.45),  # Affects waist position
+            curvature=random.uniform(0.5, 1.0),  # Rounder bulbs look more realistic
+            asymmetry=random.uniform(-0.12, 0.12),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -435,13 +441,19 @@ def generate_full_piece(
 def generate_realistic_tab_edge(
     start: Tuple[float, float], end: Tuple[float, float], params: TabParameters, is_blank: bool = False
 ) -> List[BezierCurve]:
-    """Generate a realistic puzzle piece tab using 4 cubic Bézier curves.
+    """Generate a realistic puzzle piece tab using 5 cubic Bézier curves.
 
-    This creates the classic "mushroom" shape with smooth C1 continuous curves:
-    - Curve 1: Edge to neck (smooth entry into the tab)
-    - Curve 2: Neck to bulb left side (S-curve creating waist)
-    - Curve 3: Bulb (semicircular top)
-    - Curve 4: Bulb right to edge (mirror of curves 1-2)
+    This creates the classic "mushroom" shape with perfectly symmetric curves:
+    - Curve 1: Edge to neck base left (flat entry)
+    - Curve 2: Neck base left to bulb left (going up through waist)
+    - Curve 3: Bulb left to bulb right (semicircular top)
+    - Curve 4: Bulb right to neck base right (exact mirror of curve 2)
+    - Curve 5: Neck base right to edge end (exact mirror of curve 1)
+
+    The asymmetry parameter controls the tilt of the tab:
+    - asymmetry > 0: bulb tilts right (in the direction of the edge)
+    - asymmetry < 0: bulb tilts left (against the direction of the edge)
+    - asymmetry = 0: perfectly symmetric tab
     """
     direction = 1 if not is_blank else -1
     edge_vec = np.array([end[0] - start[0], end[1] - start[1]])
@@ -459,52 +471,109 @@ def generate_realistic_tab_edge(
     # Neck height (where the waist is narrowest) - this is key for the mushroom look
     neck_height = full_height * params.neck_ratio
 
-    # Center of the tab
+    # Center of the tab (neck base)
     center = np.array(start) + edge_vec * params.position
+
+    # Asymmetry: shift the bulb horizontally relative to the neck
+    # Scale asymmetry by bulb_half to make the shift proportional to bulb size
+    bulb_shift = edge_unit * bulb_half * params.asymmetry * 2.0
+
+    # Asymmetric curve factors - one side curves more, the other less
+    # This creates a more natural tilt appearance
+    left_curve_factor = 1.0 + params.asymmetry * 0.5
+    right_curve_factor = 1.0 - params.asymmetry * 0.5
 
     curves = []
 
     # Key points for the mushroom shape
-    # The neck/waist points
+    # The neck/waist points (symmetric relative to center)
     neck_base_left = center - edge_unit * neck_half
     neck_base_right = center + edge_unit * neck_half
-    neck_top_left = center - edge_unit * neck_half * 0.9 + normal * neck_height
 
-    # The bulb points - wider than neck, creating overhang
-    bulb_base_left = center - edge_unit * bulb_half + normal * neck_height
-    bulb_base_right = center + edge_unit * bulb_half + normal * neck_height
+    # The bulb points - shifted by asymmetry to create tilt
+    bulb_center = center + bulb_shift + normal * neck_height
+    bulb_base_left = bulb_center - edge_unit * bulb_half
+    bulb_base_right = bulb_center + edge_unit * bulb_half
 
-    # Curve 1: Start to neck base (straight with gentle curve into neck)
+    # Bulb midpoints (where curves 2/4 meet curve 3)
+    bulb_mid_left = bulb_base_left + normal * (full_height - neck_height) * 0.5
+    bulb_mid_right = bulb_base_right + normal * (full_height - neck_height) * 0.5
+
+    # Distance from start to neck and from neck to end (for symmetric flat sections)
+    dist_start_to_neck = params.position - params.neck_width * 0.5
+    dist_neck_to_end = 1.0 - params.position - params.neck_width * 0.5
+
+    # Curve 1: Start to neck base left (flat entry)
     p0 = np.array(start)
     p3 = neck_base_left
-    p1 = p0 + edge_vec * (params.position - params.neck_width * 0.5) * 0.6
+    p1 = p0 + edge_unit * edge_length * dist_start_to_neck * 0.6
     p2 = p3 - edge_unit * neck_half * 0.5
     curves.append(BezierCurve(tuple(p0), tuple(p1), tuple(p2), tuple(p3)))  # type: ignore
 
-    # Curve 2: Neck up through waist to bulb side (the characteristic S-curve)
+    # Curve 2: Neck base left up through waist to bulb mid-left
+    # This creates the critical S-curve: first INWARD (toward center), then OUTWARD (to bulb)
     p0 = curves[-1].p3
-    p3 = bulb_base_left + normal * (full_height - neck_height) * 0.5
-    # The S-curve: first curves inward (toward center), then outward (to bulb)
-    p1 = neck_top_left + normal * neck_height * 0.4  # Goes up and slightly inward
-    p2 = p3 - normal * (full_height - neck_height) * 0.3 - edge_unit * (bulb_half - neck_half) * 0.5
+    p3 = bulb_mid_left
+
+    # Calculate the waist pinch amount - how much the curve goes inward
+    # More pinch for thinner necks relative to bulb (creates locking mechanism)
+    pinch_amount = (bulb_half - neck_half) * 0.4
+
+    # p1: Pull curve INWARD toward center and UP toward waist
+    # This creates the first half of the S-curve (the inward pinch)
+    p1 = (
+        np.array(p0)
+        + edge_unit * pinch_amount * left_curve_factor  # inward toward center
+        + normal * neck_height * 0.7  # up toward waist height
+    )
+
+    # p2: Pull curve OUTWARD toward bulb edge
+    # This creates the second half of the S-curve (outward to bulb)
+    p2 = (
+        np.array(p3)
+        - normal * (full_height - neck_height) * 0.3  # down from bulb midpoint
+        - edge_unit * (bulb_half - neck_half) * 0.3 * left_curve_factor  # slight outward bias
+    )
     curves.append(BezierCurve(tuple(p0), tuple(p1), tuple(p2), tuple(p3)))  # type: ignore
 
-    # Curve 3: Left bulb side up and around to right bulb side (semicircular)
+    # Curve 3: Bulb mid-left up and around to bulb mid-right (semicircular)
     p0 = curves[-1].p3
-    p3 = bulb_base_right + normal * (full_height - neck_height) * 0.5
+    p3 = bulb_mid_right
     # Control points for a nice round bulb - approximating a semicircle
-    # For a circle, control points should be at ~0.55 * radius from endpoints
     bulb_radius = bulb_half
     p1 = np.array(p0) + normal * bulb_radius * 0.8 * params.curvature - edge_unit * bulb_radius * 0.1
     p2 = np.array(p3) + normal * bulb_radius * 0.8 * params.curvature + edge_unit * bulb_radius * 0.1
     curves.append(BezierCurve(tuple(p0), tuple(p1), tuple(p2), tuple(p3)))  # type: ignore
 
-    # Curve 4: Right bulb down through waist to neck to end (mirror of curves 1-2)
+    # Curve 4: Bulb mid-right down through waist to neck base right (EXACT mirror of curve 2)
+    # Mirror of the S-curve: first away from bulb, then INWARD toward center, then down to neck
+    p0 = curves[-1].p3
+    p3 = neck_base_right
+
+    # p1: Mirror of curve 2's p2 - pull away from bulb
+    p1 = (
+        np.array(p0)
+        - normal * (full_height - neck_height) * 0.3  # down from bulb midpoint
+        + edge_unit * (bulb_half - neck_half) * 0.3 * right_curve_factor  # slight outward bias (mirrored)
+    )
+
+    # p2: Mirror of curve 2's p1 - pull INWARD toward center and down toward neck
+    p2 = (
+        np.array(p3)
+        - edge_unit * pinch_amount * right_curve_factor  # inward toward center (mirrored direction)
+        + normal * neck_height * 0.7  # up toward waist height
+    )
+    curves.append(BezierCurve(tuple(p0), tuple(p1), tuple(p2), tuple(p3)))  # type: ignore
+
+    # Curve 5: Neck base right to end (EXACT mirror of curve 1)
     p0 = curves[-1].p3
     p3 = np.array(end)
-    # Mirror the S-curve on the way down
-    p1 = np.array(p0) - normal * (full_height - neck_height) * 0.3 + edge_unit * (bulb_half - neck_half) * 0.5
-    p2 = neck_base_right + edge_unit * neck_half * 0.5
+    # Mirror the control points of curve 1:
+    # curve 1 p1 was: start + edge_unit * dist_start_to_neck * 0.6
+    # curve 1 p2 was: neck_base_left - edge_unit * neck_half * 0.5
+    # For the mirror, we reverse the structure
+    p1 = p0 + edge_unit * neck_half * 0.5
+    p2 = p3 - edge_unit * edge_length * dist_neck_to_end * 0.6
     curves.append(BezierCurve(tuple(p0), tuple(p1), tuple(p2), tuple(p3)))  # type: ignore
 
     return curves
@@ -693,6 +762,55 @@ REFERENCE_PIECES: dict[str, PieceConfig] = {
 }
 
 
+def _extract_and_normalize_contour(image_path: Path) -> Tuple[np.ndarray, np.ndarray] | None:
+    """Extract contour from reference image and normalize to unit coordinates.
+
+    Returns:
+        Tuple of (x_coords, y_coords) normalized to roughly [0, 1] range, or None if failed.
+    """
+    import cv2
+
+    img = cv2.imread(str(image_path), cv2.IMREAD_UNCHANGED)
+    if img is None:
+        return None
+
+    # Get alpha channel or convert to grayscale
+    if img.shape[2] == 4:
+        alpha = img[:, :, 3]
+        mask = (alpha > 128).astype(np.uint8) * 255
+    else:
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        mask = (gray > 0).astype(np.uint8) * 255
+
+    # Find contours
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    if not contours:
+        return None
+
+    # Get largest contour
+    largest = max(contours, key=cv2.contourArea)
+    contour = largest.reshape(-1, 2).astype(np.float64)
+
+    # Normalize: center and scale to fit in [0, 1] range
+    min_pt = contour.min(axis=0)
+    max_pt = contour.max(axis=0)
+    size = (max_pt - min_pt).max()
+
+    if size > 0:
+        # Center the contour
+        center = (min_pt + max_pt) / 2
+        contour = contour - center
+        # Scale to unit size
+        contour = contour / size
+        # Shift to [0, 1] centered at 0.5
+        contour = contour + 0.5
+
+    # Flip Y axis (image coordinates are inverted)
+    contour[:, 1] = 1.0 - contour[:, 1]
+
+    return contour[:, 0], contour[:, 1]
+
+
 def generate_reference_comparison(
     output_path: str | Path = "../outputs/reference_comparison.png",
     json_path: str | Path | None = None,
@@ -714,7 +832,7 @@ def generate_reference_comparison(
     pieces = load_pieces_from_json(json_path)
 
     num_pieces = len(pieces)
-    fig, axes = plt.subplots(2, num_pieces, figsize=(3 * num_pieces, 6))
+    fig, axes = plt.subplots(3, num_pieces, figsize=(3 * num_pieces, 9))
     fig.suptitle("Reference vs Generated Pieces", fontsize=16, fontweight="bold")
 
     for i, config in enumerate(pieces):
@@ -726,7 +844,7 @@ def generate_reference_comparison(
         axes[0, i].set_title(f"Reference {i + 1}")
         axes[0, i].axis("off")
 
-        # Bottom row: generated pieces from JSON
+        # Middle row: generated pieces from JSON
         x_coords, y_coords = generate_piece_path(config)
 
         axes[1, i].fill(x_coords, y_coords, color=PIECE_COLOR, edgecolor=PIECE_COLOR, linewidth=2)
@@ -737,8 +855,48 @@ def generate_reference_comparison(
         axes[1, i].set_ylim(-margin, config.size + margin)
         axes[1, i].set_title(f"Generated {i + 1}")
 
+        # Bottom row: overlapped comparison
+        ax = axes[2, i]
+
+        # Normalize generated piece to [0, 1] range for comparison
+        gen_x = np.array(x_coords)
+        gen_y = np.array(y_coords)
+        gen_min = min(gen_x.min(), gen_y.min())
+        gen_max = max(gen_x.max(), gen_y.max())
+        gen_size = gen_max - gen_min
+        if gen_size > 0:
+            gen_center_x = (gen_x.min() + gen_x.max()) / 2
+            gen_center_y = (gen_y.min() + gen_y.max()) / 2
+            gen_x_norm = (gen_x - gen_center_x) / gen_size + 0.5
+            gen_y_norm = (gen_y - gen_center_y) / gen_size + 0.5
+        else:
+            gen_x_norm, gen_y_norm = gen_x, gen_y
+
+        # Extract and normalize reference contour
+        ref_contour = _extract_and_normalize_contour(ref_img_path)
+
+        if ref_contour is not None:
+            ref_x, ref_y = ref_contour
+            # Plot reference shape (blue, semi-transparent)
+            ax.fill(ref_x, ref_y, color="blue", alpha=0.4, label="Reference")
+            ax.plot(ref_x, ref_y, color="blue", linewidth=1.5, alpha=0.8)
+
+        # Plot generated shape (red, semi-transparent)
+        ax.fill(gen_x_norm, gen_y_norm, color="red", alpha=0.4, label="Generated")
+        ax.plot(gen_x_norm, gen_y_norm, color="red", linewidth=1.5, alpha=0.8)
+
+        ax.set_aspect("equal")
+        ax.axis("off")
+        ax.set_xlim(-0.1, 1.1)
+        ax.set_ylim(-0.1, 1.1)
+        ax.set_title(f"Overlap {i + 1}")
+
+    # Add legend to first overlap plot
+    axes[2, 0].legend(loc="upper left", fontsize=8)
+
     axes[0, 0].set_ylabel("Reference", fontsize=12)
     axes[1, 0].set_ylabel("Generated", fontsize=12)
+    axes[2, 0].set_ylabel("Overlap", fontsize=12)
 
     plt.tight_layout()
     output_path.parent.mkdir(parents=True, exist_ok=True)
