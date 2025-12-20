@@ -40,19 +40,20 @@ from shape_comparator import (
     resample_contour,
 )
 
-# Parameter bounds (from README)
+# Parameter bounds for per-edge TabParameters
 PARAM_BOUNDS = {
     "position": (0.35, 0.65),
-    "neck_width": (0.06, 0.12),
+    "neck_width": (0.10, 0.18),  # Increased min from 0.06 to 0.10 for wider necks
     "bulb_width": (0.20, 0.32),
     "height": (0.12, 0.30),
     "neck_ratio": (0.15, 0.55),
     "curvature": (0.30, 1.0),
     "asymmetry": (-0.15, 0.15),
+    "corner_slope": (0.0, 0.20),
 }
 
 # Parameters to optimize (exclude position by default for stability)
-OPTIMIZABLE_PARAMS = ["neck_width", "bulb_width", "height", "neck_ratio", "curvature", "asymmetry"]
+OPTIMIZABLE_PARAMS = ["neck_width", "bulb_width", "height", "neck_ratio", "curvature", "asymmetry", "corner_slope"]
 
 
 @dataclass

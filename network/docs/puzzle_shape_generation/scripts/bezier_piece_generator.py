@@ -79,6 +79,10 @@ class TabParameters:
     # Asymmetry factor (-1 to 1, 0 = symmetric)
     asymmetry: float = 0.0
 
+    # Corner slope: controls tangent angle at corners (0 = 90°, higher = more slope)
+    # Direction is automatic: tabs slope down toward bulge, blanks slope up from indent
+    corner_slope: float = 0.10
+
     @classmethod
     def random(cls) -> "TabParameters":
         """Generate random but realistic parameters for a puzzle piece tab."""
@@ -96,6 +100,7 @@ class TabParameters:
             neck_ratio=random.uniform(0.25, 0.45),  # Affects waist position
             curvature=random.uniform(0.5, 1.0),  # Rounder bulbs look more realistic
             asymmetry=random.uniform(-0.12, 0.12),
+            corner_slope=random.uniform(0.05, 0.15),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -439,7 +444,12 @@ def generate_full_piece(
 
 
 def generate_realistic_tab_edge(
-    start: Tuple[float, float], end: Tuple[float, float], params: TabParameters, is_blank: bool = False
+    start: Tuple[float, float],
+    end: Tuple[float, float],
+    params: TabParameters,
+    is_blank: bool = False,
+    corner_slope: float = 0.0,
+    edge_type: str = "tab",
 ) -> List[BezierCurve]:
     """Generate a realistic puzzle piece tab using 5 cubic Bézier curves.
 
@@ -454,6 +464,11 @@ def generate_realistic_tab_edge(
     - asymmetry > 0: bulb tilts right (in the direction of the edge)
     - asymmetry < 0: bulb tilts left (against the direction of the edge)
     - asymmetry = 0: perfectly symmetric tab
+
+    The corner_slope parameter adjusts the tangent angle at the start/end corners:
+    - The tangent at corners will angle toward/away from the tab/blank
+    - For tabs: tangent angles down toward the bulge
+    - For blanks: tangent angles up away from the indentation
     """
     direction = 1 if not is_blank else -1
     edge_vec = np.array([end[0] - start[0], end[1] - start[1]])
@@ -462,6 +477,17 @@ def generate_realistic_tab_edge(
 
     # Normal vector (perpendicular to edge)
     normal = np.array([-edge_unit[1], edge_unit[0]]) * direction
+
+    # Corner slope: adjust tangent direction at corners
+    # For tabs (bulge outward): tangent should angle DOWN toward the bulge (same as normal direction)
+    # For blanks (indent inward): tangent should angle UP away from indent (opposite of normal)
+    if edge_type == "tab":
+        slope_direction = 1.0  # Angle toward the bulge (down into the tab)
+    else:  # blank
+        slope_direction = -1.0  # Angle away from the indent (up from the blank)
+
+    # The tangent offset at corners - angled slightly toward/away from the feature
+    corner_tangent_offset = normal * corner_slope * slope_direction
 
     # Key dimensions (all relative to edge_length)
     full_height = params.height * edge_length
@@ -504,9 +530,12 @@ def generate_realistic_tab_edge(
     dist_neck_to_end = 1.0 - params.position - params.neck_width * 0.5
 
     # Curve 1: Start to neck base left (flat entry)
+    # The tangent at the start corner is angled by corner_tangent_offset
     p0 = np.array(start)
     p3 = neck_base_left
-    p1 = p0 + edge_unit * edge_length * dist_start_to_neck * 0.6
+    # p1 determines the tangent direction at the start corner
+    # Add corner_tangent_offset to angle the tangent toward/away from the tab/blank
+    p1 = p0 + edge_unit * edge_length * dist_start_to_neck * 0.6 + corner_tangent_offset * edge_length * 0.3
     p2 = p3 - edge_unit * neck_half * 0.5
     curves.append(BezierCurve(tuple(p0), tuple(p1), tuple(p2), tuple(p3)))  # type: ignore
 
@@ -566,6 +595,7 @@ def generate_realistic_tab_edge(
     curves.append(BezierCurve(tuple(p0), tuple(p1), tuple(p2), tuple(p3)))  # type: ignore
 
     # Curve 5: Neck base right to end (EXACT mirror of curve 1)
+    # The tangent at the end corner is angled by corner_tangent_offset
     p0 = curves[-1].p3
     p3 = np.array(end)
     # Mirror the control points of curve 1:
@@ -573,7 +603,9 @@ def generate_realistic_tab_edge(
     # curve 1 p2 was: neck_base_left - edge_unit * neck_half * 0.5
     # For the mirror, we reverse the structure
     p1 = p0 + edge_unit * neck_half * 0.5
-    p2 = p3 - edge_unit * edge_length * dist_neck_to_end * 0.6
+    # p2 determines the tangent direction at the end corner
+    # Add corner_tangent_offset to angle the tangent toward/away from the tab/blank
+    p2 = p3 - edge_unit * edge_length * dist_neck_to_end * 0.6 + corner_tangent_offset * edge_length * 0.3
     curves.append(BezierCurve(tuple(p0), tuple(p1), tuple(p2), tuple(p3)))  # type: ignore
 
     return curves
@@ -581,6 +613,11 @@ def generate_realistic_tab_edge(
 
 def generate_piece_path(config: PieceConfig) -> Tuple[List[float], List[float]]:
     """Generate the complete path (x, y coordinates) for a puzzle piece.
+
+    The corner_slope parameter controls the tangent angle at corners:
+    - 0 = tangents are exactly along the edges (90° corner)
+    - positive = tangents angle inward toward center (for tabs)
+    - negative = tangents angle outward away from center (for blanks)
 
     Returns:
         Tuple of (x_coords, y_coords) lists defining the piece outline.
@@ -612,7 +649,9 @@ def generate_piece_path(config: PieceConfig) -> Tuple[List[float], List[float]]:
             # Note: is_blank=True makes the shape go OUTWARD (tab), is_blank=False goes INWARD (blank)
             # So we invert: "tab" -> is_blank=True (outward), "blank" -> is_blank=False (inward)
             is_blank = edge_type == "tab"
-            curves = generate_realistic_tab_edge(start, end, params, is_blank=is_blank)
+            curves = generate_realistic_tab_edge(
+                start, end, params, is_blank=is_blank, corner_slope=params.corner_slope, edge_type=edge_type
+            )
 
             for curve in curves:
                 points = curve.get_points(20)
