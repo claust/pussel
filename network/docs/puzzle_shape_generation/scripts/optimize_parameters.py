@@ -29,7 +29,8 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from bezier_piece_generator import PieceConfig, load_pieces_from_json
+from io_utils import load_pieces_from_json
+from models import PieceConfig
 from scipy.optimize import differential_evolution, minimize
 from shape_comparator import (
     compute_hausdorff_distance,
@@ -125,7 +126,7 @@ def compute_objective(
         config = vector_to_config(vector, original_config, param_names)
 
         # Generate contour from config
-        from bezier_piece_generator import generate_piece_path
+        from geometry import generate_piece_path
 
         x_coords, y_coords = generate_piece_path(config)
         gen_contour = np.array(list(zip(x_coords, y_coords)))
@@ -200,7 +201,7 @@ def optimize_piece(
     initial_obj = objective(initial_vector)
 
     # Compute initial metrics separately
-    from bezier_piece_generator import generate_piece_path
+    from geometry import generate_piece_path
 
     x, y = generate_piece_path(original_config)
     init_gen = np.array(list(zip(x, y)))
