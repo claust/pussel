@@ -32,13 +32,13 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python bezier_piece_generator.py                    # Generate random piece
-  python bezier_piece_generator.py -o my_piece.png    # Custom output path
-  python bezier_piece_generator.py --size 256         # Smaller image
-  python bezier_piece_generator.py --preset ref1      # Use reference preset
-  python bezier_piece_generator.py --compare          # Compare with references
-  python bezier_piece_generator.py --json pieces.json # Generate from JSON config
-  python bezier_piece_generator.py --export-json out.json  # Export presets to JSON
+  python piece_generator.py                    # Generate random piece
+  python piece_generator.py -o my_piece.png    # Custom output path
+  python piece_generator.py --size 256         # Smaller image
+  python piece_generator.py --preset ref1      # Use reference preset
+  python piece_generator.py --compare          # Compare with references
+  python piece_generator.py --json pieces.json # Generate from JSON config
+  python piece_generator.py --export-json out.json  # Export presets to JSON
 """,
     )
 
