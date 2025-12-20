@@ -117,8 +117,16 @@ def generate_realistic_tab_edge(
     return curves
 
 
-def generate_piece_path(config: PieceConfig) -> Tuple[List[float], List[float]]:
-    """Generate the complete path (x, y coordinates) for a puzzle piece."""
+def generate_piece_geometry(config: PieceConfig) -> List[List[BezierCurve]]:
+    """Generate the Bézier curves for all four edges of a puzzle piece.
+
+    This is the primary orchestration function that uses the 5-curve realistic
+    algorithm for tabs and blanks.
+
+    Returns:
+        A list of 4 edges, where each edge is a list of BezierCurve objects.
+        Order: bottom, right, top, left.
+    """
     corners = [
         (0, 0),  # Bottom-left
         (config.size, 0),  # Bottom-right
@@ -126,8 +134,7 @@ def generate_piece_path(config: PieceConfig) -> Tuple[List[float], List[float]]:
         (0, config.size),  # Top-left
     ]
 
-    all_x: List[float] = []
-    all_y: List[float] = []
+    all_edges: List[List[BezierCurve]] = []
 
     for i, edge_type in enumerate(config.edge_types):
         start = corners[i]
@@ -139,21 +146,43 @@ def generate_piece_path(config: PieceConfig) -> Tuple[List[float], List[float]]:
             params = TabParameters.random()
 
         if edge_type == "flat":
-            # Straight line - just add a few points
-            all_x.extend([start[0], end[0]])
-            all_y.extend([start[1], end[1]])
+            # Straight line as a single Bézier curve (control points on the line)
+            curve = BezierCurve(start, start, end, end)
+            all_edges.append([curve])
         else:
-            is_blank = edge_type == "tab"
+            # tab -> is_blank=False, blank -> is_blank=True
+            is_blank = edge_type == "blank"
             curves = generate_realistic_tab_edge(
                 start, end, params, is_blank=is_blank, corner_slope=params.corner_slope, edge_type=edge_type
             )
+            all_edges.append(curves)
 
-            for curve in curves:
-                points = curve.get_points(20)
-                all_x.extend(points[:, 0].tolist())
-                all_y.extend(points[:, 1].tolist())
+    return all_edges
 
-    # Close the path
+
+def generate_piece_path(config: PieceConfig, points_per_curve: int = 20) -> Tuple[List[float], List[float]]:
+    """Generate the complete path (x, y coordinates) for a puzzle piece.
+
+    Args:
+        config: The piece configuration.
+        points_per_curve: Number of points to sample from each Bézier curve.
+
+    Returns:
+        Tuple of (x_coords, y_coords).
+    """
+    all_edges = generate_piece_geometry(config)
+
+    all_x: List[float] = []
+    all_y: List[float] = []
+
+    for edge in all_edges:
+        for curve in edge:
+            points = curve.get_points(points_per_curve)
+            # Add all points except the last one to avoid duplication
+            all_x.extend(points[:-1, 0].tolist())
+            all_y.extend(points[:-1, 1].tolist())
+
+    # Close the path by adding the very first point back
     all_x.append(all_x[0])
     all_y.append(all_y[0])
 

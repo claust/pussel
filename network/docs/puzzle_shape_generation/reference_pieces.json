@@ -2,10 +2,10 @@
   "pieces": [
     {
       "edge_types": [
+        "blank",
         "tab",
-        "blank",
-        "blank",
-        "tab"
+        "tab",
+        "blank"
       ],
       "edge_params": [
         {
@@ -53,10 +53,10 @@
     },
     {
       "edge_types": [
-        "blank",
         "tab",
         "blank",
-        "blank"
+        "tab",
+        "tab"
       ],
       "edge_params": [
         {
@@ -104,10 +104,10 @@
     },
     {
       "edge_types": [
-        "tab",
-        "tab",
         "blank",
-        "tab"
+        "blank",
+        "tab",
+        "blank"
       ],
       "edge_params": [
         {
@@ -155,10 +155,10 @@
     },
     {
       "edge_types": [
-        "tab",
-        "tab",
-        "tab",
-        "tab"
+        "blank",
+        "blank",
+        "blank",
+        "blank"
       ],
       "edge_params": [
         {
@@ -206,10 +206,10 @@
     },
     {
       "edge_types": [
-        "blank",
         "tab",
         "blank",
-        "tab"
+        "tab",
+        "blank"
       ],
       "edge_params": [
         {
@@ -257,10 +257,10 @@
     },
     {
       "edge_types": [
-        "blank",
-        "blank",
-        "blank",
-        "blank"
+        "tab",
+        "tab",
+        "tab",
+        "tab"
       ],
       "edge_params": [
         {
