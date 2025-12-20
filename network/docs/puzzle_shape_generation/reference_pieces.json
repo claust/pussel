@@ -1,0 +1,286 @@
+{
+  "pieces": [
+    {
+      "edge_types": [
+        "tab",
+        "blank",
+        "blank",
+        "tab"
+      ],
+      "edge_params": [
+        {
+          "position": 0.5,
+          "neck_width": 0.09845866198599984,
+          "bulb_width": 0.2039559966728762,
+          "height": 0.16727714143643566,
+          "neck_ratio": 0.5003763212906196,
+          "curvature": 0.7240657549808658,
+          "asymmetry": 0.0
+        },
+        {
+          "position": 0.5,
+          "neck_width": 0.06182967383247465,
+          "bulb_width": 0.3143921178724681,
+          "height": 0.29232589979176365,
+          "neck_ratio": 0.4152825117842874,
+          "curvature": 0.9312583769997872,
+          "asymmetry": 0.0
+        },
+        {
+          "position": 0.5,
+          "neck_width": 0.07848505717527866,
+          "bulb_width": 0.2930302274130951,
+          "height": 0.15268905701945407,
+          "neck_ratio": 0.534820144728813,
+          "curvature": 0.4970955949063375,
+          "asymmetry": 0.0
+        },
+        {
+          "position": 0.5,
+          "neck_width": 0.0654891338114105,
+          "bulb_width": 0.3133905393696625,
+          "height": 0.2877370976610001,
+          "neck_ratio": 0.5263547113560715,
+          "curvature": 0.9482220492684841,
+          "asymmetry": 0.0
+        }
+      ],
+      "size": 1.0
+    },
+    {
+      "edge_types": [
+        "blank",
+        "tab",
+        "blank",
+        "blank"
+      ],
+      "edge_params": [
+        {
+          "position": 0.5,
+          "neck_width": 0.10982105223662589,
+          "bulb_width": 0.314717799670891,
+          "height": 0.29842918494425497,
+          "neck_ratio": 0.5057908782304726,
+          "curvature": 0.8252308327064847,
+          "asymmetry": 0.0
+        },
+        {
+          "position": 0.5,
+          "neck_width": 0.0809874453509098,
+          "bulb_width": 0.28239249642395137,
+          "height": 0.2898828460173562,
+          "neck_ratio": 0.5384696659363942,
+          "curvature": 0.9783022511642031,
+          "asymmetry": 0.0
+        },
+        {
+          "position": 0.5,
+          "neck_width": 0.11975968930291864,
+          "bulb_width": 0.31418800817466463,
+          "height": 0.28774533985155704,
+          "neck_ratio": 0.44329066365421377,
+          "curvature": 0.8614713067071593,
+          "asymmetry": 0.0
+        },
+        {
+          "position": 0.5,
+          "neck_width": 0.061888561864298045,
+          "bulb_width": 0.22094912303005554,
+          "height": 0.1335757515823517,
+          "neck_ratio": 0.2886035506486184,
+          "curvature": 0.9966495761961901,
+          "asymmetry": 0.0
+        }
+      ],
+      "size": 1.0
+    },
+    {
+      "edge_types": [
+        "tab",
+        "tab",
+        "blank",
+        "tab"
+      ],
+      "edge_params": [
+        {
+          "position": 0.5,
+          "neck_width": 0.06630936063414836,
+          "bulb_width": 0.2391228002082717,
+          "height": 0.2769918621014339,
+          "neck_ratio": 0.4948490862437762,
+          "curvature": 0.9598557408814928,
+          "asymmetry": 0.0
+        },
+        {
+          "position": 0.5,
+          "neck_width": 0.07935122841706807,
+          "bulb_width": 0.2538793418347104,
+          "height": 0.2951993848698288,
+          "neck_ratio": 0.30301058092048994,
+          "curvature": 0.6126800280157926,
+          "asymmetry": 0.0
+        },
+        {
+          "position": 0.5,
+          "neck_width": 0.06730450286550142,
+          "bulb_width": 0.22350932992844696,
+          "height": 0.19070625324980522,
+          "neck_ratio": 0.47170456923994875,
+          "curvature": 0.45912885824039096,
+          "asymmetry": 0.0
+        },
+        {
+          "position": 0.5,
+          "neck_width": 0.07368590343294401,
+          "bulb_width": 0.299696196999387,
+          "height": 0.2182317970913002,
+          "neck_ratio": 0.4589094192743259,
+          "curvature": 0.8449846641859626,
+          "asymmetry": 0.0
+        }
+      ],
+      "size": 1.0
+    },
+    {
+      "edge_types": [
+        "tab",
+        "tab",
+        "tab",
+        "tab"
+      ],
+      "edge_params": [
+        {
+          "position": 0.5,
+          "neck_width": 0.10229799364090181,
+          "bulb_width": 0.28761883171988295,
+          "height": 0.28067974625475783,
+          "neck_ratio": 0.4680397358054874,
+          "curvature": 0.966304125548891,
+          "asymmetry": 0.0
+        },
+        {
+          "position": 0.5,
+          "neck_width": 0.0692183018610761,
+          "bulb_width": 0.22330832582053925,
+          "height": 0.28483940093532223,
+          "neck_ratio": 0.18815930382781748,
+          "curvature": 0.8675177310446381,
+          "asymmetry": 0.0
+        },
+        {
+          "position": 0.5,
+          "neck_width": 0.09417074645385061,
+          "bulb_width": 0.3134173110389425,
+          "height": 0.2947667015898259,
+          "neck_ratio": 0.533974927410395,
+          "curvature": 0.9890138003776756,
+          "asymmetry": 0.0
+        },
+        {
+          "position": 0.5,
+          "neck_width": 0.09663778132769237,
+          "bulb_width": 0.31746712054751414,
+          "height": 0.2785853119968257,
+          "neck_ratio": 0.42746452698285614,
+          "curvature": 0.9081096481374131,
+          "asymmetry": 0.0
+        }
+      ],
+      "size": 1.0
+    },
+    {
+      "edge_types": [
+        "blank",
+        "tab",
+        "blank",
+        "tab"
+      ],
+      "edge_params": [
+        {
+          "position": 0.5,
+          "neck_width": 0.06390960114201348,
+          "bulb_width": 0.28126723952501725,
+          "height": 0.26586235937715025,
+          "neck_ratio": 0.38088074622600715,
+          "curvature": 0.8552106845408887,
+          "asymmetry": 0.0
+        },
+        {
+          "position": 0.5,
+          "neck_width": 0.11356228028647741,
+          "bulb_width": 0.30944443440875097,
+          "height": 0.2815212564628667,
+          "neck_ratio": 0.46040582651869544,
+          "curvature": 0.9836497598396963,
+          "asymmetry": 0.0
+        },
+        {
+          "position": 0.5,
+          "neck_width": 0.08863024424850341,
+          "bulb_width": 0.27138490384151753,
+          "height": 0.2756065022860553,
+          "neck_ratio": 0.18582157886880687,
+          "curvature": 0.920822386640116,
+          "asymmetry": 0.0
+        },
+        {
+          "position": 0.5,
+          "neck_width": 0.06692801283661343,
+          "bulb_width": 0.22945747390346818,
+          "height": 0.28846539980333963,
+          "neck_ratio": 0.19070458553132,
+          "curvature": 0.9396467462159597,
+          "asymmetry": 0.0
+        }
+      ],
+      "size": 1.0
+    },
+    {
+      "edge_types": [
+        "blank",
+        "blank",
+        "blank",
+        "blank"
+      ],
+      "edge_params": [
+        {
+          "position": 0.5,
+          "neck_width": 0.10505027342350724,
+          "bulb_width": 0.28817163482977154,
+          "height": 0.2827320343763954,
+          "neck_ratio": 0.4205038321617196,
+          "curvature": 0.5381353289779783,
+          "asymmetry": 0.0
+        },
+        {
+          "position": 0.5,
+          "neck_width": 0.10714214336148947,
+          "bulb_width": 0.28061452928735026,
+          "height": 0.25719906215394256,
+          "neck_ratio": 0.3020906079271327,
+          "curvature": 0.8007783825710065,
+          "asymmetry": 0.0
+        },
+        {
+          "position": 0.5,
+          "neck_width": 0.11740474212807318,
+          "bulb_width": 0.3129469927423755,
+          "height": 0.29454284017570864,
+          "neck_ratio": 0.20066137148098692,
+          "curvature": 0.9687637044997864,
+          "asymmetry": 0.0
+        },
+        {
+          "position": 0.5,
+          "neck_width": 0.08944809590028567,
+          "bulb_width": 0.28337571707390563,
+          "height": 0.28484137802559556,
+          "neck_ratio": 0.23233465972011358,
+          "curvature": 0.9201578998197203,
+          "asymmetry": 0.0
+        }
+      ],
+      "size": 1.0
+    }
+  ]
+}
