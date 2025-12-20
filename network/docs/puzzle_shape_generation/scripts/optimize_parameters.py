@@ -51,8 +51,8 @@ PARAM_BOUNDS = {
     "asymmetry": (-0.15, 0.15),
 }
 
-# Parameters to optimize (exclude position and asymmetry by default for stability)
-OPTIMIZABLE_PARAMS = ["neck_width", "bulb_width", "height", "neck_ratio", "curvature"]
+# Parameters to optimize (exclude position by default for stability)
+OPTIMIZABLE_PARAMS = ["neck_width", "bulb_width", "height", "neck_ratio", "curvature", "asymmetry"]
 
 
 @dataclass
@@ -433,11 +433,6 @@ Examples:
         action="store_true",
         help="Also optimize the 'position' parameter",
     )
-    parser.add_argument(
-        "--include-asymmetry",
-        action="store_true",
-        help="Also optimize the 'asymmetry' parameter",
-    )
 
     args = parser.parse_args()
 
@@ -459,8 +454,6 @@ Examples:
     param_names = list(OPTIMIZABLE_PARAMS)
     if args.include_position:
         param_names.append("position")
-    if args.include_asymmetry:
-        param_names.append("asymmetry")
 
     print(f"Optimizing parameters: {', '.join(param_names)}")
     print(f"Method: {args.method}, Max iterations: {args.max_iter}")

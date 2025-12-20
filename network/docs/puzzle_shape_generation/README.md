@@ -150,11 +150,11 @@ python optimize_parameters.py 1 -v
 - `differential_evolution`: Global optimization, better at finding optimal solutions but slower
 - `Powell`, `Nelder-Mead`: Alternative local methods
 
-**Optimized parameters:** neck_width, bulb_width, height, neck_ratio, curvature (position and asymmetry are fixed by default for stability)
+**Optimized parameters:** neck_width, bulb_width, height, neck_ratio, curvature, asymmetry (position is fixed by default for stability)
 
 ## Parameterization
 
-Each tab/blank is controlled by 6 semantic parameters:
+Each tab/blank is controlled by 7 semantic parameters:
 
 | Parameter | Description | Typical Range |
 |-----------|-------------|---------------|
@@ -164,6 +164,7 @@ Each tab/blank is controlled by 6 semantic parameters:
 | `position` | Where along edge the tab is centered | 0.35 - 0.65 |
 | `neck_ratio` | Height of waist as proportion of total | 0.15 - 0.55 |
 | `curvature` | How rounded the bulb is | 0.30 - 1.0 |
+| `asymmetry` | Tilt direction (-1=left, 0=center, +1=right) | -0.15 - 0.15 |
 
 All values are relative to the edge length (normalized to 1.0).
 
