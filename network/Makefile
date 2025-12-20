@@ -3,10 +3,10 @@
 
 .PHONY: check format lint typecheck install-dev isort-check black-check format-check
 
-# Install development dependencies
+# Install development dependencies (same flake8 plugins as pre-commit)
 install-dev:
 	pip install -r requirements.txt
-	pip install black isort flake8 flake8-docstrings pyright
+	pip install black isort flake8 flake8-docstrings flake8-import-order flake8-bugbear flake8-comprehensions flake8-pytest-style pyright
 
 # Run all checks (same as CI)
 check: format-check lint typecheck
@@ -22,12 +22,8 @@ isort-check:
 # Run all formatting checks (isort + black)
 format-check: isort-check black-check
 
-# Run flake8 linting
-# E203 is ignored because Black adds spaces around colons in slices (a[b : c])
-# W503 is ignored because PEP 8 now recommends breaking before binary operators
-# D202 is ignored because Black adds blank lines after docstrings before nested functions
 lint:
-	flake8 . --extend-ignore=I100,I201,E203,W503,D202
+	flake8 .
 
 # Run pyright type checking (same as VS Code Pylance)
 typecheck:
