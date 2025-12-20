@@ -24,8 +24,10 @@ format-check: isort-check black-check
 
 # Run flake8 linting
 # E203 is ignored because Black adds spaces around colons in slices (a[b : c])
+# W503 is ignored because PEP 8 now recommends breaking before binary operators
+# D202 is ignored because Black adds blank lines after docstrings before nested functions
 lint:
-	flake8 . --extend-ignore=I100,I201,E203
+	flake8 . --extend-ignore=I100,I201,E203,W503,D202
 
 # Run pyright type checking (same as VS Code Pylance)
 typecheck:
