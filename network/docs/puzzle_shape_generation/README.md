@@ -19,11 +19,17 @@ puzzle_shape_generation/
 ├── PUZZLE_PIECE_SHAPE_GENERATION.md  # Detailed technical notes
 ├── reference_pieces.json        # JSON config defining 6 sample pieces
 ├── scripts/
-│   ├── bezier_piece_generator.py   # Main generator (creates PNG pieces)
-│   ├── compare_with_references.py  # Visual comparison tool
+│   ├── bezier_piece_generator.py   # Main CLI wrapper (creates PNG pieces)
+│   ├── models.py                   # Data classes (PieceConfig, TabParameters)
+│   ├── geometry.py                 # Core math for Bezier shape generation
+│   ├── rendering.py                # PNG rendering and visualization
+│   ├── io_utils.py                 # JSON loading and saving
+│   ├── comparison.py               # Reference comparison logic
+│   ├── legacy.py                   # Older generation algorithms
 │   ├── shape_comparator.py         # Quantitative shape comparison (IoU, Hausdorff)
-│   ├── standardize_references.py   # Preprocessing for reference images
-│   └── optimize_parameters.py      # Parameter optimizer using shape metrics
+│   ├── optimize_parameters.py      # Parameter optimizer using shape metrics
+│   ├── visualize_comparison.py     # Overlay visualization for debugging
+│   └── diagnose_curves.py          # Tool to visualize the curve structure
 ├── reference_images/
 │   ├── pieces_1.png             # Reference: grid of puzzle pieces
 │   ├── pieces_2.webp            # Reference: individual pieces
@@ -36,7 +42,7 @@ puzzle_shape_generation/
 
 ### 1. bezier_piece_generator.py
 
-The main tool for generating puzzle piece shapes. Creates PNG images with transparent backgrounds.
+The main CLI wrapper for generating puzzle piece shapes. It uses the modular libraries (`geometry`, `rendering`, etc.) to create PNG images with transparent backgrounds.
 
 **Basic Usage:**
 ```bash
@@ -64,22 +70,19 @@ python bezier_piece_generator.py --compare
 **Key Features:**
 - Generates complete 4-sided puzzle pieces
 - Configurable edge types (tab/blank/flat) per edge
-- 6 tunable parameters per tab/blank (see Parameterization below)
+- 8 tunable parameters per tab/blank (see Parameterization below)
 - JSON import/export for batch generation
 - Transparent PNG output
 
-### 2. compare_with_references.py
+### 2. Modular Libraries
 
-Creates side-by-side visual comparisons between reference images and generated pieces.
-
-```bash
-cd scripts
-python compare_with_references.py
-```
-
-**Outputs:**
-- `outputs/comparison_with_references.png` - Reference vs generated comparison
-- `outputs/parameter_exploration.png` - Grid showing parameter variations
+The core logic is split into several modules:
+- **models.py**: Defines `BezierCurve`, `TabParameters`, and `PieceConfig` dataclasses.
+- **geometry.py**: Core math for generating tab edges using the 5-curve "mushroom" model.
+- **rendering.py**: Matplotlib-based rendering to PNG and curve visualization.
+- **io_utils.py**: JSON serialization utilities.
+- **comparison.py**: Logic for comparing generated pieces against reference images.
+- **legacy.py**: Preserves older 2, 3, and 4-curve algorithms for historical comparison.
 
 ### 3. shape_comparator.py
 
@@ -93,9 +96,6 @@ python shape_comparator.py 1
 
 # Compare all pieces
 python shape_comparator.py --all
-
-# Verbose output with details
-python shape_comparator.py 1 --verbose
 ```
 
 **Metrics:**
@@ -103,18 +103,14 @@ python shape_comparator.py 1 --verbose
 - **Mean Contour Distance**: Average distance between contour points (0 = perfect)
 - **Hausdorff Distance**: Maximum distance between contours (0 = perfect)
 
-### 4. standardize_references.py
+### 4. visualize_comparison.py
 
-Preprocesses reference images by removing backgrounds and applying solid fills. This creates consistent images for shape comparison.
+Visual debugging tool that overlays generated contours on top of reference images.
 
 ```bash
 cd scripts
-python standardize_references.py
+python visualize_comparison.py 1
 ```
-
-**Converts:**
-- `reference_images/individual/` (colored pieces on white background)
-- to `reference_images/standardized/` (solid red fill on transparent background)
 
 ### 5. optimize_parameters.py
 
@@ -154,7 +150,7 @@ python optimize_parameters.py 1 -v
 
 ## Parameterization
 
-Each tab/blank is controlled by 7 semantic parameters:
+Each tab/blank is controlled by 8 semantic parameters:
 
 | Parameter | Description | Typical Range |
 |-----------|-------------|---------------|
@@ -165,6 +161,7 @@ Each tab/blank is controlled by 7 semantic parameters:
 | `neck_ratio` | Height of waist as proportion of total | 0.15 - 0.55 |
 | `curvature` | How rounded the bulb is | 0.30 - 1.0 |
 | `asymmetry` | Tilt direction (-1=left, 0=center, +1=right) | -0.15 - 0.15 |
+| `corner_slope`| Tangent angle at corners | 0.00 - 0.20 |
 
 All values are relative to the edge length (normalized to 1.0).
 
@@ -178,57 +175,28 @@ TabParameters(
     height=0.20,       # Moderate protrusion
     neck_ratio=0.35,   # Waist at 35% height
     curvature=0.88,    # Very rounded
+    corner_slope=0.10, # Realistic corner transitions
 )
 ```
 
 ## JSON Configuration Format
-
-Pieces can be defined in JSON for batch generation:
-
-```json
-{
-  "pieces": [
-    {
-      "edge_types": ["tab", "blank", "blank", "tab"],
-      "edge_params": [
-        {
-          "position": 0.5,
-          "neck_width": 0.1,
-          "bulb_width": 0.24,
-          "height": 0.22,
-          "neck_ratio": 0.35,
-          "curvature": 0.85,
-          "asymmetry": 0.0
-        },
-        ...
-      ],
-      "size": 1.0
-    }
-  ]
-}
-```
-
-Edge order: bottom, right, top, left (counter-clockwise from bottom-left corner).
-
+...
 ## Dependencies
-
-```bash
-pip install numpy matplotlib pillow opencv-python scipy
-```
-
+...
 ## Technical Details
 
-The shape generation uses **4 cubic Bezier curves** per tab/blank:
-1. **Curve 1**: Edge to neck base (smooth entry)
-2. **Curve 2**: Neck through waist to bulb side (S-curve creating waist)
-3. **Curve 3**: Bulb (semicircular arc)
-4. **Curve 4**: Bulb side through waist back to edge (mirror)
+The shape generation uses **5 cubic Bezier curves** per tab/blank to create the "mushroom" shape:
+1. **Curve 1**: Edge start to neck base (flat entry with adjustable corner slope)
+2. **Curve 2**: Neck base through waist to bulb side (S-curve creating the locking mechanism)
+3. **Curve 3**: Bulb top (semicircular arc)
+4. **Curve 4**: Bulb side through waist back to neck base (mirror of Curve 2)
+5. **Curve 5**: Neck base to edge end (mirror of Curve 1)
 
 This approach provides:
 - Smooth, C1-continuous curves
-- Natural-looking "mushroom" shapes
-- Fine control over proportions
-- 16 control points per edge (64 per piece)
-- Effectively controlled by 6 intuitive parameters
+- Natural-looking, symmetric or asymmetric "mushroom" shapes
+- Robust locking mechanism appearance
+- 20 control points per edge (80 per piece)
+- Effectively controlled by 8 intuitive parameters
 
 See `PUZZLE_PIECE_SHAPE_GENERATION.md` for detailed technical notes on the Bezier curve mathematics and design decisions.

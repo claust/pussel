@@ -19,7 +19,8 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-from bezier_piece_generator import generate_piece_path, load_pieces_from_json
+from geometry import generate_piece_path
+from io_utils import load_pieces_from_json
 from scipy.spatial.distance import directed_hausdorff
 
 
