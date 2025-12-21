@@ -48,6 +48,32 @@ BBox = Tuple[int, int, int, int]
 PieceData = Tuple[Image.Image, BBox, int]
 
 
+def center_crop_to_square(image: Image.Image) -> Image.Image:
+    """Center-crop an image to a square using the smaller dimension.
+
+    Args:
+        image: Input PIL Image
+
+    Returns:
+        Square-cropped image
+    """
+    width, height = image.size
+
+    if width == height:
+        return image
+
+    # Use the smaller dimension as the square size
+    size = min(width, height)
+
+    # Calculate crop coordinates (centered)
+    left = (width - size) // 2
+    top = (height - size) // 2
+    right = left + size
+    bottom = top + size
+
+    return image.crop((left, top, right, bottom))
+
+
 @dataclass
 class ProcessingOptions:
     """Options for processing puzzle pieces."""
@@ -799,6 +825,7 @@ def _process_puzzle_image(processor, puzzle_path, puzzles_dir, puzzle_name):
     """Load the puzzle image and create context image for training.
 
     Pieces are cut from the original high-resolution image to preserve detail.
+    Images are center-cropped to a square to preserve aspect ratio.
     A smaller context image is saved for use during training.
 
     Args:
@@ -812,7 +839,10 @@ def _process_puzzle_image(processor, puzzle_path, puzzles_dir, puzzle_name):
     """
     # Load the image at original resolution
     original_image = Image.open(puzzle_path).convert("RGB")
-    original_size = original_image.size  # (width, height)
+
+    # Center-crop to square to preserve aspect ratio
+    original_image = center_crop_to_square(original_image)
+    original_size = original_image.size  # (width, height) - now square
 
     # Create and save context image (smaller, for training)
     context_image = processor.create_context_image(original_image)
