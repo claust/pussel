@@ -190,7 +190,36 @@ The visualization shows:
 
 ### Root Cause Analysis
 
-The primary issue is **data structure causing memorization**:
+There are two primary issues: **an architectural flaw** and **data structure causing memorization**.
+
+#### 1. Architectural Flaw: Global Pooling Destroys Rotation Information
+
+The rotation head receives globally-pooled piece features:
+
+```python
+piece_feat_map = self.piece_features(piece)  # (B, 576, 4, 4) - has spatial info
+piece_feat = self.piece_pool(piece_feat_map).flatten(1)  # (B, 576) - spatial info LOST
+rotation_logits = self.rotation_head(piece_feat)  # Can't distinguish orientations!
+```
+
+**This is fundamentally broken for rotation prediction.** Consider a piece with "sky at top, grass at bottom":
+
+```
+0° (correct):       180° (rotated):
++----------+        +----------+
+|  sky     |        |  grass   |
++----------+   vs   +----------+
+|  grass   |        |  sky     |
++----------+        +----------+
+
+After global avg pooling: NEARLY IDENTICAL feature vectors
+```
+
+Both contain the same textures — the only difference is their spatial arrangement, which pooling discards. The confusion matrix confirms this: **0° vs 180° and 90° vs 270° have the highest confusion** — exactly the "opposite" rotations that pooling makes indistinguishable.
+
+To predict rotation, the model needs to answer: "Where is the sky relative to the grass IN THIS PIECE?" This requires preserving spatial structure, not pooling it away.
+
+#### 2. Data Structure Causing Memorization
 
 1. **16x exposure per puzzle**: Each puzzle appears 16 times per epoch (4 quadrants × 4 rotations) vs 4 times in exp9. This makes it easier for the model to memorize puzzle-specific features.
 
@@ -206,10 +235,13 @@ Unlike the successful transition from exp7→exp9, this experiment suffered beca
 
 | Factor | Exp9 Success | Exp10 Failure |
 |--------|--------------|---------------|
+| **Architecture** | Spatial features preserved for position | **Spatial features pooled away for rotation** |
 | Data diversity | 4 samples/puzzle | 16 samples/puzzle (less diverse) |
 | Task nature | Position = spatial matching | Rotation = texture orientation (easy to memorize) |
 | Generalization | Cross-puzzle features | Puzzle-specific texture patterns |
 | Regularization | Sufficient | Insufficient for 4x more exposure |
+
+The architectural issue is the most critical: the position task succeeded because spatial information was preserved (puzzle keeps its 8×8 feature map). The rotation task failed because spatial information was discarded (piece is globally pooled before the rotation head).
 
 ## Conclusion
 
@@ -218,32 +250,47 @@ Unlike the successful transition from exp7→exp9, this experiment suffered beca
 - Poor rotation generalization (61% test vs 98% train)
 - Severe overfitting on both tasks
 
-The naive approach of adding rotation by including all 4 rotations per quadrant leads to memorization rather than generalization. The model learns puzzle-specific patterns instead of general rotation features.
+**The fundamental issue is architectural**: global average pooling on the piece discards the spatial information needed for rotation prediction. The confusion matrix shows the highest errors between 0° vs 180° and 90° vs 270° — exactly the "opposite" rotations that become indistinguishable after pooling. No amount of regularization can fix this; the model simply doesn't have access to the information it needs.
+
+Secondary issues include the naive data approach of including all 4 rotations per quadrant, which leads to 16x exposure per puzzle and encourages memorization.
 
 ## Next Steps
 
-Several approaches could address the overfitting:
+### 1. Spatial Rotation Head (Critical - Architectural Fix)
 
-### 1. Random Rotation Sampling (Recommended)
+**This is the most important fix.** The rotation head must receive spatial features, not pooled features:
+
+```python
+# Current (broken):
+piece_feat = self.piece_pool(piece_feat_map).flatten(1)  # (B, 576) - loses spatial info
+rotation_logits = self.rotation_head(piece_feat)
+
+# Proposed fix:
+piece_feat_map = self.piece_features(piece)  # (B, 576, 4, 4) - keep spatial info
+rotation_logits = self.spatial_rotation_head(piece_feat_map)  # Small CNN → 4 classes
+```
+
+The spatial rotation head could be:
+- A small CNN (Conv2d → Pool → FC → 4 classes)
+- Or flatten the 4×4×576 features and use an MLP
+
+This allows the model to learn "sky at top = 0°, sky at bottom = 180°" which is impossible with pooled features.
+
+### 2. Random Rotation Sampling
 Instead of including all 4 rotations per puzzle-quadrant pair, randomly sample ONE rotation per piece during training:
 - Reduces puzzle exposure from 16x to 4x per epoch (same as exp9)
 - Forces the model to learn general rotation features
 - Maintains data diversity
-
-### 2. Stronger Regularization
-- Increase dropout from 0.1 to 0.2-0.3
-- Increase weight decay from 1e-4 to 1e-3
-- Add label smoothing for rotation classification
 
 ### 3. Two-Phase Training
 - Phase 1: Train position only (reproduce exp9 results)
 - Phase 2: Freeze position components, train rotation head only
 - Prevents position regression while learning rotation
 
-### 4. Architecture Changes
-- Use rotation-equivariant features in the rotation head
-- Separate backbone branches for position vs rotation
-- Smaller rotation head to reduce capacity for memorization
+### 4. Stronger Regularization
+- Increase dropout from 0.1 to 0.2-0.3
+- Increase weight decay from 1e-4 to 1e-3
+- Add label smoothing for rotation classification
 
 ### 5. Data Augmentation
 - Add more aggressive augmentation to the rotated pieces
@@ -328,4 +375,4 @@ python -m experiments.exp10_add_rotation.train \
 | Overfitting | Minimal | Severe | Problem |
 | Conclusion | Success | Failure | Needs redesign |
 
-**Bottom line**: Naive multi-task learning with rotation fails due to overfitting. The 4x increase in samples per puzzle (16 vs 4) leads to memorization. Future experiments should use random rotation sampling or two-phase training to maintain the generalization achieved in exp9 while adding rotation capability.
+**Bottom line**: The rotation head cannot work with globally-pooled piece features. Global pooling discards the spatial information needed to distinguish rotations — explaining why 0° vs 180° and 90° vs 270° have the highest confusion (they're identical after pooling). Future experiments must use a spatial rotation head that preserves the piece's feature map structure. Secondary improvements include random rotation sampling to reduce the 16x puzzle exposure that encourages memorization.
