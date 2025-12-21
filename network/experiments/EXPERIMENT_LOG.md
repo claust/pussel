@@ -92,6 +92,14 @@ Attempted to fix Exp 10's perceived "pooling" flaw by using a Spatial Rotation H
 
 ---
 
+## Exp 12: Rotation Correlation
+**Date:** December 2025
+**Status:** PARTIAL SUCCESS (87% rotation accuracy!)
+
+Fixed the fundamental flaw in exp10/11 by implementing **Rotation Correlation** - comparing piece features to puzzle features at each rotation candidate, selecting the rotation with highest similarity. Results: 67% quadrant accuracy (regressed from 73%), but **87% rotation accuracy** (+27% improvement over exp11's 60%). The hypothesis was validated: rotation is a matching problem, not an intrinsic classification problem. The 0° vs 180° confusion was reduced from a major issue to ~7-9%. However, position accuracy regressed, suggesting the joint position-rotation architecture needs refinement. Key finding: the rotation correlation approach is correct, but may need two-stage inference or gradient detachment to prevent position regression.
+
+---
+
 ## Summary Table
 
 | Exp | Focus | Test Result | Key Finding |
@@ -107,12 +115,14 @@ Attempted to fix Exp 10's perceived "pooling" flaw by using a Spatial Rotation H
 | 9 | Fine-tune backbone | **93%** | Task-specific features essential |
 | 10 | Add rotation | 78% quad / 61% rot | Global pooling destroys rotation info |
 | 11 | Spatial rotation head | 73% quad / 60% rot | Rotation requires puzzle context |
+| 12 | Rotation correlation | 67% quad / **87% rot** | Rotation correlation works! Position regressed |
 
 ---
 
 ## Current Best Approach
 
-**Architecture:** DualInputRegressorWithCorrelation (exp7) + fine-tuned MobileNetV3-Small backbone (exp9)
-**Task:** 2x2 quadrant prediction with coordinate regression
-**Test Accuracy:** 93%
-**Next Steps:** Rotation correlation (compare piece TO puzzle), joint position-rotation correlation, finer grids (3x3, 4x4)
+**For Position Only:** DualInputRegressorWithCorrelation (exp7) + fine-tuned MobileNetV3-Small backbone (exp9) - 93% quadrant accuracy
+
+**For Position + Rotation:** DualInputRegressorWithRotationCorrelation (exp12) - 67% quad / 87% rot
+
+**Next Steps:** Fix position regression in exp12 (two-stage training, gradient detachment), then proceed to finer grids (3x3, 4x4)
