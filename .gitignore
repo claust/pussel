@@ -186,6 +186,9 @@ network/checkpoints/
 # Experiment outputs
 network/outputs/
 
+# PyTorch Lightning checkpoints
+*.pt
+
 # Flutter/Dart specific
 *.class
 *.log
