@@ -100,6 +100,14 @@ Fixed the fundamental flaw in exp10/11 by implementing **Rotation Correlation** 
 
 ---
 
+## Exp 13: Rotation Correlation with 5K Puzzles
+**Date:** December 2025
+**Status:** SUCCESS (86% position, 93% rotation!)
+
+Tested whether scaling up training data (800 → 4499 puzzles) could fix the position regression from exp12 without architectural changes. Results exceeded expectations: **86.3% quadrant accuracy** (+19.8% over exp12) and **92.8% rotation accuracy** (+5.9% over exp12). The position regression was completely fixed, and rotation improved further. The 0° vs 180° confusion dropped from 7-9% to just 0.8-1.6%. Key insight: the rotation correlation architecture was correct all along — it just needed more diverse training data. Train-test gaps shrunk dramatically (position: 25.9% → 10.6%, rotation: 12.4% → 4.9%), confirming better generalization. This validates that **data quantity matters as much as architecture** for cross-puzzle matching.
+
+---
+
 ## Summary Table
 
 | Exp | Focus | Test Result | Key Finding |
@@ -115,7 +123,8 @@ Fixed the fundamental flaw in exp10/11 by implementing **Rotation Correlation** 
 | 9 | Fine-tune backbone | **93%** | Task-specific features essential |
 | 10 | Add rotation | 78% quad / 61% rot | Global pooling destroys rotation info |
 | 11 | Spatial rotation head | 73% quad / 60% rot | Rotation requires puzzle context |
-| 12 | Rotation correlation | 67% quad / **87% rot** | Rotation correlation works! Position regressed |
+| 12 | Rotation correlation | 67% quad / 87% rot | Rotation correlation works! Position regressed |
+| 13 | 5K puzzles | **86% quad / 93% rot** | More data fixes everything! |
 
 ---
 
@@ -123,6 +132,6 @@ Fixed the fundamental flaw in exp10/11 by implementing **Rotation Correlation** 
 
 **For Position Only:** DualInputRegressorWithCorrelation (exp7) + fine-tuned MobileNetV3-Small backbone (exp9) - 93% quadrant accuracy
 
-**For Position + Rotation:** DualInputRegressorWithRotationCorrelation (exp12) - 67% quad / 87% rot
+**For Position + Rotation:** DualInputRegressorWithRotationCorrelation (exp13) - **86% quad / 93% rot** with 4499 training puzzles
 
-**Next Steps:** Fix position regression in exp12 (two-stage training, gradient detachment), then proceed to finer grids (3x3, 4x4)
+**Next Steps:** Proceed to finer grids (3x3, 4x4), test on real puzzle piece shapes, explore continuous coordinate regression
