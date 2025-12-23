@@ -25,3 +25,4 @@ def save_pieces_to_json(pieces: List[PieceConfig], json_path: str | Path) -> Non
 
     with open(json_path, "w") as f:
         json.dump(data, f, indent=2)
+        f.write("\n")

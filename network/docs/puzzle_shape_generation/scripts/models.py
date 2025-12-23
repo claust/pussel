@@ -76,6 +76,11 @@ class TabParameters:
     # The sign is automatically applied based on feature type.
     shoulder_offset: float = 0.04
 
+    # Shoulder flatness: controls how flat the shoulder stays before sharply turning
+    # into the neck. Higher values = flatter shoulder + sharper "armpit" transition.
+    # 0.0 = smooth flowing curve, 1.0 = very flat with sharp turn into neck
+    shoulder_flatness: float = 0.5
+
     @classmethod
     def random(cls) -> "TabParameters":
         """Generate random but realistic parameters for a puzzle piece tab."""
@@ -96,6 +101,7 @@ class TabParameters:
             squareness=random.uniform(1.0, 1.4),  # Slightly flat to more square tops
             neck_flare=random.uniform(-0.3, 0.5),  # Flare outward to pinch inward
             shoulder_offset=random.uniform(0.03, 0.06),  # Subtle dip/hump at neck base
+            shoulder_flatness=random.uniform(0.4, 0.8),  # Flatter shoulder, sharper armpit
         )
 
     def to_dict(self) -> dict[str, Any]:

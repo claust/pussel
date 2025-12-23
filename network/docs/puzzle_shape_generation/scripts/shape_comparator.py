@@ -59,7 +59,13 @@ def extract_contour_from_image(image_path: Path) -> np.ndarray:
     largest = max(contours, key=cv2.contourArea)
 
     # Reshape to Nx2
-    return largest.reshape(-1, 2).astype(np.float64)
+    contour = largest.reshape(-1, 2).astype(np.float64)
+
+    # Flip Y coordinates to convert from image coordinates (Y down) to
+    # mathematical coordinates (Y up) to match generated contours
+    contour[:, 1] = img.shape[0] - contour[:, 1]
+
+    return contour
 
 
 def generate_contour_from_config(piece_index: int, json_path: Path) -> np.ndarray:
