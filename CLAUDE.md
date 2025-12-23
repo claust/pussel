@@ -149,14 +149,14 @@ All code follows strict quality standards enforced via pre-commit hooks:
 - **Line length**: 120 characters
 - **Python formatting**: Black + isort (with `--profile black`, `--line-length=120`)
 - **Python linting**: flake8 with plugins (docstrings, import-order, bugbear, comprehensions, pytest-style)
-- **Type checking**: mypy with strict mode (`disallow_untyped_defs`, etc.)
+- **Type checking**: pyright with standard mode
 - **Docstring style**: Google format
 - **Flutter**: dart-analyze, dart-format, dart-fix
 
 ### CI/CD
 GitHub Actions workflows test/deploy on push to master/main/dev:
 - **Backend CI** (`.github/workflows/backend-ci.yml`):
-  - Code quality: black, isort, flake8, mypy
+  - Code quality: black, isort, flake8, pyright
   - Tests with coverage (uploads to Codecov)
   - Azure deployment (dev branch only)
 - **Frontend CI** (`.github/workflows/frontend-ci.yml`): Flutter analysis and tests
@@ -172,7 +172,7 @@ pip install -e .
 ```
 
 ### Type Checking
-mypy is configured strictly - all functions must have type annotations. See `backend/mypy.ini` for configuration details.
+pyright is configured with standard mode - all functions must have type annotations. See `backend/pyrightconfig.json` for configuration details.
 
 ### Testing
 - Backend tests are in `backend/tests/`
@@ -203,7 +203,7 @@ All checks can be run from the repo root using the root Makefile:
 make check
 
 # Check individual projects
-make check-backend         # Backend: black, isort, flake8, mypy
+make check-backend         # Backend: black, isort, flake8, pyright
 make check-network         # Network: black, isort, flake8, pyright
 make check-frontend        # Frontend: dart analyze, dart format
 

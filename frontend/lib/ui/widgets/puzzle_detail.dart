@@ -1,7 +1,7 @@
-import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../models/piece.dart';
+import '../../utils/platform_image.dart';
 
 class PuzzleDetail extends StatelessWidget {
   const PuzzleDetail({
@@ -11,7 +11,7 @@ class PuzzleDetail extends StatelessWidget {
     super.key,
   });
 
-  final File puzzleImage;
+  final PlatformImage puzzleImage;
   final List<Piece> pieces;
   final VoidCallback? onTap;
 
@@ -22,7 +22,7 @@ class PuzzleDetail extends StatelessWidget {
       fit: StackFit.expand,
       children: [
         // Puzzle image background
-        Image.file(puzzleImage, fit: BoxFit.contain),
+        PlatformImageWidget(image: puzzleImage, fit: BoxFit.contain),
 
         // Pieces overlay
         ...pieces.map((piece) => _buildPieceOverlay(context, piece)).toList(),
@@ -31,7 +31,7 @@ class PuzzleDetail extends StatelessWidget {
   );
 
   Widget _buildPieceOverlay(BuildContext context, Piece piece) {
-    if (piece.localImagePath == null) return Container();
+    if (piece.image == null) return Container();
 
     // Get size of the parent container
     final size = MediaQuery.of(context).size;
@@ -57,7 +57,7 @@ class PuzzleDetail extends StatelessWidget {
               ),
             ],
           ),
-          child: Image.file(File(piece.localImagePath!), fit: BoxFit.cover),
+          child: PlatformImageWidget(image: piece.image!),
         ),
       ),
     );

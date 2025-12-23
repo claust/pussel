@@ -1,10 +1,9 @@
-import 'dart:io';
-
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../services/camera_service.dart';
+import '../../utils/platform_image.dart';
 import 'puzzle_screen.dart';
 
 enum CameraMode { puzzle, piece }
@@ -19,7 +18,7 @@ class CameraScreen extends StatefulWidget {
 
   final CameraMode mode;
   final String? puzzleId; // Only needed for piece mode
-  final File? puzzleImage; // Reference to the puzzle image for context
+  final PlatformImage? puzzleImage; // Reference to the puzzle image for context
 
   @override
   State<CameraScreen> createState() => _CameraScreenState();
@@ -99,20 +98,20 @@ class _CameraScreenState extends State<CameraScreen>
     }
 
     try {
-      final File? imageFile = await _cameraService.takePicture();
+      final PlatformImage? image = await _cameraService.takePicture();
 
-      if (imageFile != null && mounted) {
+      if (image != null && mounted) {
         if (widget.mode == CameraMode.puzzle) {
           // Navigate to puzzle screen with image
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (context) => PuzzleScreen(puzzleImage: imageFile),
+              builder: (context) => PuzzleScreen(puzzleImage: image),
             ),
           );
         } else if (widget.mode == CameraMode.piece && widget.puzzleId != null) {
           // Return to puzzle screen with piece image
-          Navigator.pop(context, imageFile);
+          Navigator.pop(context, image);
         }
       }
     } catch (e) {
@@ -142,7 +141,10 @@ class _CameraScreenState extends State<CameraScreen>
             child: Container(
               color: Colors.black,
               child: Center(
-                child: Image.file(widget.puzzleImage!, fit: BoxFit.contain),
+                child: PlatformImageWidget(
+                  image: widget.puzzleImage!,
+                  fit: BoxFit.contain,
+                ),
               ),
             ),
           ),

@@ -8,14 +8,14 @@
 # Run all Python checks
 check: check-backend check-network
 
-# Backend checks (uses mypy for type checking)
+# Backend checks
 check-backend:
 	cd backend && black . --check --line-length=120 --exclude venv
 	cd backend && isort . --check-only --profile=black --line-length=120 --skip venv
 	cd backend && flake8 . --config=../.flake8
 	cd backend && pyright .
 
-# Network checks (uses pyright for type checking)
+# Network checks
 check-network:
 	cd network && black . --check --line-length=120
 	cd network && isort . --check-only --profile=black --line-length=120

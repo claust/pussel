@@ -1,10 +1,9 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 
 import '../../models/piece.dart';
 import '../../models/puzzle.dart';
 import '../../services/api_service.dart';
+import '../../utils/platform_image.dart';
 import '../widgets/puzzle_detail.dart';
 import 'camera_screen.dart';
 
@@ -15,7 +14,7 @@ class PuzzleScreen extends StatefulWidget {
     this.existingPuzzle,
   });
 
-  final File puzzleImage;
+  final PlatformImage puzzleImage;
   final Puzzle? existingPuzzle;
 
   @override
@@ -72,7 +71,7 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
   Future<void> _addPuzzlePiece() async {
     if (_puzzle == null) return;
 
-    final result = await Navigator.push<File>(
+    final result = await Navigator.push<PlatformImage>(
       context,
       MaterialPageRoute(
         builder:
@@ -221,7 +220,10 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
         height: 200,
         width: double.infinity,
         decoration: BoxDecoration(border: Border.all(color: Colors.grey[300]!)),
-        child: Image.file(widget.puzzleImage, fit: BoxFit.contain),
+        child: PlatformImageWidget(
+          image: widget.puzzleImage,
+          fit: BoxFit.contain,
+        ),
       ),
 
       Padding(
@@ -282,10 +284,9 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
       children: [
         Expanded(
           child:
-              piece.localImagePath != null
-                  ? Image.file(
-                    File(piece.localImagePath!),
-                    fit: BoxFit.cover,
+              piece.image != null
+                  ? PlatformImageWidget(
+                    image: piece.image!,
                     width: double.infinity,
                   )
                   : Container(
