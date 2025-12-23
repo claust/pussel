@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.models.puzzle_model import PieceResponse, PuzzleResponse
-from app.services.image_processor import ImageProcessor
+from app.services.image_processor import get_image_processor
 
 # Initialize FastAPI app
 app = FastAPI(title=settings.PROJECT_NAME)
@@ -85,5 +85,5 @@ async def process_piece(
     if puzzle_id not in puzzle_images:
         raise HTTPException(status_code=404, detail="Puzzle not found")
 
-    processor = ImageProcessor()
-    return await processor.process_piece(file)
+    processor = get_image_processor()
+    return await processor.process_piece(file, puzzle_id)
