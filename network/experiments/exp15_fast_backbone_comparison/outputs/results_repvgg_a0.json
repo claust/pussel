@@ -1,0 +1,40 @@
+{
+  "backbone": "repvgg_a0",
+  "feature_dim": 1280,
+  "total_params": 16683812,
+  "trainable_params": 16683812,
+  "epochs": 2,
+  "n_train_puzzles": 500,
+  "n_test_puzzles": 100,
+  "batch_size": 64,
+  "total_training_time": 78.52934074401855,
+  "avg_epoch_time": 39.26465559005737,
+  "epoch_times": [
+    40.18408799171448,
+    38.34522318840027
+  ],
+  "final_train_pos_loss": 0.060962523341178895,
+  "final_train_rot_loss": 1.3533414716720582,
+  "final_train_quad_acc": 0.3375,
+  "final_train_rot_acc": 0.3265,
+  "test_quad_acc": 0.36125,
+  "test_rot_acc": 0.39375,
+  "history": {
+    "train_pos_loss": [
+      0.06461027455329894,
+      0.060962523341178895
+    ],
+    "train_rot_loss": [
+      1.386061514854431,
+      1.3533414716720582
+    ],
+    "train_quad_acc": [
+      0.3195,
+      0.3375
+    ],
+    "train_rot_acc": [
+      0.278,
+      0.3265
+    ]
+  }
+}
