@@ -19,6 +19,7 @@ def create_prompt_illustration():
         asymmetry=-0.05,
         corner_slope=0.12,
         shoulder_offset=0.04,  # Dip before tab rises
+        shoulder_flatness=0.6,  # Flatter shoulder, sharper armpit
     )
 
     curves = generate_realistic_tab_edge((0, 0), (1, 0), params, is_blank=False)

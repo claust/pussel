@@ -52,6 +52,7 @@ PARAM_BOUNDS = {
     "squareness": (1.0, 1.5),
     "neck_flare": (-0.5, 0.6),
     "shoulder_offset": (0.0, 0.10),  # Neck base displacement from baseline
+    "shoulder_flatness": (0.0, 1.0),  # How flat shoulder stays before sharp neck turn
 }
 
 # Parameters to optimize (exclude position by default for stability)
@@ -66,6 +67,7 @@ OPTIMIZABLE_PARAMS = [
     "squareness",
     "neck_flare",
     "shoulder_offset",
+    "shoulder_flatness",
 ]
 
 
@@ -402,6 +404,7 @@ def save_optimized_json(
     output_path = output_json_path or original_json_path
     with open(output_path, "w") as f:
         json.dump(data, f, indent=2)
+        f.write("\n")
 
     return output_path
 

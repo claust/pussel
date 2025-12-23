@@ -85,10 +85,14 @@ def generate_realistic_tab_edge(
     dist_neck_to_end = 1.0 - params.position - params.neck_width * 0.5
 
     # Curve 1: Start to neck base left (flat entry)
+    # shoulder_flatness controls how flat the shoulder stays before turning into neck
+    # Higher flatness = longer flat section + sharper "armpit" turn
+    shoulder_extend = 0.5 + params.shoulder_flatness * 0.4  # 0.5-0.9: how far p1 extends along edge
+    neck_turn_tightness = 0.5 * (1.0 - params.shoulder_flatness * 0.7)  # 0.5-0.15: how tight the turn
     p0 = np.array(start)
     p3 = neck_base_left
-    p1 = p0 + edge_unit * edge_length * dist_start_to_neck * 0.6 + entry_corner_offset * edge_length * 0.3
-    p2 = p3 - edge_unit * neck_half * 0.5
+    p1 = p0 + edge_unit * edge_length * dist_start_to_neck * shoulder_extend + entry_corner_offset * edge_length * 0.3
+    p2 = p3 - edge_unit * neck_half * neck_turn_tightness
     curves.append(BezierCurve(tuple(p0), tuple(p1), tuple(p2), tuple(p3)))  # type: ignore
 
     # Curve 2: Neck base left up through waist to bulb mid-left
@@ -137,10 +141,11 @@ def generate_realistic_tab_edge(
     curves.append(BezierCurve(tuple(p0), tuple(p1), tuple(p2), tuple(p3)))  # type: ignore
 
     # Curve 6: Neck base right to end
+    # Mirror of Curve 1 - use same shoulder_flatness for symmetric appearance
     p0 = curves[-1].p3
     p3 = np.array(end)
-    p1 = p0 + edge_unit * neck_half * 0.5
-    p2 = p3 - edge_unit * edge_length * dist_neck_to_end * 0.6 + exit_corner_offset * edge_length * 0.3
+    p1 = p0 + edge_unit * neck_half * neck_turn_tightness
+    p2 = p3 - edge_unit * edge_length * dist_neck_to_end * shoulder_extend + exit_corner_offset * edge_length * 0.3
     curves.append(BezierCurve(tuple(p0), tuple(p1), tuple(p2), tuple(p3)))  # type: ignore
 
     return curves

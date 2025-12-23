@@ -63,10 +63,10 @@ def generate_tab_edge_torch(
     Args:
         start: (2,) tensor for edge start point.
         end: (2,) tensor for edge end point.
-        params: (11,) tensor of tab parameters in order:
+        params: (12,) tensor of tab parameters in order:
             [position, neck_width, bulb_width, height, neck_ratio,
              curvature, asymmetry, corner_slope, squareness, neck_flare,
-             shoulder_offset]
+             shoulder_offset, shoulder_flatness]
         is_blank: Whether this is a blank (indent) instead of tab (protrusion).
         edge_type: "tab" or "blank" for corner slope direction.
         num_points_per_curve: Points to sample per Bezier curve.
@@ -89,6 +89,7 @@ def generate_tab_edge_torch(
     squareness = params[8]
     neck_flare = params[9]
     shoulder_offset = params[10]
+    shoulder_flatness = params[11]
 
     direction = 1.0 if not is_blank else -1.0
 
@@ -150,10 +151,14 @@ def generate_tab_edge_torch(
     all_points = []
 
     # Curve 1: Start to neck base left
+    # shoulder_flatness controls how flat the shoulder stays before turning into neck
+    # Higher flatness = longer flat section + sharper "armpit" turn
+    shoulder_extend = 0.5 + shoulder_flatness * 0.4  # 0.5-0.9: how far p1 extends along edge
+    neck_turn_tightness = 0.5 * (1.0 - shoulder_flatness * 0.7)  # 0.5-0.15: how tight the turn
     p0 = start
     p3 = neck_base_left
-    p1 = p0 + edge_unit * edge_length * dist_start_to_neck * 0.6 + entry_corner_offset * edge_length * 0.3
-    p2 = p3 - edge_unit * neck_half * 0.5
+    p1 = p0 + edge_unit * edge_length * dist_start_to_neck * shoulder_extend + entry_corner_offset * edge_length * 0.3
+    p2 = p3 - edge_unit * neck_half * neck_turn_tightness
     ctrl_pts = torch.stack([p0, p1, p2, p3])
     pts = bezier_curve_torch(ctrl_pts, num_points_per_curve)
     all_points.append(pts[:-1])  # Exclude last to avoid duplication
@@ -199,10 +204,11 @@ def generate_tab_edge_torch(
     all_points.append(pts[:-1])
 
     # Curve 6: Neck base right to end
+    # Mirror of Curve 1 - use same shoulder_flatness for symmetric appearance
     p0 = p3
     p3 = end
-    p1 = p0 + edge_unit * neck_half * 0.5
-    p2 = p3 - edge_unit * edge_length * dist_neck_to_end * 0.6 + exit_corner_offset * edge_length * 0.3
+    p1 = p0 + edge_unit * neck_half * neck_turn_tightness
+    p2 = p3 - edge_unit * edge_length * dist_neck_to_end * shoulder_extend + exit_corner_offset * edge_length * 0.3
     ctrl_pts = torch.stack([p0, p1, p2, p3])
     pts = bezier_curve_torch(ctrl_pts, num_points_per_curve)
     all_points.append(pts[:-1])
@@ -433,6 +439,7 @@ def tensor_to_edge_params_list(
         "squareness",
         "neck_flare",
         "shoulder_offset",
+        "shoulder_flatness",
     ]
 
     # Create a mapping from param name to index in param_names
