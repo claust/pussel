@@ -13,7 +13,7 @@ check-backend:
 	cd backend && black . --check --line-length=120 --exclude venv
 	cd backend && isort . --check-only --profile=black --line-length=120 --skip venv
 	cd backend && flake8 . --config=../.flake8
-	cd backend && mypy app
+	cd backend && pyright .
 
 # Network checks (uses pyright for type checking)
 check-network:

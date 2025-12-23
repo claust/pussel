@@ -4,8 +4,9 @@ import os
 from io import BytesIO
 from typing import Optional, cast
 
-from app.config import settings
 from fastapi import UploadFile
+
+from app.config import settings
 
 
 class StorageService:
