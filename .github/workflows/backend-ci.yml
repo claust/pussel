@@ -22,9 +22,6 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
 
     steps:
     - uses: actions/checkout@v4
@@ -38,23 +35,13 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install -e .
+        make install-dev-backend
 
-    # Check code formatting
-    - name: Check formatting with black
-      run: black . --check
-
-    - name: Check imports with isort
-      run: isort . --check-only
-
-    - name: Lint with flake8
-      run: flake8 . --extend-ignore=I100,I201
-
-    - name: Type check with mypy
-      run: mypy $(find app -name "*.py")
+    - name: Run all checks
+      run: make check-backend
 
     - name: Run tests
+      working-directory: backend
       env:
         ENV_FILE: .env.test
       run: |

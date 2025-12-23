@@ -48,13 +48,13 @@ repos:
           - flake8-pytest-style
         exclude: ^network/
 
-  # Network Python checks - runs make check for formatting, linting, and type checking
+  # Network Python checks - runs make check-network for formatting, linting, and type checking
   - repo: local
     hooks:
       - id: network-python-checks
-        name: network python checks (make check)
-        description: Run black, isort, flake8, pyright via make check
-        entry: bash -c 'cd network && source ../venv/bin/activate && make check'
+        name: network python checks (make check-network)
+        description: Run black, isort, flake8, pyright via root Makefile
+        entry: bash -c 'source venv/bin/activate && make check-network'
         language: system
         files: ^network/.*\.py$
         pass_filenames: false

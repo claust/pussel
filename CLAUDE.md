@@ -59,12 +59,10 @@ pytest -v --cov=app --cov-report=term-missing
 cd backend
 pytest tests/test_main.py -v
 
-# Code quality checks
-cd backend
-black .                    # Format code
-isort .                    # Sort imports
-flake8                     # Lint
-mypy app                   # Type check
+# Code quality checks (from repo root)
+make check-backend         # Run all checks (format, lint, typecheck)
+make format-backend        # Auto-format code with black and isort
+make test-backend          # Run tests with coverage
 
 # Run all pre-commit hooks manually
 pre-commit run --all-files
@@ -80,12 +78,12 @@ dart format --output=write lib/  # Format code
 ```
 
 ### ML Model Training
-**Note**: Always activate the venv first: `source ../venv/bin/activate` (from network/)
+**Note**: Always activate the venv first: `source venv/bin/activate` (from repo root)
 
 ```bash
-cd network
-source ../venv/bin/activate  # Activate venv before running any commands
+source venv/bin/activate   # Activate venv before running any commands
 
+cd network
 python train.py            # Train with default config
 
 # Custom training parameters
@@ -99,12 +97,9 @@ python puzzle_generator.py datasets/example/puzzle_001.jpg
 python resize_puzzles.py datasets/example --output-dir datasets/example/resized
 python visualize_piece.py datasets/example/puzzle_001.jpg datasets/example/pieces/piece_001.png
 
-# Code quality checks (same as CI pipeline)
-make check                 # Run all checks (format, lint, typecheck)
-make format                # Auto-format code with black and isort
-make lint                  # Run flake8 linting
-make typecheck             # Run pyright type checking
-make install-dev           # Install dev dependencies (black, isort, flake8, pyright)
+# Code quality checks (from repo root, same as CI pipeline)
+make check-network         # Run all checks (format, lint, typecheck)
+make format-network        # Auto-format code with black and isort
 ```
 
 ## Code Architecture
@@ -151,8 +146,8 @@ Pieces stored as: `puzzle_XXX_piece_YYY_xX1_yY1_xX2_yY2_rROTATION.png`
 
 ### Code Quality Standards
 All code follows strict quality standards enforced via pre-commit hooks:
-- **Line length**: 88 characters (Black default)
-- **Python formatting**: Black + isort (with `--profile black`)
+- **Line length**: 120 characters
+- **Python formatting**: Black + isort (with `--profile black`, `--line-length=120`)
 - **Python linting**: flake8 with plugins (docstrings, import-order, bugbear, comprehensions, pytest-style)
 - **Type checking**: mypy with strict mode (`disallow_untyped_defs`, etc.)
 - **Docstring style**: Google format
@@ -201,34 +196,32 @@ Run `pre-commit install` after cloning to enable automatic checks.
 
 **IMPORTANT**: Always run the appropriate checks before committing to ensure CI will pass.
 
-#### For Network (ML) code changes:
+All checks can be run from the repo root using the root Makefile:
+
 ```bash
-cd network
-source ../venv/bin/activate  # IMPORTANT: Activate venv first!
-make check    # Runs black, isort, flake8, and pyright - same as CI
+# Check all Python code (backend + network)
+make check
+
+# Check individual projects
+make check-backend         # Backend: black, isort, flake8, mypy
+make check-network         # Network: black, isort, flake8, pyright
+make check-frontend        # Frontend: dart analyze, dart format
+
+# Auto-format Python code
+make format                # Format both backend and network
+make format-backend        # Format backend only
+make format-network        # Format network only
 ```
 
-**IMPORTANT**: You must activate the venv before running `make check` manually. However, **git commit hooks automatically activate the venv**, so committing from VS Code or the terminal works without manual activation.
+**Note**: For network checks, the venv must be activated. The pre-commit hooks handle this automatically.
 
 If checks fail, run `make format` to auto-fix formatting issues, then address any remaining lint or type errors.
 
-#### For Backend code changes:
-```bash
-cd backend
-black . --check && isort . --check-only && flake8 && mypy app
-```
-
 Or simply run: `pre-commit run --all-files` from the repo root.
-
-#### For Frontend code changes:
-```bash
-cd frontend
-dart analyze && dart format --output=none --set-exit-if-changed lib/
-```
 
 ### Commit Workflow
 1. Make your changes
-2. Run the appropriate checks for the module you modified
-3. Fix any issues found
+2. Run `make check` (or `make check-backend`, `make check-network`, `make check-frontend` individually)
+3. Fix any issues found (use `make format` for auto-fixable issues)
 4. Commit (pre-commit hooks will run automatically if installed)
 5. Push and verify CI passes
