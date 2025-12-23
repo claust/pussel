@@ -183,7 +183,11 @@ class _TestPuzzleScreenState extends State<TestPuzzleScreen> {
           width: double.infinity,
           height: double.infinity,
           color: Colors.black,
-          child: PuzzleDetail(puzzleImage: widget.puzzleImage, pieces: _pieces),
+          child: PuzzleDetail(
+            puzzleImage: widget.puzzleImage,
+            pieces: _pieces,
+            gridSize: widget.gridSize,
+          ),
         ),
       ),
       Positioned(
