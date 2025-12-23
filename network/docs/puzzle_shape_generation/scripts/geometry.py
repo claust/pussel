@@ -14,26 +14,35 @@ def generate_realistic_tab_edge(
     corner_slope: float = 0.0,
     edge_type: str = "tab",
 ) -> List[BezierCurve]:
-    """Generate a realistic puzzle piece tab using 5 cubic Bézier curves.
+    """Generate a realistic puzzle piece tab using 6 cubic Bézier curves.
 
     This creates the classic "mushroom" shape with perfectly symmetric curves.
+    The bulb is split into two curves using the kappa constant for optimal
+    circular arc approximation.
     """
     direction = 1 if not is_blank else -1
     edge_vec = np.array([end[0] - start[0], end[1] - start[1]])
     edge_length = np.linalg.norm(edge_vec)
     edge_unit = edge_vec / edge_length
 
-    # Normal vector (perpendicular to edge)
+    # Normal vector pointing toward feature (tab protrusion or blank indent)
     normal = np.array([-edge_unit[1], edge_unit[0]]) * direction
 
-    # Corner slope: adjust tangent direction at corners
-    if edge_type == "tab":
-        slope_direction = 1.0  # Angle toward the bulge (down into the tab)
-    else:  # blank
-        slope_direction = -1.0  # Angle away from the indent (up from the blank)
+    # Piece's outward normal (always perpendicular, pointing away from piece interior)
+    piece_outward_normal = np.array([-edge_unit[1], edge_unit[0]])
 
-    # The tangent offset at corners - angled slightly toward/away from the feature
-    corner_tangent_offset = normal * corner_slope * slope_direction
+    # Corner slope behavior differs for tabs vs blanks:
+    # - TABS: Corners curve TOWARD piece interior (acute angle < 90°)
+    # - BLANKS: Corners curve AWAY from piece interior (obtuse angle > 90°)
+    if edge_type == "tab":
+        corner_sign = -1.0  # Curve toward interior (opposite to outward normal)
+    else:  # blank
+        corner_sign = 1.0  # Curve toward exterior (same as outward normal)
+
+    # Entry corner offset: applied directly to p1, so tangent = offset direction
+    entry_corner_offset = piece_outward_normal * corner_slope * corner_sign
+    # Exit corner offset: compensate for (p3-p2) tangent calculation which inverts the sign
+    exit_corner_offset = piece_outward_normal * corner_slope * (-corner_sign)
 
     # Key dimensions (all relative to edge_length)
     full_height = params.height * edge_length
@@ -72,60 +81,106 @@ def generate_realistic_tab_edge(
     # Curve 1: Start to neck base left (flat entry)
     p0 = np.array(start)
     p3 = neck_base_left
-    p1 = p0 + edge_unit * edge_length * dist_start_to_neck * 0.6 + corner_tangent_offset * edge_length * 0.3
+    p1 = p0 + edge_unit * edge_length * dist_start_to_neck * 0.6 + entry_corner_offset * edge_length * 0.3
     p2 = p3 - edge_unit * neck_half * 0.5
     curves.append(BezierCurve(tuple(p0), tuple(p1), tuple(p2), tuple(p3)))  # type: ignore
 
     # Curve 2: Neck base left up through waist to bulb mid-left
     p0 = curves[-1].p3
     p3 = bulb_mid_left
-    pinch_amount = (bulb_half - neck_half) * 0.4
-    p1 = np.array(p0) + edge_unit * pinch_amount * left_curve_factor + normal * neck_height * 0.7
-    p2 = (
-        np.array(p3)
-        - normal * (full_height - neck_height) * 0.3
-        - edge_unit * (bulb_half - neck_half) * 0.3 * left_curve_factor
-    )
+    # neck_flare controls shape: positive = pinch inward, negative = flare outward
+    flare_amount = (bulb_half - neck_half) * params.neck_flare
+    p1 = np.array(p0) + edge_unit * flare_amount * left_curve_factor + normal * neck_height * 0.7
+    # G1 continuity: p2 must have vertical tangent to match C3's start (no edge_unit offset)
+    p2 = np.array(p3) - normal * (full_height - neck_height) * 0.3
     curves.append(BezierCurve(tuple(p0), tuple(p1), tuple(p2), tuple(p3)))  # type: ignore
 
-    # Curve 3: Bulb mid-left up and around to bulb mid-right
-    p0 = curves[-1].p3
-    p3 = bulb_mid_right
+    # Curve 3a & 3b: Split bulb into two curves for optimal circular arc
+    # Using kappa constant (0.5522847498) for quarter-circle approximation
+    kappa = 0.5522847498
+
+    # Calculate the geometric apex of the bulb
+    bulb_chord_center = (bulb_mid_left + bulb_mid_right) * 0.5
     bulb_radius = bulb_half
-    p1 = np.array(p0) + normal * bulb_radius * 0.8 * params.curvature - edge_unit * bulb_radius * 0.1
-    p2 = np.array(p3) + normal * bulb_radius * 0.8 * params.curvature + edge_unit * bulb_radius * 0.1
+    bulb_apex = bulb_chord_center + normal * bulb_radius
+
+    # Curve 3a: Bulb mid-left (Equator) -> Bulb Apex (Top)
+    p0 = curves[-1].p3
+    p3 = bulb_apex
+    # P1: Vertical tangent at equator - extended by squareness for "superellipse" shape
+    p1 = np.array(p0) + normal * bulb_radius * kappa * params.curvature * params.squareness
+    # P2: Horizontal tangent at apex - extended by squareness for flatter top
+    p2 = np.array(p3) - edge_unit * bulb_radius * kappa * params.curvature * params.squareness
     curves.append(BezierCurve(tuple(p0), tuple(p1), tuple(p2), tuple(p3)))  # type: ignore
 
-    # Curve 4: Bulb mid-right down through waist to neck base right
+    # Curve 3b: Bulb Apex (Top) -> Bulb mid-right (Equator)
+    p0 = bulb_apex
+    p3 = bulb_mid_right
+    # P1: Horizontal tangent at apex - extended by squareness for flatter top
+    p1 = np.array(p0) + edge_unit * bulb_radius * kappa * params.curvature * params.squareness
+    # P2: Vertical tangent at equator - extended by squareness for "superellipse" shape
+    p2 = np.array(p3) + normal * bulb_radius * kappa * params.curvature * params.squareness
+    curves.append(BezierCurve(tuple(p0), tuple(p1), tuple(p2), tuple(p3)))  # type: ignore
+
+    # Curve 5: Bulb mid-right down through waist to neck base right
     p0 = curves[-1].p3
     p3 = neck_base_right
-    p1 = (
-        np.array(p0)
-        - normal * (full_height - neck_height) * 0.3
-        + edge_unit * (bulb_half - neck_half) * 0.3 * right_curve_factor
-    )
-    p2 = np.array(p3) - edge_unit * pinch_amount * right_curve_factor + normal * neck_height * 0.7
+    # G1 continuity: p1 must have vertical tangent to match C4's end (no edge_unit offset)
+    p1 = np.array(p0) - normal * (full_height - neck_height) * 0.3
+    p2 = np.array(p3) - edge_unit * flare_amount * right_curve_factor + normal * neck_height * 0.7
     curves.append(BezierCurve(tuple(p0), tuple(p1), tuple(p2), tuple(p3)))  # type: ignore
 
-    # Curve 5: Neck base right to end
+    # Curve 6: Neck base right to end
     p0 = curves[-1].p3
     p3 = np.array(end)
     p1 = p0 + edge_unit * neck_half * 0.5
-    p2 = p3 - edge_unit * edge_length * dist_neck_to_end * 0.6 + corner_tangent_offset * edge_length * 0.3
+    p2 = p3 - edge_unit * edge_length * dist_neck_to_end * 0.6 + exit_corner_offset * edge_length * 0.3
     curves.append(BezierCurve(tuple(p0), tuple(p1), tuple(p2), tuple(p3)))  # type: ignore
 
     return curves
 
 
+def generate_corner_curve(
+    corner: Tuple[float, float],
+    incoming_dir: np.ndarray,
+    outgoing_dir: np.ndarray,
+    radius: float,
+) -> BezierCurve:
+    """Generate a rounded corner curve using cubic Bézier approximation of a quarter circle.
+
+    Args:
+        corner: The corner vertex position.
+        incoming_dir: Unit vector direction of the incoming edge (pointing toward corner).
+        outgoing_dir: Unit vector direction of the outgoing edge (pointing away from corner).
+        radius: Corner radius.
+
+    Returns:
+        A BezierCurve representing the rounded corner.
+    """
+    kappa = 0.5522847498  # Magic number for quarter-circle approximation
+
+    # Start point: offset from corner along incoming edge direction (backward)
+    p0 = np.array(corner) - incoming_dir * radius
+    # End point: offset from corner along outgoing edge direction (forward)
+    p3 = np.array(corner) + outgoing_dir * radius
+
+    # Control points for quarter-circle approximation
+    p1 = p0 + incoming_dir * radius * kappa
+    p2 = p3 - outgoing_dir * radius * kappa
+
+    return BezierCurve(tuple(p0), tuple(p1), tuple(p2), tuple(p3))  # type: ignore
+
+
 def generate_piece_geometry(config: PieceConfig) -> List[List[BezierCurve]]:
     """Generate the Bézier curves for all four edges of a puzzle piece.
 
-    This is the primary orchestration function that uses the 5-curve realistic
-    algorithm for tabs and blanks.
+    This is the primary orchestration function that uses the 6-curve realistic
+    algorithm for tabs and blanks, plus corner rounding.
 
     Returns:
-        A list of 4 edges, where each edge is a list of BezierCurve objects.
-        Order: bottom, right, top, left.
+        A list of curves in order around the piece:
+        [corner0, edge0, corner1, edge1, corner2, edge2, corner3, edge3]
+        Each element is a list of BezierCurve objects.
     """
     corners = [
         (0, 0),  # Bottom-left
@@ -134,13 +189,35 @@ def generate_piece_geometry(config: PieceConfig) -> List[List[BezierCurve]]:
         (0, config.size),  # Top-left
     ]
 
-    all_edges: List[List[BezierCurve]] = []
+    # Edge direction vectors (unit vectors)
+    edge_dirs = [
+        np.array([1.0, 0.0]),  # Bottom edge: left to right
+        np.array([0.0, 1.0]),  # Right edge: bottom to top
+        np.array([-1.0, 0.0]),  # Top edge: right to left
+        np.array([0.0, -1.0]),  # Left edge: top to bottom
+    ]
 
-    for i, edge_type in enumerate(config.edge_types):
-        start = corners[i]
-        end = corners[(i + 1) % 4]
+    radius = config.corner_radius * config.size
+    all_curves: List[List[BezierCurve]] = []
+
+    for i in range(4):
+        # Generate corner curve first (corner i connects edge i-1 to edge i)
+        prev_edge_dir = edge_dirs[(i - 1) % 4]
+        curr_edge_dir = edge_dirs[i]
+        corner_curve = generate_corner_curve(
+            corners[i],
+            incoming_dir=prev_edge_dir,
+            outgoing_dir=curr_edge_dir,
+            radius=radius,
+        )
+        all_curves.append([corner_curve])
+
+        # Calculate offset start/end for this edge
+        start = tuple((np.array(corners[i]) + curr_edge_dir * radius).tolist())
+        end = tuple((np.array(corners[(i + 1) % 4]) - curr_edge_dir * radius).tolist())
 
         # Get params for this edge
+        edge_type = config.edge_types[i]
         params = config.edge_params[i]
         if params is None:
             params = TabParameters.random()
@@ -148,16 +225,16 @@ def generate_piece_geometry(config: PieceConfig) -> List[List[BezierCurve]]:
         if edge_type == "flat":
             # Straight line as a single Bézier curve (control points on the line)
             curve = BezierCurve(start, start, end, end)
-            all_edges.append([curve])
+            all_curves.append([curve])
         else:
             # tab -> is_blank=False, blank -> is_blank=True
             is_blank = edge_type == "blank"
             curves = generate_realistic_tab_edge(
                 start, end, params, is_blank=is_blank, corner_slope=params.corner_slope, edge_type=edge_type
             )
-            all_edges.append(curves)
+            all_curves.append(curves)
 
-    return all_edges
+    return all_curves
 
 
 def generate_piece_path(config: PieceConfig, points_per_curve: int = 20) -> Tuple[List[float], List[float]]:

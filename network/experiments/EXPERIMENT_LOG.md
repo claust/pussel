@@ -108,6 +108,21 @@ Tested whether scaling up training data (800 → 4499 puzzles) could fix the pos
 
 ---
 
+## Exp 14: MobileViT-XS Backbone
+**Date:** December 2025
+**Status:** FAILED (75% position, 92% rotation - worse than exp13)
+
+Tested whether replacing MobileNetV3-Small with MobileViT-XS (a hybrid CNN-Transformer architecture) would improve piece-puzzle matching through its attention mechanism. Results showed significant regression: **74.8% quadrant accuracy** (-11.5% vs exp13) and **91.5% rotation accuracy** (-1.3% vs exp13). Despite having 16% fewer parameters (4.43M vs 5.27M), MobileViT trained 33% slower due to attention computation overhead.
+
+Key findings:
+- **Position accuracy suffered significantly**: MobileViT's global self-attention appears to diffuse spatial information, similar to the issue in exp8 with higher resolution. MobileNetV3's local convolutions preserve fine-grained spatial features better for template matching.
+- **Rotation accuracy nearly preserved**: The attention mechanism's ability to capture global patterns partially compensates for rotation correlation, validating that transformers have some merit for this subtask.
+- **No efficiency gains**: Fewer parameters but slower training with no accuracy benefit.
+
+The experiment conclusively shows that **pure CNN architectures (MobileNetV3) are better suited for spatial template matching** than hybrid CNN-Transformer models. The Squeeze-and-Excitation blocks in MobileNetV3 provide effective feature recalibration without the spatial information loss caused by global attention.
+
+---
+
 ## Summary Table
 
 | Exp | Focus | Test Result | Key Finding |
@@ -125,6 +140,7 @@ Tested whether scaling up training data (800 → 4499 puzzles) could fix the pos
 | 11 | Spatial rotation head | 73% quad / 60% rot | Rotation requires puzzle context |
 | 12 | Rotation correlation | 67% quad / 87% rot | Rotation correlation works! Position regressed |
 | 13 | 5K puzzles | **86% quad / 93% rot** | More data fixes everything! |
+| 14 | MobileViT-XS backbone | 75% quad / 92% rot | CNN beats Transformer for spatial matching |
 
 ---
 
@@ -132,6 +148,8 @@ Tested whether scaling up training data (800 → 4499 puzzles) could fix the pos
 
 **For Position Only:** DualInputRegressorWithCorrelation (exp7) + fine-tuned MobileNetV3-Small backbone (exp9) - 93% quadrant accuracy
 
-**For Position + Rotation:** DualInputRegressorWithRotationCorrelation (exp13) - **86% quad / 93% rot** with 4499 training puzzles
+**For Position + Rotation:** DualInputRegressorWithRotationCorrelation (exp13) with MobileNetV3-Small - **86% quad / 93% rot** with 4499 training puzzles
+
+**Note:** Exp14 showed that MobileViT-XS (CNN-Transformer hybrid) underperforms MobileNetV3-Small for this task. Pure CNNs remain the best choice for spatial template matching.
 
 **Next Steps:** Proceed to finer grids (3x3, 4x4), test on real puzzle piece shapes, explore continuous coordinate regression

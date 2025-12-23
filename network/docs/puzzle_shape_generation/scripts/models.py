@@ -64,24 +64,31 @@ class TabParameters:
     # Direction is automatic: tabs slope down toward bulge, blanks slope up from indent
     corner_slope: float = 0.10
 
+    # Squareness: how flat/square the bulb top is (1.0 = circular, >1.0 = flatter/squarer)
+    squareness: float = 1.0
+
+    # Neck flare: controls neck shape (-1 = max flare outward, 0 = straight, 1 = max pinch inward)
+    neck_flare: float = 0.4
+
     @classmethod
     def random(cls) -> "TabParameters":
         """Generate random but realistic parameters for a puzzle piece tab."""
         # Generate bulb_width first, then derive neck_width proportionally
-        bulb_width = random.uniform(0.18, 0.32)
-        # Neck should be 40-65% of bulb width to look properly attached
-        neck_ratio_to_bulb = random.uniform(0.40, 0.65)
+        bulb_width = random.uniform(0.25, 0.42)  # Increased for larger tabs
+        neck_ratio_to_bulb = random.uniform(0.50, 0.7)
         neck_width = bulb_width * neck_ratio_to_bulb
 
         return cls(
             position=random.uniform(0.40, 0.60),  # Keep tabs more centered
             neck_width=neck_width,
             bulb_width=bulb_width,
-            height=random.uniform(0.15, 0.28),  # Short to tall tabs
+            height=random.uniform(0.18, 0.38),  # Increased for taller tabs
             neck_ratio=random.uniform(0.25, 0.45),  # Affects waist position
             curvature=random.uniform(0.5, 1.0),  # Rounder bulbs look more realistic
             asymmetry=random.uniform(-0.12, 0.12),
-            corner_slope=random.uniform(0.05, 0.15),
+            corner_slope=random.uniform(0.05, 0.20),
+            squareness=random.uniform(1.0, 1.4),  # Slightly flat to more square tops
+            neck_flare=random.uniform(-0.3, 0.5),  # Flare outward to pinch inward
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -104,6 +111,8 @@ class PieceConfig:
     edge_params: List[TabParameters | None] = field(default_factory=lambda: [None, None, None, None])
     # Piece size
     size: float = 1.0
+    # Corner radius for rounded corners (relative to piece size)
+    corner_radius: float = 0.04
 
     @classmethod
     def random(cls) -> "PieceConfig":
@@ -112,9 +121,17 @@ class PieceConfig:
         edge_options = ["tab", "blank", "flat"]
         edge_types = [random.choice(edge_options) for _ in range(4)]
 
-        # Ensure at least one non-flat edge
-        if all(e == "flat" for e in edge_types):
-            edge_types[random.randint(0, 3)] = random.choice(["tab", "blank"])
+        # Ensure valid flat edge configuration:
+        # - Maximum 2 flat edges
+        # - If 2 flat edges, they must be adjacent (indices differ by 1, or 0 and 3)
+        flat_indices = [i for i, e in enumerate(edge_types) if e == "flat"]
+
+        while len(flat_indices) > 2 or (
+            len(flat_indices) == 2 and abs(flat_indices[1] - flat_indices[0]) not in (1, 3)
+        ):
+            idx = random.choice(flat_indices)
+            edge_types[idx] = random.choice(["tab", "blank"])
+            flat_indices.remove(idx)
 
         # Generate random params for each edge
         edge_params: List[TabParameters | None] = [TabParameters.random() for _ in range(4)]
@@ -130,6 +147,7 @@ class PieceConfig:
             "edge_types": self.edge_types,
             "edge_params": [p.to_dict() if p else None for p in self.edge_params],
             "size": self.size,
+            "corner_radius": self.corner_radius,
         }
 
     @classmethod
@@ -140,4 +158,5 @@ class PieceConfig:
             edge_types=data.get("edge_types", ["tab", "blank", "tab", "blank"]),
             edge_params=edge_params,
             size=data.get("size", 1.0),
+            corner_radius=data.get("corner_radius", 0.04),
         )

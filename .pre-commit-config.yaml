@@ -26,13 +26,15 @@ repos:
       - id: black
         language_version: python3.12
         args: [--line-length=120]
+        exclude: ^network/
 
   - repo: https://github.com/pycqa/isort
     rev: 5.13.2
     hooks:
       - id: isort
         name: isort (python)
-        args: [--profile=black, --line-length=120, --src=network]
+        args: [--profile=black, --line-length=120]
+        exclude: ^network/
 
   - repo: https://github.com/pycqa/flake8
     rev: 7.0.0
@@ -44,18 +46,19 @@ repos:
           - flake8-bugbear
           - flake8-comprehensions
           - flake8-pytest-style
+        exclude: ^network/
 
-  # Pyright type checking - automatically activates venv (works in VS Code)
+  # Network Python checks - runs make check for formatting, linting, and type checking
   - repo: local
     hooks:
-      - id: pyright
-        name: pyright
-        description: Type check Python files using pyright with project venv
-        entry: scripts/pyright_check.sh
-        language: script
-        types: [python]
+      - id: network-python-checks
+        name: network python checks (make check)
+        description: Run black, isort, flake8, pyright via make check
+        entry: bash -c 'cd network && source ../venv/bin/activate && make check'
+        language: system
+        files: ^network/.*\.py$
+        pass_filenames: false
         require_serial: true
-        pass_filenames: true
 
   # Flutter/Dart hooks
   - repo: https://github.com/pedrox-hs/dart-pre-commit
