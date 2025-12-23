@@ -2,11 +2,11 @@
 # Run `make check` to run all checks, or individual targets
 
 .PHONY: check check-backend check-network check-frontend \
-        format format-backend format-network \
+        format format-backend format-network format-frontend \
         test-backend install-dev-backend install-dev-network
 
-# Run all Python checks
-check: check-backend check-network
+# Run all checks (Python + Dart)
+check: check-backend check-network check-frontend
 
 # Backend checks
 check-backend:
@@ -27,8 +27,8 @@ check-frontend:
 	cd frontend && dart analyze
 	cd frontend && dart format --output=none --set-exit-if-changed lib/
 
-# Auto-format all Python code
-format: format-backend format-network
+# Auto-format all code (Python + Dart)
+format: format-backend format-network format-frontend
 
 # Auto-format backend
 format-backend:
@@ -39,6 +39,10 @@ format-backend:
 format-network:
 	cd network && black . --line-length=120
 	cd network && isort . --profile=black --line-length=120
+
+# Auto-format frontend
+format-frontend:
+	cd frontend && dart format lib/
 
 # Run backend tests with coverage
 test-backend:
