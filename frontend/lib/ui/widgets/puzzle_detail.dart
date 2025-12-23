@@ -25,7 +25,7 @@ class PuzzleDetail extends StatelessWidget {
         PlatformImageWidget(image: puzzleImage, fit: BoxFit.contain),
 
         // Pieces overlay
-        ...pieces.map((piece) => _buildPieceOverlay(context, piece)).toList(),
+        ...pieces.map((piece) => _buildPieceOverlay(context, piece)),
       ],
     ),
   );

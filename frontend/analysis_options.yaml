@@ -43,7 +43,6 @@ linter:
     eol_at_end_of_file: true
     flutter_style_todos: true
     library_private_types_in_public_api: true
-    line_length: 100
     prefer_const_constructors: true
     prefer_const_declarations: true
     prefer_expression_function_bodies: true

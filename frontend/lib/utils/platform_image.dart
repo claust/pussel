@@ -22,6 +22,10 @@ class PlatformImage {
   factory PlatformImage.fromBytes(Uint8List bytes, {String? path}) =>
       PlatformImage._(bytes: bytes, path: path);
 
+  /// Creates a PlatformImage from bytes only (useful for processed images).
+  factory PlatformImage.fromBytesOnly(Uint8List bytes) =>
+      PlatformImage._(bytes: bytes);
+
   /// Creates a PlatformImage from an XFile path and bytes.
   /// This is the recommended way to create a PlatformImage after taking a photo.
   static Future<PlatformImage> fromXFile(dynamic xFile) async {
