@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import 'camera_screen.dart';
+import 'test_mode/grid_selection_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -79,6 +80,33 @@ class HomeScreen extends StatelessWidget {
                   child: const Padding(
                     padding: EdgeInsets.all(12.0),
                     child: Text('New Puzzle', style: TextStyle(fontSize: 16)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Test Mode Button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const GridSelectionScreen(),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.science_outlined),
+                  label: const Padding(
+                    padding: EdgeInsets.all(12.0),
+                    child: Text('Test Mode', style: TextStyle(fontSize: 16)),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor:
+                        Theme.of(context).colorScheme.secondaryContainer,
+                    foregroundColor:
+                        Theme.of(context).colorScheme.onSecondaryContainer,
                   ),
                 ),
               ),
