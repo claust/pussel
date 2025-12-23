@@ -4,11 +4,12 @@ import os
 import uuid
 from typing import Dict, Optional
 
+from fastapi import FastAPI, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+
 from app.config import settings
 from app.models.puzzle_model import PieceResponse, PuzzleResponse
 from app.services.image_processor import ImageProcessor
-from fastapi import FastAPI, HTTPException, UploadFile
-from fastapi.middleware.cors import CORSMiddleware
 
 # Initialize FastAPI app
 app = FastAPI(title=settings.PROJECT_NAME)

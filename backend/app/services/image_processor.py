@@ -3,12 +3,15 @@
 import io
 import os
 from pathlib import Path
+from typing import cast
 
 import torch
 import torchvision.transforms as transforms  # type: ignore[import-untyped]
-from app.models.puzzle_model import PieceResponse, Position
 from fastapi import UploadFile
 from PIL import Image
+from torch import Tensor
+
+from app.models.puzzle_model import PieceResponse, Position
 
 # Path to checkpoint can be configured or discovered dynamically
 CHECKPOINT_PATH = os.environ.get(
@@ -76,7 +79,7 @@ class ImageProcessor:
             image = Image.open(io.BytesIO(contents)).convert("RGB")
 
             # Preprocess image
-            img_tensor = self.transform(image).unsqueeze(0)  # Add batch dimension
+            img_tensor: Tensor = cast(Tensor, self.transform(image)).unsqueeze(0)  # Add batch dimension
             img_tensor = img_tensor.to(self.device)
 
             # Get model predictions
