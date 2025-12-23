@@ -64,9 +64,15 @@ def generate_realistic_tab_edge(
 
     curves = []
 
+    # Shoulder offset: displacement of neck base points from the corner-to-corner line
+    # The offset opposes the feature direction:
+    # - Tabs (normal points outward): neck base moves inward (dip before rising)
+    # - Blanks (normal points inward): neck base moves outward (hump before dipping)
+    shoulder_offset_vec = -normal * params.shoulder_offset * edge_length
+
     # Key points for the mushroom shape
-    neck_base_left = center - edge_unit * neck_half
-    neck_base_right = center + edge_unit * neck_half
+    neck_base_left = center - edge_unit * neck_half + shoulder_offset_vec
+    neck_base_right = center + edge_unit * neck_half + shoulder_offset_vec
 
     bulb_center = center + bulb_shift + normal * neck_height
     bulb_base_left = bulb_center - edge_unit * bulb_half

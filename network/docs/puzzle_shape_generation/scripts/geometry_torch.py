@@ -63,9 +63,10 @@ def generate_tab_edge_torch(
     Args:
         start: (2,) tensor for edge start point.
         end: (2,) tensor for edge end point.
-        params: (10,) tensor of tab parameters in order:
+        params: (11,) tensor of tab parameters in order:
             [position, neck_width, bulb_width, height, neck_ratio,
-             curvature, asymmetry, corner_slope, squareness, neck_flare]
+             curvature, asymmetry, corner_slope, squareness, neck_flare,
+             shoulder_offset]
         is_blank: Whether this is a blank (indent) instead of tab (protrusion).
         edge_type: "tab" or "blank" for corner slope direction.
         num_points_per_curve: Points to sample per Bezier curve.
@@ -87,6 +88,7 @@ def generate_tab_edge_torch(
     corner_slope = params[7]
     squareness = params[8]
     neck_flare = params[9]
+    shoulder_offset = params[10]
 
     direction = 1.0 if not is_blank else -1.0
 
@@ -122,9 +124,15 @@ def generate_tab_edge_torch(
     left_curve_factor = 1.0 + asymmetry * 0.5
     right_curve_factor = 1.0 - asymmetry * 0.5
 
+    # Shoulder offset: displacement of neck base points from the corner-to-corner line
+    # The offset opposes the feature direction:
+    # - Tabs (normal points outward): neck base moves inward (dip before rising)
+    # - Blanks (normal points inward): neck base moves outward (hump before dipping)
+    shoulder_offset_vec = -normal * shoulder_offset * edge_length
+
     # Key points for the mushroom shape
-    neck_base_left = center - edge_unit * neck_half
-    neck_base_right = center + edge_unit * neck_half
+    neck_base_left = center - edge_unit * neck_half + shoulder_offset_vec
+    neck_base_right = center + edge_unit * neck_half + shoulder_offset_vec
 
     bulb_center = center + bulb_shift + normal * neck_height
     bulb_base_left = bulb_center - edge_unit * bulb_half
@@ -270,7 +278,7 @@ def generate_piece_path_torch(
     """Generate the complete contour path for a puzzle piece.
 
     Args:
-        edge_params_list: List of (10,) tensors for each edge that has tab/blank.
+        edge_params_list: List of (11,) tensors for each edge that has tab/blank.
                          Order: [edge0_params, edge1_params, ...] for non-flat edges.
         config: PieceConfig with edge_types, size, corner_radius.
         device: Torch device.
@@ -424,6 +432,7 @@ def tensor_to_edge_params_list(
         "corner_slope",
         "squareness",
         "neck_flare",
+        "shoulder_offset",
     ]
 
     # Create a mapping from param name to index in param_names

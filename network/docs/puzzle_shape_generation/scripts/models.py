@@ -70,6 +70,12 @@ class TabParameters:
     # Neck flare: controls neck shape (-1 = max flare outward, 0 = straight, 1 = max pinch inward)
     neck_flare: float = 0.4
 
+    # Shoulder offset: vertical displacement of neck base from corner-to-corner line
+    # For tabs: creates a "dip" before the tab rises (neck base moves inward)
+    # For blanks: creates a "hump" before the indent dips (neck base moves outward)
+    # The sign is automatically applied based on feature type.
+    shoulder_offset: float = 0.04
+
     @classmethod
     def random(cls) -> "TabParameters":
         """Generate random but realistic parameters for a puzzle piece tab."""
@@ -89,6 +95,7 @@ class TabParameters:
             corner_slope=random.uniform(0.05, 0.20),
             squareness=random.uniform(1.0, 1.4),  # Slightly flat to more square tops
             neck_flare=random.uniform(-0.3, 0.5),  # Flare outward to pinch inward
+            shoulder_offset=random.uniform(0.03, 0.06),  # Subtle dip/hump at neck base
         )
 
     def to_dict(self) -> dict[str, Any]:
