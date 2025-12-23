@@ -1,0 +1,122 @@
+{
+  "repvgg_a0": {
+    "backbone": "repvgg_a0",
+    "feature_dim": 1280,
+    "total_params": 16683812,
+    "trainable_params": 16683812,
+    "epochs": 2,
+    "n_train_puzzles": 500,
+    "n_test_puzzles": 100,
+    "batch_size": 64,
+    "total_training_time": 78.52934074401855,
+    "avg_epoch_time": 39.26465559005737,
+    "epoch_times": [
+      40.18408799171448,
+      38.34522318840027
+    ],
+    "final_train_pos_loss": 0.060962523341178895,
+    "final_train_rot_loss": 1.3533414716720582,
+    "final_train_quad_acc": 0.3375,
+    "final_train_rot_acc": 0.3265,
+    "test_quad_acc": 0.36125,
+    "test_rot_acc": 0.39375,
+    "history": {
+      "train_pos_loss": [
+        0.06461027455329894,
+        0.060962523341178895
+      ],
+      "train_rot_loss": [
+        1.386061514854431,
+        1.3533414716720582
+      ],
+      "train_quad_acc": [
+        0.3195,
+        0.3375
+      ],
+      "train_rot_acc": [
+        0.278,
+        0.3265
+      ]
+    }
+  },
+  "mobileone_s0": {
+    "backbone": "mobileone_s0",
+    "feature_dim": 1024,
+    "total_params": 9433348,
+    "trainable_params": 9433348,
+    "epochs": 2,
+    "n_train_puzzles": 500,
+    "n_test_puzzles": 100,
+    "batch_size": 64,
+    "total_training_time": 196.22935724258423,
+    "avg_epoch_time": 98.11303544044495,
+    "epoch_times": [
+      99.45300078392029,
+      96.7730700969696
+    ],
+    "final_train_pos_loss": 0.06094748875498772,
+    "final_train_rot_loss": 1.3756406202316285,
+    "final_train_quad_acc": 0.326,
+    "final_train_rot_acc": 0.2895,
+    "test_quad_acc": 0.3425,
+    "test_rot_acc": 0.380625,
+    "history": {
+      "train_pos_loss": [
+        0.06302248927950858,
+        0.06094748875498772
+      ],
+      "train_rot_loss": [
+        1.384111810684204,
+        1.3756406202316285
+      ],
+      "train_quad_acc": [
+        0.308,
+        0.326
+      ],
+      "train_rot_acc": [
+        0.276,
+        0.2895
+      ]
+    }
+  },
+  "shufflenet_v2_x0_5": {
+    "backbone": "shufflenet_v2_x0_5",
+    "feature_dim": 1024,
+    "total_params": 1580388,
+    "trainable_params": 1580388,
+    "epochs": 2,
+    "n_train_puzzles": 500,
+    "n_test_puzzles": 100,
+    "batch_size": 64,
+    "total_training_time": 25.787254095077515,
+    "avg_epoch_time": 12.893615007400513,
+    "epoch_times": [
+      13.605823993682861,
+      12.181406021118164
+    ],
+    "final_train_pos_loss": 0.06146901619434357,
+    "final_train_rot_loss": 1.3367552556991578,
+    "final_train_quad_acc": 0.273,
+    "final_train_rot_acc": 0.3225,
+    "test_quad_acc": 0.273125,
+    "test_rot_acc": 0.374375,
+    "history": {
+      "train_pos_loss": [
+        0.06253687283396721,
+        0.06146901619434357
+      ],
+      "train_rot_loss": [
+        1.382663264274597,
+        1.3367552556991578
+      ],
+      "train_quad_acc": [
+        0.255,
+        0.273
+      ],
+      "train_rot_acc": [
+        0.2695,
+        0.3225
+      ]
+    }
+  }
+}

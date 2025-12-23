@@ -1,0 +1,40 @@
+{
+  "backbone": "shufflenet_v2_x0_5",
+  "feature_dim": 1024,
+  "total_params": 1580388,
+  "trainable_params": 1580388,
+  "epochs": 2,
+  "n_train_puzzles": 500,
+  "n_test_puzzles": 100,
+  "batch_size": 64,
+  "total_training_time": 25.787254095077515,
+  "avg_epoch_time": 12.893615007400513,
+  "epoch_times": [
+    13.605823993682861,
+    12.181406021118164
+  ],
+  "final_train_pos_loss": 0.06146901619434357,
+  "final_train_rot_loss": 1.3367552556991578,
+  "final_train_quad_acc": 0.273,
+  "final_train_rot_acc": 0.3225,
+  "test_quad_acc": 0.273125,
+  "test_rot_acc": 0.374375,
+  "history": {
+    "train_pos_loss": [
+      0.06253687283396721,
+      0.06146901619434357
+    ],
+    "train_rot_loss": [
+      1.382663264274597,
+      1.3367552556991578
+    ],
+    "train_quad_acc": [
+      0.255,
+      0.273
+    ],
+    "train_rot_acc": [
+      0.2695,
+      0.3225
+    ]
+  }
+}
