@@ -1,3 +1,5 @@
+import '../utils/platform_image.dart';
+
 class Position {
   const Position({required this.x, required this.y, this.normalized = true});
 
@@ -18,7 +20,7 @@ class Piece {
     required this.position,
     required this.confidence,
     required this.rotation,
-    this.localImagePath,
+    this.image,
   });
 
   factory Piece.fromJson(Map<String, dynamic> json) => Piece(
@@ -26,10 +28,19 @@ class Piece {
     confidence: (json['confidence'] as num).toDouble(),
     rotation: json['rotation'] as int,
   );
+
   final Position position;
   final double confidence;
   final int rotation;
-  final String? localImagePath;
+  final PlatformImage? image;
+
+  /// Creates a copy of this piece with an image attached.
+  Piece copyWithImage(PlatformImage image) => Piece(
+    position: position,
+    confidence: confidence,
+    rotation: rotation,
+    image: image,
+  );
 
   Map<String, dynamic> toJson() => {
     'position': position.toJson(),
