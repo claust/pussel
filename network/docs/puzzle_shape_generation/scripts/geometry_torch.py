@@ -148,17 +148,31 @@ def generate_tab_edge_torch(
     # Neck flare amount
     flare_amount = (bulb_half - neck_half) * neck_flare
 
+    # === G1 Continuity Setup ===
+    # Pre-compute C2.P1's offset direction so C1.P2 can be collinear (follow-the-leader)
+    # This ensures smooth transition at the C1-C2 junction (neck_base_left)
+    c2_p1_offset = edge_unit * flare_amount * left_curve_factor + normal * neck_height * 0.7
+    c2_p1_offset_length = torch.norm(c2_p1_offset) + 1e-8
+    c2_p1_dir = c2_p1_offset / c2_p1_offset_length  # Normalized direction
+
+    # Pre-compute C5.P2's offset direction so C6.P1 can be collinear
+    # This ensures smooth transition at the C5-C6 junction (neck_base_right)
+    c5_p2_offset = -edge_unit * flare_amount * right_curve_factor + normal * neck_height * 0.7
+    c5_p2_offset_length = torch.norm(c5_p2_offset) + 1e-8
+    c5_p2_dir = c5_p2_offset / c5_p2_offset_length  # Normalized direction
+
     all_points = []
 
     # Curve 1: Start to neck base left
     # shoulder_flatness controls how flat the shoulder stays before turning into neck
-    # Higher flatness = longer flat section + sharper "armpit" turn
     shoulder_extend = 0.5 + shoulder_flatness * 0.4  # 0.5-0.9: how far p1 extends along edge
-    neck_turn_tightness = 0.5 * (1.0 - shoulder_flatness * 0.7)  # 0.5-0.15: how tight the turn
+    # C1.P2 handle length - controls how far the control point extends from junction
+    c1_p2_handle_length = neck_half * 0.8 + neck_height * 0.3  # Blend of horizontal and vertical scale
     p0 = start
     p3 = neck_base_left
     p1 = p0 + edge_unit * edge_length * dist_start_to_neck * shoulder_extend + entry_corner_offset * edge_length * 0.3
-    p2 = p3 - edge_unit * neck_half * neck_turn_tightness
+    # G1 continuity: C1.P2 is collinear with C2.P1, opposite direction from junction
+    p2 = p3 - c2_p1_dir * c1_p2_handle_length
     ctrl_pts = torch.stack([p0, p1, p2, p3])
     pts = bezier_curve_torch(ctrl_pts, num_points_per_curve)
     all_points.append(pts[:-1])  # Exclude last to avoid duplication
@@ -166,7 +180,8 @@ def generate_tab_edge_torch(
     # Curve 2: Neck base left up through waist to bulb mid-left
     p0 = p3
     p3 = bulb_mid_left
-    p1 = p0 + edge_unit * flare_amount * left_curve_factor + normal * neck_height * 0.7
+    # C2.P1 uses the pre-computed offset (this is the "leader")
+    p1 = p0 + c2_p1_offset
     p2 = p3 - normal * (full_height - neck_height) * 0.3
     ctrl_pts = torch.stack([p0, p1, p2, p3])
     pts = bezier_curve_torch(ctrl_pts, num_points_per_curve)
@@ -197,17 +212,21 @@ def generate_tab_edge_torch(
     # Curve 5: Bulb mid-right down through waist to neck base right
     p0 = p3
     p3 = neck_base_right
+    # G1 continuity: p1 must have vertical tangent to match C3b's end (no edge_unit offset)
     p1 = p0 - normal * (full_height - neck_height) * 0.3
-    p2 = p3 - edge_unit * flare_amount * right_curve_factor + normal * neck_height * 0.7
+    # C5.P2 uses the pre-computed offset (this is the "leader" for C6.P1)
+    p2 = p3 + c5_p2_offset
     ctrl_pts = torch.stack([p0, p1, p2, p3])
     pts = bezier_curve_torch(ctrl_pts, num_points_per_curve)
     all_points.append(pts[:-1])
 
     # Curve 6: Neck base right to end
-    # Mirror of Curve 1 - use same shoulder_flatness for symmetric appearance
+    # C6.P1 handle length - controls how far the control point extends from junction
+    c6_p1_handle_length = neck_half * 0.8 + neck_height * 0.3  # Same as C1.P2 for symmetry
     p0 = p3
     p3 = end
-    p1 = p0 + edge_unit * neck_half * neck_turn_tightness
+    # G1 continuity: C6.P1 is collinear with C5.P2, opposite direction from junction
+    p1 = p0 - c5_p2_dir * c6_p1_handle_length
     p2 = p3 - edge_unit * edge_length * dist_neck_to_end * shoulder_extend + exit_corner_offset * edge_length * 0.3
     ctrl_pts = torch.stack([p0, p1, p2, p3])
     pts = bezier_curve_torch(ctrl_pts, num_points_per_curve)
@@ -284,7 +303,7 @@ def generate_piece_path_torch(
     """Generate the complete contour path for a puzzle piece.
 
     Args:
-        edge_params_list: List of (11,) tensors for each edge that has tab/blank.
+        edge_params_list: List of (13,) tensors for each edge that has tab/blank.
                          Order: [edge0_params, edge1_params, ...] for non-flat edges.
         config: PieceConfig with edge_types, size, corner_radius.
         device: Torch device.
@@ -419,7 +438,7 @@ def tensor_to_edge_params_list(
         edge_indices: Which edges have parameters in the vector.
 
     Returns:
-        List of (10,) tensors, one per non-flat edge, with gradients preserved.
+        List of (13,) tensors, one per non-flat edge, with gradients preserved.
     """
     device = vector.device
     dtype = vector.dtype
@@ -451,7 +470,7 @@ def tensor_to_edge_params_list(
         if edge_params is None:
             edge_params = TabParameters()
 
-        # Build full 10-param tensor by stacking individual values
+        # Build full 13-param tensor by stacking individual values
         # This preserves gradients for optimized parameters
         full_params_list = []
         param_offset = idx * num_params

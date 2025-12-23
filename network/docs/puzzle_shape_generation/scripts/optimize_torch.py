@@ -42,17 +42,17 @@ from shape_comparator import compute_iou, extract_contour_from_image, normalize_
 # Parameter bounds for per-edge TabParameters (same as scipy version)
 PARAM_BOUNDS = {
     "position": (0.35, 0.65),
-    "neck_width": (0.12, 0.25),
-    "bulb_width": (0.25, 0.45),
+    "neck_width": (0.12, 0.35),  # Expanded from 0.25 - optimizer was hitting max
+    "bulb_width": (0.25, 0.50),  # Expanded from 0.45 - allow wider bulbs
     "height": (0.15, 0.40),
     "neck_ratio": (0.15, 0.55),
     "curvature": (0.30, 1.0),
     "asymmetry": (-0.15, 0.15),
     "corner_slope": (0.0, 0.25),
     "squareness": (1.0, 1.5),
-    "neck_flare": (-0.5, 0.6),
-    "shoulder_offset": (0.0, 0.10),  # Neck base displacement from baseline
-    "shoulder_flatness": (0.0, 1.0),  # How flat shoulder stays before sharp neck turn
+    "neck_flare": (-0.5, 0.8),  # Expanded from 0.6 - optimizer was hitting max
+    "shoulder_offset": (0.0, 0.15),  # Expanded from 0.10 - optimizer was hitting max
+    "shoulder_flatness": (0.0, 1.0),  # Keep as-is (hitting min is fine, can't go below 0)
 }
 
 # Parameters to optimize (exclude position by default for stability)
