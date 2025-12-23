@@ -24,7 +24,7 @@ def create_prompt_illustration():
 
     fig, ax = plt.subplots(figsize=(14, 10))
 
-    colors = ["#FF9999", "#66B2FF", "#99FF99", "#FFCC99", "#BC8F8F"]
+    colors = ["#FF9999", "#66B2FF", "#99FF99", "#90EE90", "#FFCC99", "#BC8F8F"]
     edge_color = "#333333"
 
     # Plot the full piece edge for context
@@ -107,7 +107,7 @@ def create_prompt_illustration():
         fontweight="bold",
     )
 
-    ax.set_title("Current Puzzle Piece Generation Logic (5 Cubic Bézier Curves)", fontsize=16, pad=20)
+    ax.set_title("Current Puzzle Piece Generation Logic (6 Cubic Bézier Curves)", fontsize=16, pad=20)
     ax.set_aspect("equal")
     ax.set_xlim(-0.1, 1.1)
     ax.set_ylim(-0.05, 0.45)

@@ -44,17 +44,29 @@ from shape_comparator import (
 # Parameter bounds for per-edge TabParameters
 PARAM_BOUNDS = {
     "position": (0.35, 0.65),
-    "neck_width": (0.10, 0.18),  # Increased min from 0.06 to 0.10 for wider necks
-    "bulb_width": (0.20, 0.32),
-    "height": (0.12, 0.30),
+    "neck_width": (0.12, 0.25),  # Increased to allow wider necks for larger tabs
+    "bulb_width": (0.25, 0.45),  # Increased to allow wider bulb heads
+    "height": (0.15, 0.40),  # Increased to allow taller tabs
     "neck_ratio": (0.15, 0.55),
     "curvature": (0.30, 1.0),
     "asymmetry": (-0.15, 0.15),
-    "corner_slope": (0.0, 0.20),
+    "corner_slope": (0.0, 0.25),  # Increased slightly
+    "squareness": (1.0, 1.5),  # How flat the bulb top is (1.0 = circular, >1.0 = flatter)
+    "neck_flare": (-0.5, 0.6),  # Neck shape: negative = flare outward, positive = pinch inward
 }
 
 # Parameters to optimize (exclude position by default for stability)
-OPTIMIZABLE_PARAMS = ["neck_width", "bulb_width", "height", "neck_ratio", "curvature", "asymmetry", "corner_slope"]
+OPTIMIZABLE_PARAMS = [
+    "neck_width",
+    "bulb_width",
+    "height",
+    "neck_ratio",
+    "curvature",
+    "asymmetry",
+    "corner_slope",
+    "squareness",
+    "neck_flare",
+]
 
 
 @dataclass

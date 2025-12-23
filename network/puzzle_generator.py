@@ -88,6 +88,9 @@ class ProcessingOptions:
     # Training/validation split
     validation_split: float = 0.2
 
+    # Puzzle-only mode (skip piece generation, only create puzzle images)
+    puzzle_only: bool = False
+
     # Augmentation options (to be used later)
     use_augmentation: bool = False
     brightness_range: Tuple[float, float] = (0.8, 1.2)
@@ -489,6 +492,48 @@ class PuzzleProcessor:
         return process_puzzle_helper(self, puzzle_path, output_dir, metadata_handler)
 
 
+def _process_puzzle_only_worker(
+    args: Tuple[str, str, ProcessingOptions],
+) -> bool:
+    """Worker function to process a puzzle image in puzzle-only mode.
+
+    Only creates the resized puzzle image, skips piece generation entirely.
+    This is much faster and uses minimal disk space.
+
+    Args:
+        args: Tuple of (puzzle_path, output_dir, options)
+
+    Returns:
+        True if successful, False otherwise
+    """
+    puzzle_path, output_dir, options = args
+
+    try:
+        # Create puzzles directory
+        puzzles_dir = os.path.join(output_dir, "puzzles")
+        os.makedirs(puzzles_dir, exist_ok=True)
+
+        # Get puzzle name
+        puzzle_name = os.path.splitext(os.path.basename(puzzle_path))[0]
+
+        # Load, center-crop to square, resize, and save
+        original_image = Image.open(puzzle_path).convert("RGB")
+        original_image = center_crop_to_square(original_image)
+
+        # Resize to context size
+        width, height = options.puzzle_context_size
+        context_image = original_image.resize((width, height), Image.Resampling.LANCZOS)
+
+        # Save as JPEG
+        context_path = os.path.join(puzzles_dir, f"{puzzle_name}.jpg")
+        context_image.save(context_path, "JPEG", quality=options.jpeg_quality)
+
+        return True
+    except Exception as e:
+        print(f"Error processing {puzzle_path}: {e}")
+        return False
+
+
 def _process_single_puzzle_worker(
     args: Tuple[str, str, ProcessingOptions],
 ) -> List[dict]:
@@ -652,13 +697,21 @@ def process_directory(input_dir: str, output_dir: str, options: ProcessingOption
         num_workers: Number of parallel workers (default: 1)
 
     Returns:
-        Total number of pieces generated
+        Total number of pieces generated (or puzzles processed in puzzle-only mode)
     """
-    # Collect all puzzle images first
-    puzzle_files = [f for f in os.listdir(input_dir) if f.lower().endswith((".png", ".jpg", ".jpeg"))]
+    # Collect all puzzle images first (skip 0-byte placeholder files)
+    puzzle_files = [
+        f
+        for f in os.listdir(input_dir)
+        if f.lower().endswith((".png", ".jpg", ".jpeg")) and os.path.getsize(os.path.join(input_dir, f)) > 0
+    ]
 
     # Prepare worker arguments
     worker_args = [(os.path.join(input_dir, filename), output_dir, options) for filename in puzzle_files]
+
+    # Use puzzle-only mode if requested (much faster, no pieces)
+    if options.puzzle_only:
+        return _process_directory_puzzle_only(worker_args, num_workers)
 
     # Collect all metadata entries
     all_metadata: List[dict] = []
@@ -690,6 +743,38 @@ def process_directory(input_dir: str, output_dir: str, options: ProcessingOption
     _create_split_files_from_metadata(all_metadata, output_dir)
 
     return len(all_metadata)
+
+
+def _process_directory_puzzle_only(worker_args: List[Tuple[str, str, ProcessingOptions]], num_workers: int) -> int:
+    """Process puzzles in puzzle-only mode (no piece generation).
+
+    Args:
+        worker_args: List of (puzzle_path, output_dir, options) tuples
+        num_workers: Number of parallel workers
+
+    Returns:
+        Number of puzzles successfully processed
+    """
+    success_count = 0
+
+    if num_workers > 1:
+        with ProcessPoolExecutor(max_workers=num_workers) as executor:
+            futures = {executor.submit(_process_puzzle_only_worker, args): args[0] for args in worker_args}
+
+            for future in tqdm(
+                as_completed(futures),
+                total=len(futures),
+                desc="Processing puzzles (puzzle-only)",
+                unit="puzzle",
+            ):
+                if future.result():
+                    success_count += 1
+    else:
+        for args in tqdm(worker_args, desc="Processing puzzles (puzzle-only)", unit="puzzle"):
+            if _process_puzzle_only_worker(args):
+                success_count += 1
+
+    return success_count
 
 
 def _write_metadata(metadata_path: str, entries: List[dict]) -> None:
@@ -1012,6 +1097,11 @@ def main():
         default=8,
         help="Threads for parallel piece saving per puzzle (default: 8)",
     )
+    parser.add_argument(
+        "--puzzle-only",
+        action="store_true",
+        help="Only generate puzzle images, skip piece extraction (much faster)",
+    )
     parser.add_argument("--config", help="Path to JSON configuration file")
 
     # Add augmentation arguments
@@ -1097,6 +1187,7 @@ def _create_options(args):
         puzzle_context_size=tuple(args.context_size),
         piece_output_size=tuple(args.piece_size),
         validation_split=args.validation_split,
+        puzzle_only=args.puzzle_only,
         output_format=args.format,
         jpeg_quality=args.jpeg_quality,
         save_threads=args.save_threads,
@@ -1157,8 +1248,11 @@ def _process_input(input_path, output_dir_path, options, num_workers=1):
 
     # Process the input
     if os.path.isdir(input_path):
-        total_pieces = process_directory(input_path, output_dir, options, num_workers)
-        print(f"Total: Generated {total_pieces} pieces in {output_dir}")
+        total_count = process_directory(input_path, output_dir, options, num_workers)
+        if options.puzzle_only:
+            print(f"Total: Processed {total_count} puzzles in {output_dir}/puzzles/")
+        else:
+            print(f"Total: Generated {total_count} pieces in {output_dir}")
     else:
         _process_single_file(input_path, output_dir, options)
 
