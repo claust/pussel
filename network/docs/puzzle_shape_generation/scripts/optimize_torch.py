@@ -51,6 +51,7 @@ PARAM_BOUNDS = {
     "corner_slope": (0.0, 0.25),
     "squareness": (1.0, 1.5),
     "neck_flare": (-0.5, 0.6),
+    "shoulder_offset": (0.0, 0.10),  # Neck base displacement from baseline
 }
 
 # Parameters to optimize (exclude position by default for stability)
@@ -64,6 +65,7 @@ OPTIMIZABLE_PARAMS = [
     "corner_slope",
     "squareness",
     "neck_flare",
+    "shoulder_offset",
 ]
 
 

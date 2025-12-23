@@ -18,6 +18,7 @@ def create_prompt_illustration():
         curvature=0.95,
         asymmetry=-0.05,
         corner_slope=0.12,
+        shoulder_offset=0.04,  # Dip before tab rises
     )
 
     curves = generate_realistic_tab_edge((0, 0), (1, 0), params, is_blank=False)
@@ -106,6 +107,20 @@ def create_prompt_illustration():
         color="red",
         fontweight="bold",
     )
+
+    # Shoulder offset (dip below baseline for tabs)
+    neck_base_y = -params.shoulder_offset  # For tabs, neck base is below baseline
+    ax.annotate(
+        "",
+        xy=(0.35, 0),
+        xytext=(0.35, neck_base_y),
+        arrowprops={"arrowstyle": "<->", "color": "green"},
+    )
+    ax.text(0.32, neck_base_y / 2, "shoulder_offset", ha="right", color="green", fontweight="bold", fontsize=9)
+
+    # Draw a dashed line at baseline for reference
+    ax.axhline(y=0, color="gray", linewidth=1, linestyle="--", alpha=0.5)
+    ax.text(0.02, 0.01, "baseline (corner-to-corner)", fontsize=8, color="gray", alpha=0.7)
 
     ax.set_title("Current Puzzle Piece Generation Logic (6 Cubic Bézier Curves)", fontsize=16, pad=20)
     ax.set_aspect("equal")
