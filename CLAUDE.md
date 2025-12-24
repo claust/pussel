@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Pussel is a computer vision-based puzzle solver application with three main components:
 1. **Backend** (`backend/`) - FastAPI service for puzzle image processing and piece matching
-2. **Frontend** (`frontend/`) - Flutter mobile app for capturing puzzle pieces and displaying solutions
+2. **Frontend** (`frontend-next/`) - Next.js 15 web app with Bun for capturing puzzle pieces and displaying solutions
 3. **Network** (`network/`) - PyTorch Lightning-based CNN model for predicting puzzle piece positions and rotations
 
 ## Development Setup
@@ -21,10 +21,10 @@ pip install -e .
 pre-commit install
 ```
 
-### Frontend (Flutter)
+### Frontend (Next.js/Bun)
 ```bash
-cd frontend
-flutter pub get
+cd frontend-next
+bun install
 ```
 
 ### Network (ML Training)
@@ -70,11 +70,14 @@ pre-commit run --all-files
 
 ### Frontend Development
 ```bash
-cd frontend
-flutter run                # Run on connected device/emulator
-flutter test               # Run tests
-dart analyze              # Static analysis
-dart format --output=write lib/  # Format code
+cd frontend-next
+bun run dev                # Run development server with Turbopack
+bun run build              # Build for production
+bun run test               # Run tests with Vitest
+bun run lint               # Lint with OxLint (type-aware)
+bun run typecheck          # TypeScript type checking
+bun run check              # Run all checks (lint, typecheck, prettier)
+bun run format             # Auto-format with Prettier
 ```
 
 ### ML Model Training
@@ -117,13 +120,28 @@ make format-network        # Auto-format code with black and isort
 - `GET /health` - Health check
 
 ### Frontend Architecture
-- **`lib/main.dart`** - App entry point
-- **`lib/ui/`** - Screens and widgets
-- **`lib/services/`** - API client and business logic
-- **`lib/models/`** - Data models
-- **`lib/config/`** - App configuration
+- **`src/app/`** - Next.js App Router pages
+  - `page.tsx` - Home page with navigation
+  - `puzzle/page.tsx` - Main puzzle workflow (capture puzzle, add pieces)
+  - `test-mode/` - Test mode for bundled puzzle images
+  - `about/page.tsx` - About page
+- **`src/components/`** - React components
+  - `camera/` - Camera capture and file upload components
+  - `puzzle/` - Puzzle display, piece cards, grid overlay
+  - `ui/` - shadcn/ui components (button, card, dialog, etc.)
+- **`src/hooks/`** - Custom React hooks (useCamera)
+- **`src/stores/`** - Zustand state management
+- **`src/lib/`** - Utilities (API client, image utils, test puzzles)
+- **`src/types/`** - TypeScript type definitions
 
-Uses Provider for state management, Camera/ImagePicker for image capture, Dio/HTTP for API calls.
+Tech stack:
+- **Runtime**: Bun
+- **Framework**: Next.js 15 with App Router and Turbopack
+- **State**: Zustand
+- **Styling**: Tailwind CSS 4 + shadcn/ui
+- **Linting**: OxLint with type-aware rules
+- **Testing**: Vitest
+- **Theming**: next-themes (dark mode support)
 
 ### Network Architecture (ML Model)
 - **`model.py`** - Dual-backbone CNN architecture:
@@ -151,7 +169,7 @@ All code follows strict quality standards enforced via pre-commit hooks:
 - **Python linting**: flake8 with plugins (docstrings, import-order, bugbear, comprehensions, pytest-style)
 - **Type checking**: pyright with standard mode
 - **Docstring style**: Google format
-- **Flutter**: dart-analyze, dart-format, dart-fix
+- **Frontend**: OxLint (type-aware), Prettier, TypeScript strict mode
 
 ### CI/CD
 GitHub Actions workflows test/deploy on push to master/main/dev:
@@ -159,7 +177,12 @@ GitHub Actions workflows test/deploy on push to master/main/dev:
   - Code quality: black, isort, flake8, pyright
   - Tests with coverage (uploads to Codecov)
   - Azure deployment (dev branch only)
-- **Frontend CI** (`.github/workflows/frontend-ci.yml`): Flutter analysis and tests
+- **Frontend CI** (`.github/workflows/frontend-ci.yml`):
+  - OxLint type-aware linting
+  - TypeScript type checking
+  - Prettier formatting check
+  - Vitest tests
+  - Next.js production build
 - **Network CI** (`.github/workflows/network-ci.yml`): Python quality checks for ML code
 
 ## Important Notes
@@ -176,6 +199,7 @@ pyright is configured with standard mode - all functions must have type annotati
 
 ### Testing
 - Backend tests are in `backend/tests/`
+- Frontend tests are in `frontend-next/src/**/*.test.ts`
 - Always run with coverage: `pytest -v --cov=app --cov-report=term-missing`
 - CI requires `.env.test` file for environment variables
 
@@ -185,7 +209,6 @@ Current backend uses mock image processor in `app/services/image_processor.py`. 
 ### Pre-commit Hooks
 Pre-commit is configured at the root level and applies to:
 - Python files (backend, network, and root Python scripts)
-- Dart files (frontend only)
 - Bicep files (infrastructure only)
 
 Run `pre-commit install` after cloning to enable automatic checks.
@@ -205,7 +228,6 @@ make check
 # Check individual projects
 make check-backend         # Backend: black, isort, flake8, pyright
 make check-network         # Network: black, isort, flake8, pyright
-make check-frontend        # Frontend: dart analyze, dart format
 
 # Auto-format Python code
 make format                # Format both backend and network
@@ -213,15 +235,22 @@ make format-backend        # Format backend only
 make format-network        # Format network only
 ```
 
+For the frontend, run checks from the `frontend-next/` directory:
+```bash
+cd frontend-next
+bun run check              # OxLint + TypeScript + Prettier
+bun run format             # Auto-format with Prettier
+```
+
 **Note**: For network checks, the venv must be activated. The pre-commit hooks handle this automatically.
 
-If checks fail, run `make format` to auto-fix formatting issues, then address any remaining lint or type errors.
+If checks fail, run the appropriate format command to auto-fix formatting issues, then address any remaining lint or type errors.
 
 Or simply run: `pre-commit run --all-files` from the repo root.
 
 ### Commit Workflow
 1. Make your changes
-2. Run `make check` (or `make check-backend`, `make check-network`, `make check-frontend` individually)
-3. Fix any issues found (use `make format` for auto-fixable issues)
+2. Run `make check` for Python or `bun run check` for frontend
+3. Fix any issues found (use format commands for auto-fixable issues)
 4. Commit (pre-commit hooks will run automatically if installed)
 5. Push and verify CI passes

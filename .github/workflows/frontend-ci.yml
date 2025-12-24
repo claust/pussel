@@ -1,101 +1,87 @@
-name: Flutter Frontend CI
+name: Frontend CI
 
 on:
   push:
-    branches: [ master, main, dev ]
+    branches: [master, main, dev]
     paths:
-      - 'frontend/**'
+      - 'frontend-next/**'
       - '.github/workflows/frontend-ci.yml'
   pull_request:
-    branches: [ master, main, dev ]
+    branches: [master, main, dev]
     paths:
-      - 'frontend/**'
+      - 'frontend-next/**'
       - '.github/workflows/frontend-ci.yml'
 
 jobs:
-  analyze-and-test:
+  lint-and-typecheck:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: frontend
+        working-directory: frontend-next
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          flutter-version: '3.29.2'
-          channel: 'stable'
-          cache: true
+          bun-version: latest
 
       - name: Install dependencies
-        run: flutter pub get
+        run: bun install --frozen-lockfile
 
-      - name: Verify formatting
-        run: dart format --set-exit-if-changed .
+      - name: Run OxLint
+        run: bun run lint
 
-      - name: Analyze project source
-        run: flutter analyze
+      - name: Run TypeScript check
+        run: bun run typecheck
+
+      - name: Check formatting
+        run: bun run prettier --check "src/**/*.{ts,tsx,json,md}"
+
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend-next
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
 
       - name: Run tests
-        run: flutter test
+        run: bun run test
 
-  # build-android job disabled due to time consumption
-  # build-android:
-  #   runs-on: ubuntu-latest
-  #   needs: analyze-and-test
-  #   defaults:
-  #     run:
-  #       working-directory: frontend
-  #
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #
-  #     - name: Setup Flutter
-  #       uses: subosito/flutter-action@v2
-  #       with:
-  #         flutter-version: '3.29.2'
-  #         channel: 'stable'
-  #         cache: true
-  #
-  #     - name: Install dependencies
-  #       run: flutter pub get
-  #
-  #     - name: Build APK
-  #       run: flutter build apk --release
-  #
-  #     - name: Upload APK
-  #       uses: actions/upload-artifact@v4
-  #       with:
-  #         name: release-apk
-  #         path: frontend/build/app/outputs/flutter-apk/app-release.apk
-
-  build-web:
+  build:
     runs-on: ubuntu-latest
-    needs: analyze-and-test
+    needs: [lint-and-typecheck, test]
     defaults:
       run:
-        working-directory: frontend
+        working-directory: frontend-next
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          flutter-version: '3.29.2'
-          channel: 'stable'
-          cache: true
+          bun-version: latest
 
       - name: Install dependencies
-        run: flutter pub get
+        run: bun install --frozen-lockfile
 
-      - name: Build Web
-        run: flutter build web --release
+      - name: Build
+        run: bun run build
 
-      - name: Upload Web Build
+      - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: web-build
-          path: frontend/build/web
+          name: next-build
+          path: frontend-next/.next
