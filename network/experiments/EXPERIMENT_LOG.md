@@ -295,6 +295,37 @@ augmentation, and consider early stopping around epoch 60.
 
 ---
 
+## Exp 17: 3x3 Grid with More Data
+
+**Date:** December 2025 **Status:** SUCCESS (81% cell, 93% rotation!)
+
+Scaled up training data from 500 to 10,000 puzzles to reduce overfitting
+observed in exp16. Tested two configurations: 1 cell per puzzle (fast) and
+9 cells per puzzle (thorough).
+
+**Run 1 (1 cell/puzzle):** Unexpectedly made overfitting *worse* (31% gap vs
+exp16's 11%). The model never sees all 9 cells of a puzzle together, preventing
+it from learning that cells within the same puzzle share visual features.
+
+**Run 2 (9 cells/puzzle):** Massive success! Test cell accuracy jumped from
+39% to **81%**, rotation from 61% to **93%**. Train-test gap dropped to **-1.4%**
+(test slightly exceeds train), indicating no overfitting.
+
+Results comparison:
+
+| Config                   | Test Cell | Test Rot | Cell Gap |
+| ------------------------ | --------- | -------- | -------- |
+| Exp16 (500 puzzles)      | 39.1%     | 60.9%    | 11.1%    |
+| Exp17 Run 1 (10K, 1cell) | 37.7%     | 60.3%    | 31.2%    |
+| Exp17 Run 2 (10K, 9cell) | **80.9%** | **92.7%**| **-1.4%**|
+
+Key insight: **How** you use data matters as much as **how much** data you have.
+Must see all cells per puzzle together for proper feature learning. The
+architecture (ShuffleNetV2_x0.5 + rotation correlation) scales well to 3x3 grid
+when given sufficient diverse training data.
+
+---
+
 ## Summary Table
 
 | Exp | Focus                       | Test Result            | Key Finding                                    |
@@ -315,6 +346,7 @@ augmentation, and consider early stopping around epoch 60.
 | 14  | MobileViT-XS backbone       | 75% quad / 92% rot     | CNN beats Transformer for spatial matching     |
 | 15  | Fast backbone comparison    | **12.9s/epoch**        | ShuffleNetV2 fastest for experimentation       |
 | 16  | 3x3 grid (9 cells)          | 39% cell / 61% rot     | Architecture scales, but needs more data       |
+| 17  | 3x3 grid + 10K puzzles      | **81% cell / 93% rot** | Data scaling approach validated for 3x3!       |
 
 ---
 
@@ -324,12 +356,12 @@ augmentation, and consider early stopping around epoch 60.
 fine-tuned MobileNetV3-Small backbone (exp9) - 93% quadrant accuracy
 
 **For Position + Rotation (2×2):** DualInputRegressorWithRotationCorrelation
-(exp13) with MobileNetV3-Small - **86% quad / 93% rot** with 4499 training
+(exp13) with MobileNetV3-Small - **86% quad / 93% rot** with 4,499 training
 puzzles
 
-**For Position + Rotation (3×3):** FastBackboneModel (exp16) with
-ShuffleNetV2_x0.5 - **39% cell / 61% rot** with 500 training puzzles. Needs more
-data to match exp13's generalization.
+**For Position + Rotation (3×3):** FastBackboneModel (exp17) with
+ShuffleNetV2_x0.5 - **81% cell / 93% rot** with 10,000 training puzzles and
+all 9 cells per puzzle. Matches exp13's 2×2 performance on a harder task!
 
 **Note:** Exp14 showed that MobileViT-XS (CNN-Transformer hybrid) underperforms
 MobileNetV3-Small for this task. Pure CNNs remain the best choice for spatial
@@ -338,8 +370,11 @@ template matching.
 **For Fast Experimentation:** ShuffleNetV2_x0.5 (exp15) - 12.9s/epoch vs 39.3s
 for RepVGG and 98.1s for MobileOne. Use for rapid iteration.
 
-**Next Steps:** Scale up training data for 3x3 grid (2000+ puzzles), add
-stronger regularization, then proceed to 4x4 grid and continuous coordinate
-regression
+**Key Learning from Exp17:** Data quantity AND quality matter. Must see all
+cells per puzzle together for proper feature learning - using 1 cell per puzzle
+with more puzzles actually increased overfitting.
+
+**Next Steps:** Scale to 4×4 grid (16 cells) or attempt continuous coordinate
+regression for sub-cell precision.
 
 ---
