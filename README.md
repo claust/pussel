@@ -7,7 +7,8 @@ A computer vision-based puzzle solver application that helps users solve jigsaw 
 ```
 pussel/
 ├── backend/           # Python FastAPI backend
-└── frontend/         # Flutter mobile app (coming soon)
+├── frontend/         # Flutter mobile app (coming soon)
+└── network/          # ML training data utilities
 ```
 
 ## Features
@@ -19,6 +20,10 @@ pussel/
   - Continuous Integration with GitHub Actions
   - Code coverage reporting with Codecov
 - Flutter mobile app (coming soon)
+- Network utilities for ML training data:
+  - Puzzle piece generator
+  - Image resizer
+  - Piece visualizer
 
 ## Getting Started
 
@@ -26,6 +31,7 @@ See the individual README files in each directory for setup and running instruct
 
 - [Backend README](backend/README.md)
 - Frontend README (coming soon)
+- [Network Utilities README](network/README.md)
 
 ## Development
 

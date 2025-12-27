@@ -1,0 +1,40 @@
+{
+  "backbone": "mobileone_s0",
+  "feature_dim": 1024,
+  "total_params": 9433348,
+  "trainable_params": 9433348,
+  "epochs": 2,
+  "n_train_puzzles": 500,
+  "n_test_puzzles": 100,
+  "batch_size": 64,
+  "total_training_time": 196.22935724258423,
+  "avg_epoch_time": 98.11303544044495,
+  "epoch_times": [
+    99.45300078392029,
+    96.7730700969696
+  ],
+  "final_train_pos_loss": 0.06094748875498772,
+  "final_train_rot_loss": 1.3756406202316285,
+  "final_train_quad_acc": 0.326,
+  "final_train_rot_acc": 0.2895,
+  "test_quad_acc": 0.3425,
+  "test_rot_acc": 0.380625,
+  "history": {
+    "train_pos_loss": [
+      0.06302248927950858,
+      0.06094748875498772
+    ],
+    "train_rot_loss": [
+      1.384111810684204,
+      1.3756406202316285
+    ],
+    "train_quad_acc": [
+      0.308,
+      0.326
+    ],
+    "train_rot_acc": [
+      0.276,
+      0.2895
+    ]
+  }
+}

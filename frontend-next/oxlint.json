@@ -1,0 +1,30 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "react", "nextjs", "react-hooks"],
+  "rules": {
+    "no-unused-vars": "warn",
+    "no-console": "warn",
+    "eqeqeq": "error",
+    "no-var": "error",
+    "prefer-const": "error",
+    "react/jsx-key": "error",
+    "react/no-array-index-key": "off",
+    "nextjs/no-img-element": "off",
+    "react-hooks/rules-of-hooks": "error",
+    "react-hooks/exhaustive-deps": "warn",
+    "typescript/no-explicit-any": "warn",
+    "typescript/no-floating-promises": "error",
+    "typescript/no-misused-promises": "error",
+    "typescript/await-thenable": "error",
+    "typescript/no-unnecessary-type-assertion": "warn",
+    "nextjs/no-html-link-for-pages": "error"
+  },
+  "ignorePatterns": [
+    "node_modules",
+    ".next",
+    "out",
+    "*.config.js",
+    "*.config.ts",
+    "*.config.mjs"
+  ]
+}

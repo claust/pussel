@@ -7,12 +7,14 @@ import tempfile
 from io import BufferedReader
 from pathlib import Path
 from typing import Generator, cast
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 from typing_extensions import TypeAlias
 
 from app.main import app, settings
+from app.models.puzzle_model import PieceResponse, Position
 
 # Add the backend directory to the Python path
 backend_dir = Path(__file__).parent.parent
@@ -87,6 +89,17 @@ def test_process_piece_invalid_puzzle() -> None:
 
 def test_process_piece() -> None:
     """Test processing a valid puzzle piece."""
+    # Create mock response
+    mock_response = PieceResponse(
+        position=Position(x=0.25, y=0.75),
+        confidence=0.85,
+        rotation=90,
+    )
+
+    # Mock the image processor
+    mock_processor = MagicMock()
+    mock_processor.process_piece = AsyncMock(return_value=mock_response)
+
     # First upload a puzzle
     with open("test_puzzle.jpg", "wb") as f:
         f.write(b"fake image content")
@@ -98,19 +111,23 @@ def test_process_piece() -> None:
             response = client.post("/api/v1/puzzle/upload", files=files)
         puzzle_id = response.json()["puzzle_id"]
 
-        # Test piece processing
-        with tempfile.NamedTemporaryFile(suffix=".jpg") as temp_file:
-            temp_file.write(b"fake piece content")
-            temp_file.seek(0)
-            file_tuple = cast(
-                FileUpload,
-                ("test_piece.jpg", temp_file, "image/jpeg"),
-            )
-            files = {"file": file_tuple}
-            response = client.post(
-                f"/api/v1/puzzle/{puzzle_id}/piece",
-                files=files,
-            )
+        # Test piece processing with mocked image processor
+        with patch(
+            "app.main.get_image_processor",
+            return_value=mock_processor,
+        ):
+            with tempfile.NamedTemporaryFile(suffix=".jpg") as temp_file:
+                temp_file.write(b"fake piece content")
+                temp_file.seek(0)
+                file_tuple = cast(
+                    FileUpload,
+                    ("test_piece.jpg", temp_file, "image/jpeg"),
+                )
+                files = {"file": file_tuple}
+                response = client.post(
+                    f"/api/v1/puzzle/{puzzle_id}/piece",
+                    files=files,
+                )
 
         assert response.status_code == 200
         result = response.json()
@@ -120,11 +137,11 @@ def test_process_piece() -> None:
         assert "confidence" in result
         assert "rotation" in result
 
-        # Verify confidence is between 0.5 and 1.0
-        assert 0.5 <= result["confidence"] <= 1.0
-
-        # Verify rotation is one of the expected values
-        assert result["rotation"] in [0, 90, 180, 270]
+        # Verify the mocked values are returned
+        assert result["position"]["x"] == 0.25
+        assert result["position"]["y"] == 0.75
+        assert result["confidence"] == 0.85
+        assert result["rotation"] == 90
 
     finally:
         # Cleanup test image
