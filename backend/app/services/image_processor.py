@@ -111,6 +111,7 @@ class ImageProcessor:
             # Normalize and ensure the puzzle path stays within the upload directory
             base_dir = os.path.realpath(settings.UPLOAD_DIR)
             normalized_path = os.path.realpath(puzzle_path)
+            # Ensure the resolved puzzle path is contained within the upload directory
             if os.path.commonpath([base_dir, normalized_path]) != base_dir:
                 raise FileNotFoundError(f"Puzzle image not found: {normalized_path}")
             if not os.path.exists(normalized_path):
