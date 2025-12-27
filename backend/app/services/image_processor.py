@@ -1,7 +1,7 @@
 """Service module for processing puzzle pieces and matching them to puzzles.
 
-Uses the exp13 dual-input model that compares piece features with puzzle features
-to predict position and rotation.
+Uses the exp18 FastBackboneModel that compares piece features with puzzle features
+to predict position (3x3 grid) and rotation.
 """
 
 import io
@@ -17,17 +17,17 @@ from PIL import Image
 from torch import Tensor
 
 from app.config import settings
-from app.models.exp13_model import DualInputRegressorWithRotationCorrelation
+from app.models.exp18_model import FastBackboneModel
 from app.models.puzzle_model import PieceResponse, Position
 
-# Path to checkpoint - defaults to exp13 model
+# Path to checkpoint - defaults to exp18 model (3x3 grid, 82.2% cell accuracy)
 DEFAULT_CHECKPOINT_PATH = str(
     Path(__file__).resolve().parents[3]
     / "network"
     / "experiments"
-    / "exp13_rotation_correlation_5k"
+    / "exp18_3x3_20k_puzzles"
     / "outputs"
-    / "model_best.pt"
+    / "checkpoint_best.pt"
 )
 CHECKPOINT_PATH = os.environ.get("MODEL_CHECKPOINT_PATH", DEFAULT_CHECKPOINT_PATH)
 
@@ -37,7 +37,7 @@ PUZZLE_SIZE = 256
 
 
 class ImageProcessor:
-    """Image processing service for puzzle piece detection using exp13 model."""
+    """Image processing service for puzzle piece detection using exp18 model."""
 
     def __init__(self) -> None:
         """Initialize the image processor with the trained model."""
@@ -70,14 +70,15 @@ class ImageProcessor:
         else:
             return torch.device("cpu")
 
-    def _load_model(self) -> DualInputRegressorWithRotationCorrelation:
+    def _load_model(self) -> FastBackboneModel:
         """Load the trained model from checkpoint.
 
         Returns:
             The loaded model in evaluation mode.
         """
-        # Initialize model with same config as training
-        model = DualInputRegressorWithRotationCorrelation(
+        # Initialize model with same config as training (exp18)
+        model = FastBackboneModel(
+            pretrained=False,  # We'll load weights from checkpoint
             correlation_dim=128,
             rotation_hidden_dim=128,
             freeze_backbone=False,
@@ -85,7 +86,7 @@ class ImageProcessor:
             rotation_dropout=0.2,
         )
 
-        # Load checkpoint (exp13 format uses 'model_state_dict')
+        # Load checkpoint (exp18 format uses 'model_state_dict')
         checkpoint = torch.load(CHECKPOINT_PATH, map_location=self.device, weights_only=False)
         model.load_state_dict(checkpoint["model_state_dict"])
 
