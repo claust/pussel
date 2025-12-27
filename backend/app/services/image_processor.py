@@ -1,6 +1,6 @@
 """Service module for processing puzzle pieces and matching them to puzzles.
 
-Uses the exp18 FastBackboneModel that compares piece features with puzzle features
+Uses FastBackboneModel that compares piece features with puzzle features
 to predict position (3x3 grid) and rotation.
 """
 
@@ -17,10 +17,10 @@ from PIL import Image
 from torch import Tensor
 
 from app.config import settings
-from app.models.exp18_model import FastBackboneModel
+from app.models.model import FastBackboneModel
 from app.models.puzzle_model import PieceResponse, Position
 
-# Path to checkpoint - defaults to exp18 model (3x3 grid, 82.2% cell accuracy)
+# Path to checkpoint (3x3 grid model with 82% cell accuracy, 95% rotation accuracy)
 DEFAULT_CHECKPOINT_PATH = str(
     Path(__file__).resolve().parents[3]
     / "network"
@@ -37,7 +37,7 @@ PUZZLE_SIZE = 256
 
 
 class ImageProcessor:
-    """Image processing service for puzzle piece detection using exp18 model."""
+    """Image processing service for puzzle piece detection."""
 
     def __init__(self) -> None:
         """Initialize the image processor with the trained model."""
@@ -76,7 +76,7 @@ class ImageProcessor:
         Returns:
             The loaded model in evaluation mode.
         """
-        # Initialize model with same config as training (exp18)
+        # Initialize model with same config as training
         model = FastBackboneModel(
             pretrained=False,  # We'll load weights from checkpoint
             correlation_dim=128,
@@ -86,7 +86,7 @@ class ImageProcessor:
             rotation_dropout=0.2,
         )
 
-        # Load checkpoint (exp18 format uses 'model_state_dict')
+        # Load checkpoint
         checkpoint = torch.load(CHECKPOINT_PATH, map_location=self.device, weights_only=False)
         model.load_state_dict(checkpoint["model_state_dict"])
 
