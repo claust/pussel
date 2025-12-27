@@ -1,30 +1,29 @@
-"""Dual-input regressor with rotation correlation for puzzle piece matching.
+"""FastBackboneModel for 3x3 grid puzzle piece matching.
 
-This model predicts both position and rotation of a puzzle piece by comparing
-the piece features with puzzle features. Key insight: Rotation is not an
-intrinsic property of the piece - it's a relationship between piece and puzzle.
+This model predicts both position (which of 9 cells) and rotation of a puzzle piece
+by comparing the piece features with puzzle features using ShuffleNetV2_x0.5 backbone.
 
-Adapted from network/experiments/exp13_rotation_correlation_5k/model.py for
-backend inference.
+Architecture:
+- Dual ShuffleNetV2_x0.5 backbones (piece + puzzle)
+- Spatial correlation for position prediction
+- Rotation correlation for rotation prediction (0/90/180/270)
+
+Performance: 82% cell accuracy, 95% rotation accuracy on 3x3 grids.
 """
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import models
-from torchvision.models import MobileNet_V3_Small_Weights
+from torchvision.models import ShuffleNet_V2_X0_5_Weights
 
 
 class SpatialCorrelationModule(nn.Module):
-    """Computes spatial correlation between piece features and puzzle feature map.
-
-    This module finds WHERE in the puzzle the piece features best match,
-    producing a correlation/attention map over puzzle locations.
-    """
+    """Computes spatial correlation between piece features and puzzle feature map."""
 
     def __init__(
         self,
-        feature_dim: int = 576,
+        feature_dim: int = 1024,
         correlation_dim: int = 128,
         dropout: float = 0.1,
     ):
@@ -37,7 +36,6 @@ class SpatialCorrelationModule(nn.Module):
         """
         super().__init__()
 
-        # Project features to lower dimension for efficient correlation
         self.piece_proj = nn.Sequential(
             nn.Linear(feature_dim, correlation_dim),
             nn.ReLU(),
@@ -48,8 +46,6 @@ class SpatialCorrelationModule(nn.Module):
             nn.ReLU(),
             nn.Dropout2d(dropout),
         )
-
-        # Learnable temperature for softmax
         self.temperature = nn.Parameter(torch.ones(1) * (correlation_dim**0.5))
 
     def forward(self, piece_feat: torch.Tensor, puzzle_feat_map: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
@@ -61,37 +57,32 @@ class SpatialCorrelationModule(nn.Module):
 
         Returns:
             Tuple of:
-                - correlation_map: Softmax attention over puzzle locations (B, 1, H, W)
+                - attention_map: Softmax attention over puzzle locations (B, 1, H, W)
                 - expected_position: Weighted average position (B, 2)
         """
         batch_size = piece_feat.shape[0]
         _, _, h, w = puzzle_feat_map.shape
 
-        # Project to correlation dimension
-        piece_proj = self.piece_proj(piece_feat)  # (B, correlation_dim)
-        puzzle_proj = self.puzzle_proj(puzzle_feat_map)  # (B, correlation_dim, H, W)
+        piece_proj = self.piece_proj(piece_feat)
+        puzzle_proj = self.puzzle_proj(puzzle_feat_map)
 
-        # Compute correlation: dot product at each spatial location
         piece_proj = piece_proj.unsqueeze(-1).unsqueeze(-1)
         correlation = (piece_proj * puzzle_proj).sum(dim=1, keepdim=True)
         correlation = correlation / self.temperature
 
-        # Softmax to get attention weights
         correlation_flat = correlation.view(batch_size, -1)
         attention_flat = F.softmax(correlation_flat, dim=-1)
         attention_map = attention_flat.view(batch_size, 1, h, w)
 
-        # Compute expected position as weighted average of grid coordinates
         device = piece_feat.device
         y_coords = torch.linspace(0.5 / h, 1 - 0.5 / h, h, device=device)
         x_coords = torch.linspace(0.5 / w, 1 - 0.5 / w, w, device=device)
         yy, xx = torch.meshgrid(y_coords, x_coords, indexing="ij")
 
-        # Weighted average of coordinates
-        attention_squeezed = attention_map.squeeze(1)  # (B, H, W)
+        attention_squeezed = attention_map.squeeze(1)
         expected_x = (attention_squeezed * xx).sum(dim=[1, 2])
         expected_y = (attention_squeezed * yy).sum(dim=[1, 2])
-        expected_position = torch.stack([expected_x, expected_y], dim=1)  # (B, 2)
+        expected_position = torch.stack([expected_x, expected_y], dim=1)
 
         return attention_map, expected_position
 
@@ -108,7 +99,7 @@ class RotationCorrelationModule(nn.Module):
 
     def __init__(
         self,
-        feature_dim: int = 576,
+        feature_dim: int = 1024,
         hidden_dim: int = 128,
         dropout: float = 0.2,
     ):
@@ -122,7 +113,6 @@ class RotationCorrelationModule(nn.Module):
         super().__init__()
         self.feature_dim = feature_dim
 
-        # Learnable projection for piece and puzzle features before comparison
         self.piece_proj = nn.Sequential(
             nn.Conv2d(feature_dim, hidden_dim, 1),
             nn.BatchNorm2d(hidden_dim),
@@ -135,8 +125,6 @@ class RotationCorrelationModule(nn.Module):
             nn.ReLU(),
         )
 
-        # Comparison network: takes concatenated piece and puzzle features
-        # and produces a similarity score
         self.comparison_net = nn.Sequential(
             nn.Conv2d(hidden_dim * 2, hidden_dim, 3, padding=1),
             nn.BatchNorm2d(hidden_dim),
@@ -144,12 +132,12 @@ class RotationCorrelationModule(nn.Module):
             nn.Conv2d(hidden_dim, 64, 3, padding=1),
             nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.AdaptiveAvgPool2d(1),  # Global pool to (B, 64, 1, 1)
-            nn.Flatten(),  # (B, 64)
+            nn.AdaptiveAvgPool2d(1),
+            nn.Flatten(),
             nn.Linear(64, 32),
             nn.ReLU(),
             nn.Dropout(dropout),
-            nn.Linear(32, 1),  # Single similarity score
+            nn.Linear(32, 1),
         )
 
     def _rotate_feature_map(self, feat_map: torch.Tensor, rotation_idx: int) -> torch.Tensor:
@@ -164,11 +152,11 @@ class RotationCorrelationModule(nn.Module):
         """
         if rotation_idx == 0:
             return feat_map
-        elif rotation_idx == 1:  # 90 degrees clockwise
+        elif rotation_idx == 1:
             return torch.rot90(feat_map, k=-1, dims=[2, 3])
-        elif rotation_idx == 2:  # 180 degrees
+        elif rotation_idx == 2:
             return torch.rot90(feat_map, k=2, dims=[2, 3])
-        else:  # 270 degrees clockwise = 90 degrees counter-clockwise
+        else:
             return torch.rot90(feat_map, k=1, dims=[2, 3])
 
     def _extract_region(
@@ -176,46 +164,43 @@ class RotationCorrelationModule(nn.Module):
         puzzle_feat_map: torch.Tensor,
         position: torch.Tensor,
         target_size: tuple[int, int],
+        grid_size: int = 3,
     ) -> torch.Tensor:
-        """Extract puzzle region at the predicted position using quadrant indexing.
+        """Extract puzzle region at the predicted position using grid indexing.
 
-        For 2x2 quadrant prediction, this uses simple slicing instead of grid_sample
-        to avoid MPS compatibility issues with grid_sampler backward pass.
+        For 3x3 grid, this extracts the cell at the predicted position.
 
         Args:
-            puzzle_feat_map: Puzzle features (B, C, H_puzzle, W_puzzle).
-            position: Predicted positions (B, 2) in [0, 1] normalized coords.
-            target_size: Desired output size (H_piece, W_piece).
+            puzzle_feat_map: Feature map of the puzzle [B, C, H, W].
+            position: Predicted position [B, 2] with (x, y) in [0, 1].
+            target_size: Target size (h, w) for the extracted region.
+            grid_size: Grid size (3 for 3x3 grid).
 
         Returns:
-            Extracted regions (B, C, H_piece, W_piece).
+            Extracted regions [B, C, h, w].
         """
         batch_size = puzzle_feat_map.shape[0]
         _, c, h_puzzle, w_puzzle = puzzle_feat_map.shape
         h_piece, w_piece = target_size
 
-        # Determine quadrant indices from position
-        x_idx = (position[:, 0] >= 0.5).long()  # 0 for left, 1 for right
-        y_idx = (position[:, 1] >= 0.5).long()  # 0 for top, 1 for bottom
+        # Compute grid cell indices from position
+        x_idx = torch.clamp((position[:, 0] * grid_size).long(), 0, grid_size - 1)
+        y_idx = torch.clamp((position[:, 1] * grid_size).long(), 0, grid_size - 1)
 
-        # Calculate start indices for slicing
-        half_h = h_puzzle // 2
-        half_w = w_puzzle // 2
+        cell_h = h_puzzle // grid_size
+        cell_w = w_puzzle // grid_size
 
-        # Create output tensor
         device = puzzle_feat_map.device
         extracted = torch.zeros(batch_size, c, h_piece, w_piece, device=device)
 
-        # Extract regions for each sample
         for b in range(batch_size):
-            h_start = int(y_idx[b].item() * half_h)
-            w_start = int(x_idx[b].item() * half_w)
-            h_end = h_start + half_h
-            w_end = w_start + half_w
+            h_start = int(y_idx[b].item()) * cell_h
+            w_start = int(x_idx[b].item()) * cell_w
+            h_end = h_start + cell_h
+            w_end = w_start + cell_w
 
             region = puzzle_feat_map[b, :, h_start:h_end, w_start:w_end]
 
-            # Resize to target size if needed
             if region.shape[1:] != (h_piece, w_piece):
                 region = F.interpolate(
                     region.unsqueeze(0),
@@ -246,84 +231,88 @@ class RotationCorrelationModule(nn.Module):
         """
         _, _, h_piece, w_piece = piece_feat_map.shape
 
-        # Extract puzzle region at predicted position
         puzzle_region = self._extract_region(puzzle_feat_map, position, (h_piece, w_piece))
+        puzzle_proj = self.puzzle_proj(puzzle_region)
 
-        # Project features
-        puzzle_proj = self.puzzle_proj(puzzle_region)  # (B, hidden_dim, H, W)
-
-        # Compute similarity score for each rotation
         rotation_scores = []
         for rot_idx in range(4):
-            # Rotate piece features
             rotated_piece = self._rotate_feature_map(piece_feat_map, rot_idx)
-            piece_proj = self.piece_proj(rotated_piece)  # (B, hidden_dim, H, W)
-
-            # Concatenate and compare
-            combined = torch.cat([piece_proj, puzzle_proj], dim=1)  # (B, 2*hidden, H, W)
-            score = self.comparison_net(combined)  # (B, 1)
+            piece_proj = self.piece_proj(rotated_piece)
+            combined = torch.cat([piece_proj, puzzle_proj], dim=1)
+            score = self.comparison_net(combined)
             rotation_scores.append(score)
 
-        # Stack to get (B, 4) rotation logits
         rotation_logits = torch.cat(rotation_scores, dim=1)
-
         return rotation_logits
 
 
-class DualInputRegressorWithRotationCorrelation(nn.Module):
-    """Dual-input model with position AND rotation correlation prediction.
+class FastBackboneModel(nn.Module):
+    """Model with ShuffleNetV2_x0.5 backbone for 3x3 grid puzzle solving.
 
-    Uses spatial correlation for position prediction and rotation correlation
-    that compares piece to puzzle at each rotation angle.
+    Achieves 82% cell accuracy and 95% rotation accuracy on 3x3 grids.
     """
 
     def __init__(
         self,
+        pretrained: bool = True,
         correlation_dim: int = 128,
         rotation_hidden_dim: int = 128,
         freeze_backbone: bool = False,
         dropout: float = 0.1,
         rotation_dropout: float = 0.2,
     ):
-        """Initialize the model.
+        """Initialize the model with ShuffleNetV2_x0.5 backbone.
 
         Args:
-            correlation_dim: Dimension for position correlation computation.
+            pretrained: Whether to use pretrained weights.
+            correlation_dim: Dimension for position correlation.
             rotation_hidden_dim: Hidden dimension for rotation comparison.
-            freeze_backbone: If True, freeze MobileNetV3 weights.
+            freeze_backbone: If True, freeze backbone weights.
             dropout: Dropout rate for position head.
             rotation_dropout: Dropout rate for rotation head.
         """
         super().__init__()
-        self.freeze_backbone = freeze_backbone
+        self.freeze_backbone_flag = freeze_backbone
+        self.feature_dim = 1024  # ShuffleNetV2 x0.5 final conv outputs 1024 channels
 
-        # Load pretrained MobileNetV3-Small
-        weights = MobileNet_V3_Small_Weights.IMAGENET1K_V1
-        piece_model = models.mobilenet_v3_small(weights=weights)
-        puzzle_model = models.mobilenet_v3_small(weights=weights)
+        # Create ShuffleNetV2 backbones
+        weights = ShuffleNet_V2_X0_5_Weights.IMAGENET1K_V1 if pretrained else None
+        piece_model = models.shufflenet_v2_x0_5(weights=weights)
+        puzzle_model = models.shufflenet_v2_x0_5(weights=weights)
 
-        # Extract feature extractors (before pooling)
-        self.piece_features = piece_model.features
-        self.puzzle_features = puzzle_model.features
+        # Extract feature extractor (everything before final FC)
+        self.piece_backbone = nn.Sequential(
+            piece_model.conv1,
+            piece_model.maxpool,
+            piece_model.stage2,
+            piece_model.stage3,
+            piece_model.stage4,
+            piece_model.conv5,
+        )
+        self.puzzle_backbone = nn.Sequential(
+            puzzle_model.conv1,
+            puzzle_model.maxpool,
+            puzzle_model.stage2,
+            puzzle_model.stage3,
+            puzzle_model.stage4,
+            puzzle_model.conv5,
+        )
 
-        # MobileNetV3-Small feature dimension
-        feature_dim = 576
-
-        # Global pooling for piece (only used for position correlation)
+        # Global pooling
         self.piece_pool = nn.AdaptiveAvgPool2d(1)
 
-        # Freeze backbones if requested
+        # Freeze if requested
         if freeze_backbone:
-            self._freeze_all_backbone_layers()
+            self._freeze_backbones()
 
-        # Spatial correlation module for position (with dropout)
+        # Spatial correlation for position
         self.spatial_correlation = SpatialCorrelationModule(
-            feature_dim=feature_dim,
+            feature_dim=self.feature_dim,
             correlation_dim=correlation_dim,
             dropout=dropout,
         )
 
-        # Position refinement head with dropout
+        # Position refinement
         self.refinement = nn.Sequential(
             nn.Linear(2, 32),
             nn.ReLU(),
@@ -331,61 +320,72 @@ class DualInputRegressorWithRotationCorrelation(nn.Module):
             nn.Linear(32, 2),
         )
 
-        # Rotation correlation module
+        # Rotation correlation
         self.rotation_correlation = RotationCorrelationModule(
-            feature_dim=feature_dim,
+            feature_dim=self.feature_dim,
             hidden_dim=rotation_hidden_dim,
             dropout=rotation_dropout,
         )
 
-        # Whether to use refinement (can be disabled for pure correlation)
         self.use_refinement = True
 
-        # Track unfrozen layers for gradual unfreezing
-        self._unfrozen_layers: set[int] = set()
-
-    def _freeze_all_backbone_layers(self) -> None:
-        """Freeze all layers in both backbones."""
-        for param in self.piece_features.parameters():
+    def _freeze_backbones(self) -> None:
+        """Freeze all backbone parameters."""
+        for param in self.piece_backbone.parameters():
             param.requires_grad = False
-        for param in self.puzzle_features.parameters():
+        for param in self.puzzle_backbone.parameters():
             param.requires_grad = False
-        self._unfrozen_layers.clear()
 
     def forward(self, piece: torch.Tensor, puzzle: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        """Forward pass: (piece, puzzle) -> (position, rotation_logits, attention_map).
+        """Forward pass.
 
         Args:
-            piece: Piece image tensor of shape (batch, 3, H, W).
-            puzzle: Puzzle image tensor of shape (batch, 3, H, W).
+            piece: Piece image tensor of shape (batch, 3, 128, 128).
+            puzzle: Puzzle image tensor of shape (batch, 3, 256, 256).
 
         Returns:
             Tuple of:
-                - position: Predicted (cx, cy) coordinates (batch, 2)
+                - position: Predicted (cx, cy) coordinates (batch, 2) in [0, 1]
                 - rotation_logits: Rotation class logits (batch, 4)
                 - attention_map: Correlation map over puzzle (batch, 1, H, W)
         """
-        # Extract spatial features from puzzle (keep spatial dimensions)
-        puzzle_feat_map = self.puzzle_features(puzzle)  # (B, 576, H, W)
+        # Extract spatial features
+        puzzle_feat_map = self.puzzle_backbone(puzzle)
+        piece_feat_map = self.piece_backbone(piece)
 
-        # Extract SPATIAL features from piece (keep spatial dimensions!)
-        piece_feat_map = self.piece_features(piece)  # (B, 576, 4, 4)
+        # Pool piece features for position correlation
+        piece_feat = self.piece_pool(piece_feat_map).flatten(1)
 
-        # Pool piece features for position correlation only
-        piece_feat = self.piece_pool(piece_feat_map).flatten(1)  # (B, 576)
-
-        # Compute spatial correlation for position
+        # Spatial correlation for position
         attention_map, expected_pos = self.spatial_correlation(piece_feat, puzzle_feat_map)
 
-        # Optional position refinement
+        # Position refinement
         if self.use_refinement:
             refinement = self.refinement(expected_pos)
-            position = expected_pos + 0.1 * refinement  # Small adjustment
+            position = expected_pos + 0.1 * refinement
             position = torch.clamp(position, 0, 1)
         else:
             position = expected_pos
 
-        # Rotation prediction by comparing piece to puzzle
+        # Rotation correlation
         rotation_logits = self.rotation_correlation(piece_feat_map, puzzle_feat_map, position)
 
         return position, rotation_logits, attention_map
+
+    def predict_cell(self, piece: torch.Tensor, puzzle: torch.Tensor, grid_size: int = 3) -> torch.Tensor:
+        """Predict which cell the piece belongs to in a grid.
+
+        Args:
+            piece: Piece image tensor.
+            puzzle: Puzzle image tensor.
+            grid_size: Size of the grid (3 for 3x3 grid).
+
+        Returns:
+            Cell indices (0 to grid_size*grid_size - 1).
+        """
+        position, _, _ = self.forward(piece, puzzle)
+        cx, cy = position[:, 0], position[:, 1]
+        col_idx = torch.clamp((cx * grid_size).long(), 0, grid_size - 1)
+        row_idx = torch.clamp((cy * grid_size).long(), 0, grid_size - 1)
+        cell = row_idx * grid_size + col_idx
+        return cell
