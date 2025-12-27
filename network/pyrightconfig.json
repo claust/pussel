@@ -4,6 +4,7 @@
     "datasets",
     "checkpoints",
     "logs",
+    "experiments",
     "**/__pycache__"
   ],
   "pythonVersion": "3.12",
