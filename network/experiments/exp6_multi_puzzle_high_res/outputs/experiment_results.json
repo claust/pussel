@@ -1,0 +1,25 @@
+{
+  "experiment": "exp6_multi_puzzle_high_res",
+  "train_puzzles": [
+    "puzzle_001",
+    "puzzle_002",
+    "puzzle_003",
+    "puzzle_005",
+    "puzzle_006"
+  ],
+  "test_puzzle": "puzzle_007",
+  "puzzle_size": 512,
+  "epochs": 100,
+  "training_time_seconds": 4588.631992101669,
+  "model_params": 3888119,
+  "train_accuracy": 0.024,
+  "train_top5": 0.08463157894736842,
+  "train_loss": 5.229084117300558,
+  "test_accuracy": 0.0,
+  "test_top5": 0.005263157894736842,
+  "test_loss": 16.532576179504396,
+  "best_test_accuracy": 0.002105263157894737,
+  "best_epoch": 20,
+  "random_baseline": 0.0010526315789473684,
+  "test_vs_random": 0.0
+}

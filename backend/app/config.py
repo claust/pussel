@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     # CORS settings
     BACKEND_CORS_ORIGINS: list[str] = ["*"]
 
+    # Azure settings
+    USE_AZURE_STORAGE: bool = False
+    AZURE_STORAGE_CONNECTION_STRING: str = ""
+
     model_config = SettingsConfigDict(case_sensitive=True, env_file=".env")
 
 

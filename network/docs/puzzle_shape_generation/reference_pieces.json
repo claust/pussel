@@ -1,0 +1,412 @@
+{
+  "pieces": [
+    {
+      "edge_types": [
+        "blank",
+        "tab",
+        "tab",
+        "blank"
+      ],
+      "edge_params": [
+        {
+          "position": 0.5,
+          "neck_width": 0.3171103298664093,
+          "bulb_width": 0.36385977268218994,
+          "height": 0.15008683502674103,
+          "neck_ratio": 0.15014134347438812,
+          "curvature": 0.9718935489654541,
+          "asymmetry": 0.12730422616004944,
+          "corner_slope": 8.466814324492589e-05,
+          "squareness": 1.4801859855651855,
+          "neck_flare": 0.7995009422302246,
+          "shoulder_offset": 0.08865730464458466,
+          "shoulder_flatness": 0.00034504884388297796
+        },
+        {
+          "position": 0.5,
+          "neck_width": 0.27655789256095886,
+          "bulb_width": 0.35025638341903687,
+          "height": 0.19034652411937714,
+          "neck_ratio": 0.15014563500881195,
+          "curvature": 0.8110042214393616,
+          "asymmetry": -0.14989662170410156,
+          "corner_slope": 8.811808947939426e-05,
+          "squareness": 1.3602192401885986,
+          "neck_flare": 0.7995444536209106,
+          "shoulder_offset": 0.0799172967672348,
+          "shoulder_flatness": 0.0003279377124272287
+        },
+        {
+          "position": 0.5,
+          "neck_width": 0.19911417365074158,
+          "bulb_width": 0.37605205178260803,
+          "height": 0.3089628219604492,
+          "neck_ratio": 0.1501358598470688,
+          "curvature": 0.922942042350769,
+          "asymmetry": -0.14989112317562103,
+          "corner_slope": 9.026273619383574e-05,
+          "squareness": 1.438408374786377,
+          "neck_flare": 0.7995592355728149,
+          "shoulder_offset": 5.014322596252896e-05,
+          "shoulder_flatness": 0.0746992975473404
+        },
+        {
+          "position": 0.5,
+          "neck_width": 0.1445424109697342,
+          "bulb_width": 0.298857182264328,
+          "height": 0.39992478489875793,
+          "neck_ratio": 0.17588727176189423,
+          "curvature": 0.9997792840003967,
+          "asymmetry": 0.08024239540100098,
+          "corner_slope": 0.15879642963409424,
+          "squareness": 1.4998416900634766,
+          "neck_flare": 0.799575686454773,
+          "shoulder_offset": 5.0267382903257385e-05,
+          "shoulder_flatness": 0.9974853992462158
+        }
+      ],
+      "size": 1.0,
+      "corner_radius": 0.04
+    },
+    {
+      "edge_types": [
+        "tab",
+        "blank",
+        "tab",
+        "tab"
+      ],
+      "edge_params": [
+        {
+          "position": 0.5,
+          "neck_width": 0.24563714861869812,
+          "bulb_width": 0.3833133280277252,
+          "height": 0.22612938284873962,
+          "neck_ratio": 0.15012061595916748,
+          "curvature": 0.9997797608375549,
+          "asymmetry": -0.06287214159965515,
+          "corner_slope": 7.704653398832306e-05,
+          "squareness": 1.4998424053192139,
+          "neck_flare": 0.7996053695678711,
+          "shoulder_offset": 4.446282400749624e-05,
+          "shoulder_flatness": 0.005908987484872341
+        },
+        {
+          "position": 0.5,
+          "neck_width": 0.19638854265213013,
+          "bulb_width": 0.3079190254211426,
+          "height": 0.32092034816741943,
+          "neck_ratio": 0.15012480318546295,
+          "curvature": 0.999747633934021,
+          "asymmetry": -0.12186134606599808,
+          "corner_slope": 0.07507114112377167,
+          "squareness": 1.499819278717041,
+          "neck_flare": 0.7996102571487427,
+          "shoulder_offset": 4.3386578909121454e-05,
+          "shoulder_flatness": 0.8240593075752258
+        },
+        {
+          "position": 0.5,
+          "neck_width": 0.2005620002746582,
+          "bulb_width": 0.35753610730171204,
+          "height": 0.3487749695777893,
+          "neck_ratio": 0.15012513101100922,
+          "curvature": 0.9911512732505798,
+          "asymmetry": 0.08038176596164703,
+          "corner_slope": 0.010214217938482761,
+          "squareness": 1.4751251935958862,
+          "neck_flare": 0.7996006011962891,
+          "shoulder_offset": 4.6347158786375076e-05,
+          "shoulder_flatness": 0.8231831192970276
+        },
+        {
+          "position": 0.5,
+          "neck_width": 0.18267832696437836,
+          "bulb_width": 0.2536769509315491,
+          "height": 0.15008775889873505,
+          "neck_ratio": 0.20244784653186798,
+          "curvature": 0.9994433522224426,
+          "asymmetry": 0.09336535632610321,
+          "corner_slope": 0.02633577026426792,
+          "squareness": 1.4982093572616577,
+          "neck_flare": 0.7993102073669434,
+          "shoulder_offset": 0.0880240797996521,
+          "shoulder_flatness": 0.0002939439727924764
+        }
+      ],
+      "size": 1.0,
+      "corner_radius": 0.04
+    },
+    {
+      "edge_types": [
+        "blank",
+        "blank",
+        "tab",
+        "blank"
+      ],
+      "edge_params": [
+        {
+          "position": 0.5,
+          "neck_width": 0.17041447758674622,
+          "bulb_width": 0.31260454654693604,
+          "height": 0.34664973616600037,
+          "neck_ratio": 0.1502147763967514,
+          "curvature": 0.9427251815795898,
+          "asymmetry": 0.14983126521110535,
+          "corner_slope": 0.0001470498536946252,
+          "squareness": 1.4140756130218506,
+          "neck_flare": 0.7992993593215942,
+          "shoulder_offset": 8.09864213806577e-05,
+          "shoulder_flatness": 0.5421815514564514
+        },
+        {
+          "position": 0.5,
+          "neck_width": 0.23994669318199158,
+          "bulb_width": 0.31021252274513245,
+          "height": 0.15019340813159943,
+          "neck_ratio": 0.4179588258266449,
+          "curvature": 0.9459604620933533,
+          "asymmetry": -0.027894683182239532,
+          "corner_slope": 0.0001517971104476601,
+          "squareness": 1.4460289478302002,
+          "neck_flare": 0.7993127107620239,
+          "shoulder_offset": 0.08380520343780518,
+          "shoulder_flatness": 0.0005214869161136448
+        },
+        {
+          "position": 0.5,
+          "neck_width": 0.21345195174217224,
+          "bulb_width": 0.3564532697200775,
+          "height": 0.1704450100660324,
+          "neck_ratio": 0.549392580986023,
+          "curvature": 0.8319642543792725,
+          "asymmetry": 0.11041086912155151,
+          "corner_slope": 0.00013518877676688135,
+          "squareness": 1.406863808631897,
+          "neck_flare": 0.7993955612182617,
+          "shoulder_offset": 0.03344280645251274,
+          "shoulder_flatness": 0.0004939918871968985
+        },
+        {
+          "position": 0.5,
+          "neck_width": 0.33389022946357727,
+          "bulb_width": 0.3792169988155365,
+          "height": 0.15019887685775757,
+          "neck_ratio": 0.23252126574516296,
+          "curvature": 0.9231894016265869,
+          "asymmetry": 0.06099732220172882,
+          "corner_slope": 0.00014524959260597825,
+          "squareness": 1.3185703754425049,
+          "neck_flare": 0.7981635332107544,
+          "shoulder_offset": 0.05355426296591759,
+          "shoulder_flatness": 0.0005491501069627702
+        }
+      ],
+      "size": 1.0,
+      "corner_radius": 0.04
+    },
+    {
+      "edge_types": [
+        "blank",
+        "blank",
+        "blank",
+        "blank"
+      ],
+      "edge_params": [
+        {
+          "position": 0.5,
+          "neck_width": 0.206059992313385,
+          "bulb_width": 0.3286873698234558,
+          "height": 0.25579920411109924,
+          "neck_ratio": 0.15018269419670105,
+          "curvature": 0.9996057748794556,
+          "asymmetry": 0.01377764344215393,
+          "corner_slope": 0.08036106079816818,
+          "squareness": 1.4997175931930542,
+          "neck_flare": 0.7994066476821899,
+          "shoulder_offset": 7.047446706565097e-05,
+          "shoulder_flatness": 0.9627723097801208
+        },
+        {
+          "position": 0.5,
+          "neck_width": 0.2707359492778778,
+          "bulb_width": 0.3117620050907135,
+          "height": 0.15021668374538422,
+          "neck_ratio": 0.15049901604652405,
+          "curvature": 0.9996676445007324,
+          "asymmetry": 0.12163090705871582,
+          "corner_slope": 0.00014037075743544847,
+          "squareness": 1.4997589588165283,
+          "neck_flare": 0.7989221811294556,
+          "shoulder_offset": 0.1191239133477211,
+          "shoulder_flatness": 0.0004998327349312603
+        },
+        {
+          "position": 0.5,
+          "neck_width": 0.15518780052661896,
+          "bulb_width": 0.3281811773777008,
+          "height": 0.24950435757637024,
+          "neck_ratio": 0.1565648317337036,
+          "curvature": 0.9996459484100342,
+          "asymmetry": -0.14980833232402802,
+          "corner_slope": 0.0001243781007360667,
+          "squareness": 1.4997460842132568,
+          "neck_flare": 0.799364447593689,
+          "shoulder_offset": 0.023224877193570137,
+          "shoulder_flatness": 0.23226024210453033
+        },
+        {
+          "position": 0.5,
+          "neck_width": 0.12010370194911957,
+          "bulb_width": 0.30759498476982117,
+          "height": 0.150147944688797,
+          "neck_ratio": 0.5497649908065796,
+          "curvature": 0.9995758533477783,
+          "asymmetry": -0.14986157417297363,
+          "corner_slope": 0.0001166060974355787,
+          "squareness": 1.4996905326843262,
+          "neck_flare": 0.7993974685668945,
+          "shoulder_offset": 0.07371608912944794,
+          "shoulder_flatness": 0.0004972836468368769
+        }
+      ],
+      "size": 1.0,
+      "corner_radius": 0.04
+    },
+    {
+      "edge_types": [
+        "tab",
+        "blank",
+        "tab",
+        "blank"
+      ],
+      "edge_params": [
+        {
+          "position": 0.5,
+          "neck_width": 0.2181921899318695,
+          "bulb_width": 0.31032872200012207,
+          "height": 0.1949343979358673,
+          "neck_ratio": 0.5497660636901855,
+          "curvature": 0.9910064339637756,
+          "asymmetry": 0.001402050256729126,
+          "corner_slope": 0.06639421731233597,
+          "squareness": 1.4937167167663574,
+          "neck_flare": 0.6204023361206055,
+          "shoulder_offset": 0.01059628278017044,
+          "shoulder_flatness": 0.0005162014276720583
+        },
+        {
+          "position": 0.5,
+          "neck_width": 0.3184850215911865,
+          "bulb_width": 0.3948054909706116,
+          "height": 0.15209613740444183,
+          "neck_ratio": 0.16959871351718903,
+          "curvature": 0.9996097087860107,
+          "asymmetry": -0.1498609036207199,
+          "corner_slope": 0.00015057416749186814,
+          "squareness": 1.4997191429138184,
+          "neck_flare": 0.7987921237945557,
+          "shoulder_offset": 0.06216754391789436,
+          "shoulder_flatness": 0.0005409411969594657
+        },
+        {
+          "position": 0.5,
+          "neck_width": 0.22478386759757996,
+          "bulb_width": 0.32011210918426514,
+          "height": 0.16027045249938965,
+          "neck_ratio": 0.3621335029602051,
+          "curvature": 0.985376238822937,
+          "asymmetry": 0.05558748543262482,
+          "corner_slope": 0.06045699119567871,
+          "squareness": 1.2756147384643555,
+          "neck_flare": 0.7993605136871338,
+          "shoulder_offset": 0.09175451099872589,
+          "shoulder_flatness": 0.00048318004701286554
+        },
+        {
+          "position": 0.5,
+          "neck_width": 0.12008808553218842,
+          "bulb_width": 0.4084516763687134,
+          "height": 0.15014687180519104,
+          "neck_ratio": 0.32260769605636597,
+          "curvature": 0.9904674291610718,
+          "asymmetry": 0.1498568058013916,
+          "corner_slope": 0.06893069297075272,
+          "squareness": 1.4784376621246338,
+          "neck_flare": 0.7993977069854736,
+          "shoulder_offset": 0.030232930555939674,
+          "shoulder_flatness": 0.0005048845196142793
+        }
+      ],
+      "size": 1.0,
+      "corner_radius": 0.04
+    },
+    {
+      "edge_types": [
+        "tab",
+        "tab",
+        "tab",
+        "tab"
+      ],
+      "edge_params": [
+        {
+          "position": 0.5,
+          "neck_width": 0.2933156192302704,
+          "bulb_width": 0.3902946710586548,
+          "height": 0.15013861656188965,
+          "neck_ratio": 0.15021300315856934,
+          "curvature": 0.9996091723442078,
+          "asymmetry": 0.09566961228847504,
+          "corner_slope": 0.08600012958049774,
+          "squareness": 1.4997156858444214,
+          "neck_flare": 0.7992675304412842,
+          "shoulder_offset": 0.029811443760991096,
+          "shoulder_flatness": 0.9366574883460999
+        },
+        {
+          "position": 0.5,
+          "neck_width": 0.30127421021461487,
+          "bulb_width": 0.39677202701568604,
+          "height": 0.1501636952161789,
+          "neck_ratio": 0.15039396286010742,
+          "curvature": 0.5403925776481628,
+          "asymmetry": 0.1087186336517334,
+          "corner_slope": 0.00012714530748780817,
+          "squareness": 1.0046308040618896,
+          "neck_flare": 0.7989588975906372,
+          "shoulder_offset": 0.09586919099092484,
+          "shoulder_flatness": 0.0005373186431825161
+        },
+        {
+          "position": 0.5,
+          "neck_width": 0.292328804731369,
+          "bulb_width": 0.344455748796463,
+          "height": 0.1501273214817047,
+          "neck_ratio": 0.15021257102489471,
+          "curvature": 0.9548811316490173,
+          "asymmetry": 0.012638583779335022,
+          "corner_slope": 0.1086682379245758,
+          "squareness": 1.4678946733474731,
+          "neck_flare": 0.7981377840042114,
+          "shoulder_offset": 9.759322711033747e-05,
+          "shoulder_flatness": 0.9995599389076233
+        },
+        {
+          "position": 0.5,
+          "neck_width": 0.2368658483028412,
+          "bulb_width": 0.3315170407295227,
+          "height": 0.15477204322814941,
+          "neck_ratio": 0.23952847719192505,
+          "curvature": 0.9927276968955994,
+          "asymmetry": -0.010604262351989746,
+          "corner_slope": 0.10926312953233719,
+          "squareness": 1.1288979053497314,
+          "neck_flare": 0.7866213321685791,
+          "shoulder_offset": 0.07795342057943344,
+          "shoulder_flatness": 0.0005487869493663311
+        }
+      ],
+      "size": 1.0,
+      "corner_radius": 0.04
+    }
+  ]
+}
