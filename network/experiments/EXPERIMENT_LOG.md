@@ -326,6 +326,41 @@ when given sufficient diverse training data.
 
 ---
 
+## Exp 18: 3x3 Grid with 20K Puzzles
+
+**Date:** December 2025 **Status:** SUCCESS (82% cell, 95% rotation - NEW BEST!)
+
+Doubled training data from 10,000 to 20,000 puzzles to test continued scaling
+benefits. Also optimized training with larger batch size (128 vs 64) and
+proportionally scaled learning rates (2x) for better Apple Silicon GPU
+utilization.
+
+Results:
+
+| Metric            | Train  | Test       | Gap    |
+| ----------------- | ------ | ---------- | ------ |
+| Cell Accuracy     | 84.0%  | **82.2%**  | 1.8%   |
+| Rotation Accuracy | 96.3%  | **95.1%**  | 1.2%   |
+
+Comparison with previous experiments:
+
+| Experiment | Puzzles | Test Cell | Test Rot | Improvement |
+| ---------- | ------- | --------- | -------- | ----------- |
+| Exp17      | 10,000  | 80.9%     | 92.7%    | baseline    |
+| **Exp18**  | 20,000  | **82.2%** | **95.1%**| +1.3% / +2.4% |
+
+Key findings:
+
+1. **Data scaling continues to help**: 20K > 10K improves both metrics
+2. **Rotation benefits most**: +2.4% improvement vs +1.3% for position
+3. **Linear LR scaling validated**: Batch 128 @ 2x LR works well
+4. **Training efficiency**: 21.2 hours on M4 Mac Mini (~12.7 min/epoch)
+
+Performance optimization note: When doubling batch size, double the learning
+rates (linear scaling rule) to maintain similar training dynamics.
+
+---
+
 ## Summary Table
 
 | Exp | Focus                       | Test Result            | Key Finding                                    |
