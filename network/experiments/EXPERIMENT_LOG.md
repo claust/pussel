@@ -361,6 +361,23 @@ rates (linear scaling rule) to maintain similar training dynamics.
 
 ---
 
+## Exp 19: Siamese Architecture
+
+**Date:** December 2025 **Status:** FAILED (79% cell, 92% rotation)
+
+Tested whether a Siamese architecture (single shared backbone for both piece and
+puzzle) could match exp18's dual-backbone performance while reducing parameters.
+Results were worse: 79.4% cell accuracy (-2.8% vs exp18) and 91.7% rotation
+(-3.4% vs exp18), despite 21.6% fewer parameters. The train-test gap also
+increased from 1.8% to 4.5%, indicating worse generalization. The hypothesis
+that weight sharing would help was disproven — piece (128×128) and puzzle
+(256×256) images are too different to benefit from shared feature extraction.
+Siamese networks excel when inputs are similar (face verification, signature
+matching), but here specialized encoders outperform weight sharing. Dual
+backbone from exp18 remains the best approach.
+
+---
+
 ## Summary Table
 
 | Exp | Focus                       | Test Result            | Key Finding                                    |
@@ -382,6 +399,8 @@ rates (linear scaling rule) to maintain similar training dynamics.
 | 15  | Fast backbone comparison    | **12.9s/epoch**        | ShuffleNetV2 fastest for experimentation       |
 | 16  | 3x3 grid (9 cells)          | 39% cell / 61% rot     | Architecture scales, but needs more data       |
 | 17  | 3x3 grid + 10K puzzles      | **81% cell / 93% rot** | Data scaling approach validated for 3x3!       |
+| 18  | 3x3 grid + 20K puzzles      | **82% cell / 95% rot** | Data scaling continues to help (NEW BEST)      |
+| 19  | Siamese architecture        | 79% cell / 92% rot     | Dual backbone > Siamese for dissimilar inputs  |
 
 ---
 
@@ -394,20 +413,27 @@ fine-tuned MobileNetV3-Small backbone (exp9) - 93% quadrant accuracy
 (exp13) with MobileNetV3-Small - **86% quad / 93% rot** with 4,499 training
 puzzles
 
-**For Position + Rotation (3×3):** FastBackboneModel (exp17) with
-ShuffleNetV2_x0.5 - **81% cell / 93% rot** with 10,000 training puzzles and
-all 9 cells per puzzle. Matches exp13's 2×2 performance on a harder task!
+**For Position + Rotation (3×3):** FastBackboneModel (exp18) with
+ShuffleNetV2_x0.5 dual backbone - **82% cell / 95% rot** with 20,000 training
+puzzles. This is the current production-ready model for 3x3 grids.
 
-**Note:** Exp14 showed that MobileViT-XS (CNN-Transformer hybrid) underperforms
-MobileNetV3-Small for this task. Pure CNNs remain the best choice for spatial
-template matching.
+**Architecture recommendations:**
+- **Use dual backbone (separate piece/puzzle encoders)** - exp19 proved that
+  Siamese architectures underperform for this task because piece and puzzle
+  images are fundamentally different inputs
+- **Pure CNNs beat Transformers** - exp14 showed MobileViT-XS (CNN-Transformer
+  hybrid) underperforms for spatial template matching
 
 **For Fast Experimentation:** ShuffleNetV2_x0.5 (exp15) - 12.9s/epoch vs 39.3s
 for RepVGG and 98.1s for MobileOne. Use for rapid iteration.
 
-**Key Learning from Exp17:** Data quantity AND quality matter. Must see all
-cells per puzzle together for proper feature learning - using 1 cell per puzzle
-with more puzzles actually increased overfitting.
+**Key Learnings:**
+1. **Data quantity AND quality matter** (exp17): Must see all cells per puzzle
+   together for proper feature learning
+2. **Siamese is not always better** (exp19): When inputs differ significantly
+   (scale, content type), specialized encoders outperform weight sharing
+3. **Data scaling helps** (exp18): More diverse training data improves
+   generalization
 
 **Next Steps:** Scale to 4×4 grid (16 cells) or attempt continuous coordinate
 regression for sub-cell precision.
