@@ -92,8 +92,9 @@ def test_process_piece() -> None:
     # Create mock response
     mock_response = PieceResponse(
         position=Position(x=0.25, y=0.75),
-        confidence=0.85,
+        position_confidence=0.85,
         rotation=90,
+        rotation_confidence=0.90,
     )
 
     # Mock the image processor
@@ -134,14 +135,16 @@ def test_process_piece() -> None:
         assert "position" in result
         assert "x" in result["position"]
         assert "y" in result["position"]
-        assert "confidence" in result
+        assert "position_confidence" in result
         assert "rotation" in result
+        assert "rotation_confidence" in result
 
         # Verify the mocked values are returned
         assert result["position"]["x"] == 0.25
         assert result["position"]["y"] == 0.75
-        assert result["confidence"] == 0.85
+        assert result["position_confidence"] == 0.85
         assert result["rotation"] == 90
+        assert result["rotation_confidence"] == 0.90
 
     finally:
         # Cleanup test image

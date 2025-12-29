@@ -48,6 +48,18 @@ repos:
           - flake8-pytest-style
         exclude: ^network/
 
+  # Backend pyright type checking
+  - repo: local
+    hooks:
+      - id: backend-pyright
+        name: backend pyright type checking
+        description: Run pyright type checking for backend
+        entry: bash -c 'cd backend && pyright .'
+        language: system
+        files: ^backend/.*\.py$
+        pass_filenames: false
+        require_serial: true
+
   # Network Python checks - runs make check-network for formatting, linting, and type checking
   - repo: local
     hooks:
