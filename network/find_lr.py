@@ -111,10 +111,10 @@ def main():
     try:
         import matplotlib.pyplot as plt
 
-        fig = lr_finder.plot(suggest=True) if lr_finder else None
-        if fig is not None:
+        if lr_finder is not None:
+            lr_finder.plot(suggest=True)
             plt.title(f"LR Finder - {backbone}")
-            fig.savefig("lr_finder_plot.png", dpi=150, bbox_inches="tight")
+            plt.savefig("lr_finder_plot.png", dpi=150, bbox_inches="tight")
             print("\nPlot saved to: lr_finder_plot.png")
         else:
             print("\nCouldn't generate plot: lr_finder returned None")
