@@ -33,13 +33,15 @@ describe('PuzzleStore', () => {
   it('should add pieces', () => {
     const piece1 = {
       position: { x: 0.5, y: 0.5, normalized: true },
-      confidence: 0.9,
+      positionConfidence: 0.9,
       rotation: 0 as const,
+      rotationConfidence: 0.95,
     };
     const piece2 = {
       position: { x: 0.3, y: 0.7, normalized: true },
-      confidence: 0.85,
+      positionConfidence: 0.85,
       rotation: 90 as const,
+      rotationConfidence: 0.92,
     };
 
     usePuzzleStore.getState().addPiece(piece1);
@@ -79,8 +81,9 @@ describe('PuzzleStore', () => {
     usePuzzleStore.getState().setPuzzle({ puzzleId: 'test' }, 'image-url');
     usePuzzleStore.getState().addPiece({
       position: { x: 0.5, y: 0.5, normalized: true },
-      confidence: 0.9,
-      rotation: 0,
+      positionConfidence: 0.9,
+      rotation: 0 as const,
+      rotationConfidence: 0.95,
     });
     usePuzzleStore.getState().setError('Error');
 

@@ -148,7 +148,7 @@ export default function TestPuzzlePage({ params }: PageProps) {
       </header>
 
       {/* Content */}
-      <main className="flex-1 p-4">
+      <main className="mx-auto w-full max-w-2xl flex-1 p-4">
         {error && (
           <div className="bg-destructive/10 text-destructive mb-4 rounded-lg p-3 text-sm">
             {error}
@@ -176,18 +176,20 @@ export default function TestPuzzlePage({ params }: PageProps) {
                 {/* Puzzle preview with optional grid overlay */}
                 <div className="relative">
                   {showGridOverlay ? (
-                    <div className="relative h-64 overflow-hidden rounded-lg">
-                      <img
-                        src={puzzleImage!}
-                        alt="Puzzle"
-                        className="h-full w-full object-contain"
-                      />
-                      <div className="absolute inset-0">
-                        <GridOverlay
-                          gridSize={gridSize}
-                          onCellClick={(index) => void handleCellClick(index)}
-                          selectedCell={selectedCell}
+                    <div className="flex justify-center">
+                      <div className="relative overflow-hidden rounded-lg">
+                        <img
+                          src={puzzleImage!}
+                          alt="Puzzle"
+                          className="block h-auto max-h-[80vh] w-auto max-w-full"
                         />
+                        <div className="absolute inset-0">
+                          <GridOverlay
+                            gridSize={gridSize}
+                            onCellClick={(index) => void handleCellClick(index)}
+                            selectedCell={selectedCell}
+                          />
+                        </div>
                       </div>
                     </div>
                   ) : (
@@ -196,7 +198,6 @@ export default function TestPuzzlePage({ params }: PageProps) {
                       pieces={pieces}
                       gridSize={gridSize}
                       onClick={() => setViewMode('fullscreen')}
-                      className="h-64"
                     />
                   )}
                 </div>

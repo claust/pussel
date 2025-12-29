@@ -10,14 +10,13 @@ interface PieceCardProps {
   className?: string;
 }
 
-export function PieceCard({ piece, index, className }: PieceCardProps) {
-  const confidenceColor =
-    piece.confidence >= 0.8
-      ? 'text-green-600'
-      : piece.confidence >= 0.5
-        ? 'text-yellow-600'
-        : 'text-red-600';
+function getConfidenceColor(confidence: number): string {
+  if (confidence >= 0.8) return 'text-green-600';
+  if (confidence >= 0.5) return 'text-yellow-600';
+  return 'text-red-600';
+}
 
+export function PieceCard({ piece, index, className }: PieceCardProps) {
   return (
     <Card className={cn('overflow-hidden', className)}>
       <CardContent className="p-2">
@@ -46,12 +45,20 @@ export function PieceCard({ piece, index, className }: PieceCardProps) {
             </span>
           </div>
           <div className="flex justify-between">
+            <span className="text-muted-foreground">Pos. conf:</span>
+            <span className={getConfidenceColor(piece.positionConfidence)}>
+              {(piece.positionConfidence * 100).toFixed(0)}%
+            </span>
+          </div>
+          <div className="flex justify-between">
             <span className="text-muted-foreground">Rotation:</span>
             <span>{piece.rotation}°</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Confidence:</span>
-            <span className={confidenceColor}>{(piece.confidence * 100).toFixed(0)}%</span>
+            <span className="text-muted-foreground">Rot. conf:</span>
+            <span className={getConfidenceColor(piece.rotationConfidence)}>
+              {(piece.rotationConfidence * 100).toFixed(0)}%
+            </span>
           </div>
         </div>
       </CardContent>

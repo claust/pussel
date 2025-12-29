@@ -16,8 +16,9 @@ class PieceResponse(BaseModel):
     """Response model for puzzle piece processing."""
 
     position: Position
-    confidence: float
+    position_confidence: float
     rotation: int
+    rotation_confidence: float
 
 
 class PuzzleResponse(BaseModel):

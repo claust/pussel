@@ -25,7 +25,7 @@ export function PuzzleDetail({
 
   return (
     <div
-      className={cn('relative cursor-pointer overflow-hidden rounded-lg', className)}
+      className={cn('relative cursor-pointer', className)}
       onClick={onClick}
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
@@ -39,10 +39,16 @@ export function PuzzleDetail({
           : undefined
       }
     >
-      {/* Puzzle background with dark overlay */}
-      <div className="relative">
-        <img src={puzzleImage} alt="Puzzle" className="h-full w-full object-contain" />
-        <div className="absolute inset-0 bg-black/30" />
+      {/* Puzzle background */}
+      <div className="flex justify-center">
+        <div className="relative overflow-hidden rounded-lg">
+          <img
+            src={puzzleImage}
+            alt="Puzzle"
+            className="block h-auto max-h-[80vh] w-auto max-w-full"
+          />
+          <div className="absolute inset-0 bg-black/30" />
+        </div>
       </div>
 
       {/* Pieces overlay */}
@@ -55,7 +61,7 @@ export function PuzzleDetail({
             top: `${piece.position.y * 100}%`,
             width: `${pieceSize}%`,
             height: `${pieceSize}%`,
-            transform: `translate(-50%, -50%) rotate(${piece.rotation}deg)`,
+            transform: `translate(-50%, -50%) rotate(${-piece.rotation}deg)`,
           }}
         >
           {piece.imageData && (
@@ -69,7 +75,7 @@ export function PuzzleDetail({
           <div
             className="absolute right-0 bottom-0 left-0 h-1"
             style={{
-              background: `linear-gradient(to right, #22c55e ${piece.confidence * 100}%, #ef4444 ${piece.confidence * 100}%)`,
+              background: `linear-gradient(to right, #22c55e ${piece.positionConfidence * 100}%, #ef4444 ${piece.positionConfidence * 100}%)`,
             }}
           />
         </div>

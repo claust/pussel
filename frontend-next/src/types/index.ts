@@ -6,8 +6,9 @@ export interface Position {
 
 export interface Piece {
   position: Position;
-  confidence: number; // 0-1
+  positionConfidence: number; // 0-1
   rotation: 0 | 90 | 180 | 270;
+  rotationConfidence: number; // 0-1
   imageData?: string; // base64 or blob URL
 }
 
