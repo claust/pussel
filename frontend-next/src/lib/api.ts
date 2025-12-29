@@ -23,6 +23,11 @@ export async function checkHealth(): Promise<boolean> {
   }
 }
 
+interface PuzzleApiResponse {
+  puzzle_id: string;
+  image_url?: string;
+}
+
 export async function uploadPuzzle(imageBlob: Blob): Promise<Puzzle> {
   const formData = new FormData();
   formData.append('file', imageBlob, 'puzzle.jpg');
@@ -36,7 +41,18 @@ export async function uploadPuzzle(imageBlob: Blob): Promise<Puzzle> {
     throw new ApiError('Failed to upload puzzle', res.status);
   }
 
-  return res.json();
+  const data: PuzzleApiResponse = await res.json();
+  return {
+    puzzleId: data.puzzle_id,
+    imageUrl: data.image_url,
+  };
+}
+
+interface PieceApiResponse {
+  position: { x: number; y: number };
+  position_confidence: number;
+  rotation: 0 | 90 | 180 | 270;
+  rotation_confidence: number;
 }
 
 export async function processPiece(puzzleId: string, pieceBlob: Blob): Promise<Piece> {
@@ -52,7 +68,13 @@ export async function processPiece(puzzleId: string, pieceBlob: Blob): Promise<P
     throw new ApiError('Failed to process piece', res.status);
   }
 
-  return res.json();
+  const data: PieceApiResponse = await res.json();
+  return {
+    position: { ...data.position, normalized: true },
+    positionConfidence: data.position_confidence,
+    rotation: data.rotation,
+    rotationConfidence: data.rotation_confidence,
+  };
 }
 
 export { API_BASE };
