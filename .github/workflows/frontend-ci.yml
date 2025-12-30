@@ -7,12 +7,12 @@ on:
   push:
     branches: [master, main, dev]
     paths:
-      - 'frontend-next/**'
+      - 'frontend/**'
       - '.github/workflows/frontend-ci.yml'
   pull_request:
     branches: [master, main, dev]
     paths:
-      - 'frontend-next/**'
+      - 'frontend/**'
       - '.github/workflows/frontend-ci.yml'
 
 jobs:
@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: frontend-next
+        working-directory: frontend
 
     steps:
       - uses: actions/checkout@v4
@@ -46,7 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: frontend-next
+        working-directory: frontend
 
     steps:
       - uses: actions/checkout@v4
@@ -67,7 +67,7 @@ jobs:
     needs: [lint-and-typecheck, test]
     defaults:
       run:
-        working-directory: frontend-next
+        working-directory: frontend
 
     steps:
       - uses: actions/checkout@v4
@@ -87,4 +87,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: next-build
-          path: frontend-next/.next
+          path: frontend/.next
