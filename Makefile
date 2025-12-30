@@ -24,7 +24,7 @@ check-network:
 
 # Frontend checks (Next.js with Bun)
 check-frontend:
-	cd frontend-next && bun run check
+	cd frontend && bun run check
 
 # Auto-format all code (Python + Next.js)
 format: format-backend format-network format-frontend
@@ -41,7 +41,7 @@ format-network:
 
 # Auto-format frontend
 format-frontend:
-	cd frontend-next && bun run format
+	cd frontend && bun run format
 
 # Run backend tests with coverage
 test-backend:

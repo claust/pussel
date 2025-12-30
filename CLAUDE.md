@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Pussel is a computer vision-based puzzle solver application with three main components:
 1. **Backend** (`backend/`) - FastAPI service for puzzle image processing and piece matching
-2. **Frontend** (`frontend-next/`) - Next.js 15 web app with Bun for capturing puzzle pieces and displaying solutions
+2. **Frontend** (`frontend/`) - Next.js 15 web app with Bun for capturing puzzle pieces and displaying solutions
 3. **Network** (`network/`) - PyTorch Lightning-based CNN model for predicting puzzle piece positions and rotations
 
 ## Development Setup
@@ -23,7 +23,7 @@ pre-commit install
 
 ### Frontend (Next.js/Bun)
 ```bash
-cd frontend-next
+cd frontend
 bun install
 ```
 
@@ -70,7 +70,7 @@ pre-commit run --all-files
 
 ### Frontend Development
 ```bash
-cd frontend-next
+cd frontend
 bun run dev                # Run development server with Turbopack
 bun run build              # Build for production
 bun run test               # Run tests with Vitest
@@ -199,7 +199,7 @@ pyright is configured with standard mode - all functions must have type annotati
 
 ### Testing
 - Backend tests are in `backend/tests/`
-- Frontend tests are in `frontend-next/src/**/*.test.ts`
+- Frontend tests are in `frontend/src/**/*.test.ts`
 - Always run with coverage: `pytest -v --cov=app --cov-report=term-missing`
 - CI requires `.env.test` file for environment variables
 
@@ -235,9 +235,9 @@ make format-backend        # Format backend only
 make format-network        # Format network only
 ```
 
-For the frontend, run checks from the `frontend-next/` directory:
+For the frontend, run checks from the `frontend/` directory:
 ```bash
-cd frontend-next
+cd frontend
 bun run check              # OxLint + TypeScript + Prettier
 bun run format             # Auto-format with Prettier
 ```
