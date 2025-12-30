@@ -12,6 +12,17 @@ from typing import List, Literal, Optional, Tuple
 
 from models import BezierCurve, TabParameters
 
+# Minimum distance between any two blank curves on a piece.
+# This is measured in normalized piece coordinates (piece is 1x1).
+# A value of 0.15 means blanks must be at least 15% of piece size apart.
+MIN_BLANK_CURVE_DISTANCE = 0.15
+
+# Number of points to sample per curve for distance calculation.
+DISTANCE_SAMPLE_POINTS = 10
+
+# Maximum regeneration attempts before giving up on constraint satisfaction.
+MAX_REGENERATION_ATTEMPTS = 100
+
 
 @dataclass
 class Edge:
@@ -143,6 +154,241 @@ def _generate_tab_edge(is_tab: bool, params: Optional[TabParameters] = None) -> 
     return Edge(edge_type=edge_type, params=params, curves=curves)
 
 
+def get_edge_type_for_piece(edge: Edge, position: Literal["top", "right", "bottom", "left"]) -> str:
+    """Get the effective edge type from a piece's perspective.
+
+    An edge is shared between two adjacent pieces, but they see opposite types:
+    - For "top" and "left" edges: the stored edge_type applies directly
+    - For "bottom" and "right" edges: the type is inverted (tab<->blank)
+
+    Args:
+        edge: The edge to check.
+        position: The edge's position relative to the piece ("top", "right", "bottom", "left").
+
+    Returns:
+        The effective edge type ("tab", "blank", or "flat") from the piece's perspective.
+    """
+    if edge.edge_type == "flat":
+        return "flat"
+
+    if position in ("top", "left"):
+        return edge.edge_type
+    else:  # "bottom" or "right"
+        return "blank" if edge.edge_type == "tab" else "tab"
+
+
+def _sample_curve_points(
+    curve: BezierCurve,
+    num_points: int,
+    t_start: float = 0.0,
+    t_end: float = 1.0,
+) -> List[Tuple[float, float]]:
+    """Sample points along a Bezier curve within a t range."""
+    points = []
+    for i in range(num_points):
+        t = t_start + i * (t_end - t_start) / (num_points - 1) if num_points > 1 else (t_start + t_end) / 2
+        points.append(curve.evaluate(t))
+    return points
+
+
+def _min_distance_between_point_sets(
+    points1: List[Tuple[float, float]],
+    points2: List[Tuple[float, float]],
+) -> float:
+    """Calculate minimum distance between two sets of points."""
+    import math
+
+    min_dist = float("inf")
+    for p1 in points1:
+        for p2 in points2:
+            dist = math.sqrt((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2)
+            min_dist = min(min_dist, dist)
+    return min_dist
+
+
+def _is_inside_piece(point: Tuple[float, float], margin: float = 0.02) -> bool:
+    """Check if a point is inside the piece boundaries (with margin)."""
+    x, y = point
+    return margin < x < 1.0 - margin and margin < y < 1.0 - margin
+
+
+def _get_blank_curve_points(
+    edge: Edge,
+    position: Literal["top", "right", "bottom", "left"],
+) -> List[Tuple[float, float]]:
+    """Get sampled points from curves that indent INTO this piece.
+
+    The geometry depends on the STORED edge type, not the perspective type:
+    - Stored "blank" → curves indent into this piece (after rotation)
+    - Stored "tab" → curves protrude out of this piece
+
+    We check stored type "blank" because those curves go INTO the piece.
+    """
+    if edge.edge_type != "blank":  # Only stored "blank" curves indent into piece
+        return []
+
+    # Transform parameters based on edge position
+    # Piece coordinates: (0,0) bottom-left, (1,1) top-right
+    if position == "top":
+        translate, rotate = (0.0, 1.0), 0
+    elif position == "left":
+        translate, rotate = (0.0, 0.0), 1  # 90° CCW
+    elif position == "bottom":
+        translate, rotate = (1.0, 0.0), 2  # 180°
+    else:  # right
+        translate, rotate = (1.0, 1.0), 3  # 270° CCW (90° CW)
+
+    transformed = transform_curves(edge.curves, translate, (1.0, 1.0), rotate)
+
+    # Sample all curves but only keep points INSIDE the piece
+    all_points: List[Tuple[float, float]] = []
+    for curve in transformed:
+        points = _sample_curve_points(curve, DISTANCE_SAMPLE_POINTS, t_start=0.05, t_end=0.95)
+        for p in points:
+            if _is_inside_piece(p):
+                all_points.append(p)
+
+    return all_points
+
+
+def _check_piece_blank_distances(
+    top_edge: Edge,
+    left_edge: Edge,
+    right_edge: Edge,
+    bottom_edge: Edge,
+) -> bool:
+    """Check if all blank curves on a piece are sufficiently far apart.
+
+    Returns True if constraints are satisfied, False otherwise.
+    """
+    # Collect points from all blank edges
+    blank_point_sets: List[Tuple[str, List[Tuple[float, float]]]] = []
+
+    for edge, pos in [
+        (top_edge, "top"),
+        (left_edge, "left"),
+        (right_edge, "right"),
+        (bottom_edge, "bottom"),
+    ]:
+        pos_literal: Literal["top", "right", "bottom", "left"] = pos  # type: ignore[assignment]
+        points = _get_blank_curve_points(edge, pos_literal)
+        if points:
+            blank_point_sets.append((pos, points))
+
+    # Check distances between all pairs of blank edges
+    for i, (_pos1, points1) in enumerate(blank_point_sets):
+        for _pos2, points2 in blank_point_sets[i + 1 :]:
+            min_dist = _min_distance_between_point_sets(points1, points2)
+            if min_dist < MIN_BLANK_CURVE_DISTANCE:
+                return False
+
+    return True
+
+
+def _regenerate_edge_params(edge: Edge, scale: float = 1.0) -> None:
+    """Regenerate edge with random parameters, optionally scaled down.
+
+    Args:
+        edge: The edge to regenerate.
+        scale: Scale factor for height/bulb_width (1.0 = normal, <1.0 = smaller).
+    """
+    if edge.params is None or edge.edge_type == "flat":
+        return
+
+    from geometry import generate_realistic_tab_edge
+
+    new_params = TabParameters.random()
+    # Scale down height and bulb_width to make blanks smaller and less likely to overlap
+    new_params.height *= scale
+    new_params.bulb_width *= scale
+    # Center position to keep blanks away from corners
+    new_params.position = 0.45 + 0.1 * (new_params.position - 0.4) / 0.2  # Compress to 0.45-0.55
+
+    is_blank = edge.edge_type == "blank"
+    edge.params = new_params
+    edge.curves = generate_realistic_tab_edge(
+        start=(0.0, 0.0),
+        end=(1.0, 0.0),
+        params=new_params,
+        is_blank=is_blank,
+        corner_slope=new_params.corner_slope,
+        edge_type=edge.edge_type,
+    )
+
+
+def _fix_piece_violations(
+    top_edge: Edge,
+    left_edge: Edge,
+    right_edge: Edge,
+    bottom_edge: Edge,
+) -> bool:
+    """Attempt to fix distance violations for a piece by regenerating edge parameters.
+
+    Returns True if piece now satisfies constraints, False if max attempts exceeded.
+    """
+    edges_info: List[Tuple[Edge, Literal["top", "right", "bottom", "left"]]] = [
+        (top_edge, "top"),
+        (left_edge, "left"),
+        (right_edge, "right"),
+        (bottom_edge, "bottom"),
+    ]
+
+    # Get edges with stored type "blank" (these are the curves that indent into pieces)
+    blank_edges = [(edge, pos) for edge, pos in edges_info if edge.edge_type == "blank"]
+
+    if len(blank_edges) < 2:
+        return True  # No possible violation with < 2 blanks
+
+    for attempt in range(MAX_REGENERATION_ATTEMPTS):
+        if _check_piece_blank_distances(top_edge, left_edge, right_edge, bottom_edge):
+            return True
+
+        # Progressive scaling: start at 1.0, decrease to 0.5 over attempts
+        scale = 1.0 - 0.5 * (attempt / MAX_REGENERATION_ATTEMPTS)
+        for edge, _pos in blank_edges:
+            _regenerate_edge_params(edge, scale=scale)
+
+    # Final check
+    return _check_piece_blank_distances(top_edge, left_edge, right_edge, bottom_edge)
+
+
+def _apply_distance_constraints(
+    horizontal_edges: List[List[Edge]],
+    vertical_edges: List[List[Edge]],
+    rows: int,
+    cols: int,
+) -> None:
+    """Apply geometric distance constraints using iterative rejection sampling.
+
+    Edges are shared between adjacent pieces, so fixing one piece might break
+    another. We iterate until all pieces pass or we hit max iterations.
+
+    Args:
+        horizontal_edges: The horizontal edge grid.
+        vertical_edges: The vertical edge grid.
+        rows: Number of piece rows.
+        cols: Number of piece columns.
+    """
+    max_iterations = 10  # Prevent infinite loops
+
+    for _iteration in range(max_iterations):
+        all_passed = True
+
+        for r in range(rows):
+            for c in range(cols):
+                top = horizontal_edges[r][c]
+                left = vertical_edges[r][c]
+                right = vertical_edges[r][c + 1]
+                bottom = horizontal_edges[r + 1][c]
+
+                if not _check_piece_blank_distances(top, left, right, bottom):
+                    all_passed = False
+                    _fix_piece_violations(top, left, right, bottom)
+
+        if all_passed:
+            break
+
+
 def generate_edge_grid(
     rows: int,
     cols: int,
@@ -194,6 +440,9 @@ def generate_edge_grid(
                 edge = _generate_tab_edge(is_tab)
             row_edges.append(edge)
         vertical_edges.append(row_edges)
+
+    # Apply geometric distance constraints to prevent blanks from getting too close
+    _apply_distance_constraints(horizontal_edges, vertical_edges, rows, cols)
 
     return EdgeGrid(
         rows=rows,
