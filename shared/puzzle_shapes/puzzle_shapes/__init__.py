@@ -1,45 +1,36 @@
-"""Piece shape generation service for creating realistic jigsaw puzzle pieces.
+"""Puzzle shapes - shared library for puzzle piece generation.
 
-This module re-exports from the shared puzzle_shapes package and adds
-the backend-specific PieceShapeGenerator.
+This package provides tools for generating realistic jigsaw puzzle piece shapes
+using Bezier curves, cutting images into puzzle pieces, and managing puzzle grids.
 """
 
-# Re-export everything from the shared package
-from puzzle_shapes import (
+from .edge_grid import (
     DISTANCE_SAMPLE_POINTS,
     MAX_REGENERATION_ATTEMPTS,
     MIN_BLANK_CURVE_DISTANCE,
-    BezierCurve,
-    CoordinateMapper,
     Edge,
     EdgeGrid,
-    PieceConfig,
-    TabParameters,
     calculate_grid_dimensions,
-    calculate_piece_bounds,
-    create_piece_mask,
-    cut_all_pieces,
-    cut_piece,
-    generate_corner_curve,
     generate_edge_grid,
-    generate_piece_geometry,
-    generate_piece_path,
-    generate_piece_polygon,
-    generate_realistic_tab_edge,
     get_edge_type_for_piece,
     get_opposite_edge_type,
     get_piece_curves,
     reverse_curves,
-    sample_curve_points,
     transform_curves,
 )
-
-# Backend-specific generator
-from .generator import PieceShapeGenerator
+from .geometry import generate_corner_curve, generate_piece_geometry, generate_piece_path, generate_realistic_tab_edge
+from .image_masking import (
+    CoordinateMapper,
+    calculate_piece_bounds,
+    create_piece_mask,
+    cut_all_pieces,
+    cut_piece,
+    generate_piece_polygon,
+    sample_curve_points,
+)
+from .models import BezierCurve, PieceConfig, TabParameters
 
 __all__ = [
-    # Generator (backend-specific)
-    "PieceShapeGenerator",
     # Models
     "BezierCurve",
     "TabParameters",

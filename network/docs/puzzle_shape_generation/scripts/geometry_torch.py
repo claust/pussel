@@ -8,7 +8,7 @@ gradients through the computation graph.
 from typing import List, Tuple
 
 import torch
-from models import PieceConfig, TabParameters
+from puzzle_shapes import PieceConfig, TabParameters
 
 # Kappa constant for quarter-circle approximation with cubic Bezier
 KAPPA = 0.5522847498

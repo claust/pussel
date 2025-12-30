@@ -1,0 +1,17 @@
+{
+  "include": ["backend", "network", "shared"],
+  "exclude": [
+    "**/venv",
+    "**/datasets",
+    "**/checkpoints",
+    "**/logs",
+    "**/experiments",
+    "**/__pycache__",
+    "**/node_modules"
+  ],
+  "extraPaths": ["shared/puzzle_shapes"],
+  "pythonVersion": "3.12",
+  "typeCheckingMode": "standard",
+  "reportMissingImports": "warning",
+  "reportMissingModuleSource": "none"
+}

@@ -36,7 +36,7 @@ import torch
 from geometry_torch import generate_piece_path_torch, params_to_tensor, tensor_to_edge_params_list
 from io_utils import load_pieces_from_json
 from losses_torch import chamfer_distance, soft_hausdorff
-from models import PieceConfig, TabParameters
+from puzzle_shapes import PieceConfig, TabParameters
 from shape_comparator import compute_iou, extract_contour_from_image, normalize_contour, resample_contour
 
 # Parameter bounds for per-edge TabParameters (same as scipy version)
@@ -295,7 +295,7 @@ def optimize_piece_torch(
     Returns:
         OptimizationResult with metrics and optimized config.
     """
-    from geometry import generate_piece_path
+    from puzzle_shapes import generate_piece_path
 
     if device is None:
         device = get_device()

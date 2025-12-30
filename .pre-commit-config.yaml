@@ -60,6 +60,18 @@ repos:
         pass_filenames: false
         require_serial: true
 
+  # Shared library pyright type checking
+  - repo: local
+    hooks:
+      - id: shared-pyright
+        name: shared library pyright type checking
+        description: Run pyright type checking for shared puzzle_shapes library
+        entry: bash -c 'cd shared/puzzle_shapes && pyright .'
+        language: system
+        files: ^shared/.*\.py$
+        pass_filenames: false
+        require_serial: true
+
   # Network Python checks - runs make check-network for formatting, linting, and type checking
   - repo: local
     hooks:

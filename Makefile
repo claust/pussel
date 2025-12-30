@@ -1,12 +1,12 @@
 # Makefile for running CI checks locally
 # Run `make check` to run all checks, or individual targets
 
-.PHONY: check check-backend check-network check-frontend \
-        format format-backend format-network format-frontend \
+.PHONY: check check-backend check-network check-shared check-frontend \
+        format format-backend format-network format-shared format-frontend \
         test-backend install-dev-backend install-dev-network
 
 # Run all checks (Python + Next.js)
-check: check-backend check-network check-frontend
+check: check-backend check-network check-shared check-frontend
 
 # Backend checks
 check-backend:
@@ -21,6 +21,13 @@ check-network:
 	cd network && isort . --check-only --profile=black --line-length=120
 	cd network && flake8 . --config=../.flake8
 	cd network && pyright .
+
+# Shared library checks
+check-shared:
+	cd shared/puzzle_shapes && black . --check --line-length=120
+	cd shared/puzzle_shapes && isort . --check-only --profile=black --line-length=120
+	cd shared/puzzle_shapes && flake8 . --config=../../.flake8
+	cd shared/puzzle_shapes && pyright .
 
 # Frontend checks (Next.js with Bun)
 check-frontend:
@@ -38,6 +45,11 @@ format-backend:
 format-network:
 	cd network && black . --line-length=120
 	cd network && isort . --profile=black --line-length=120
+
+# Auto-format shared library
+format-shared:
+	cd shared/puzzle_shapes && black . --line-length=120
+	cd shared/puzzle_shapes && isort . --profile=black --line-length=120
 
 # Auto-format frontend
 format-frontend:

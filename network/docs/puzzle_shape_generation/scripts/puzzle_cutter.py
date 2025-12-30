@@ -14,9 +14,15 @@ import sys
 from pathlib import Path
 from typing import Tuple
 
-from edge_grid import EdgeGrid, calculate_grid_dimensions, generate_edge_grid
-from image_masking import CoordinateMapper, cut_piece, generate_piece_polygon
 from PIL import Image
+from puzzle_shapes import (
+    CoordinateMapper,
+    EdgeGrid,
+    calculate_grid_dimensions,
+    cut_piece,
+    generate_edge_grid,
+    generate_piece_polygon,
+)
 
 
 def create_argument_parser() -> argparse.ArgumentParser:
