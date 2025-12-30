@@ -4,11 +4,19 @@ import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Grid, Maximize2, Plus, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { PuzzleDetail, PieceCard, GridOverlay, RotationSelector } from '@/components/puzzle';
+import {
+  PuzzleDetail,
+  PieceCard,
+  GridOverlay,
+  RotationSelector,
+  ClickPieceSelector,
+  PieceModeToggle,
+} from '@/components/puzzle';
 import { usePuzzleStore } from '@/stores/puzzle-store';
-import { uploadPuzzle, processPiece } from '@/lib/api';
+import { uploadPuzzle, processPiece, generateRealisticPiece } from '@/lib/api';
 import { getTestPuzzleById } from '@/lib/test-puzzles';
-import { cropCell, blobToDataUrl } from '@/lib/image-utils';
+import { cropCell, blobToDataUrl, dataUrlToBlob } from '@/lib/image-utils';
+import type { PieceSelectionMode } from '@/types';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -39,6 +47,7 @@ export default function TestPuzzlePage({ params }: PageProps) {
   const [cellPreview, setCellPreview] = useState<string | null>(null);
   const [showRotationSelector, setShowRotationSelector] = useState(false);
   const [puzzleBlob, setPuzzleBlob] = useState<Blob | null>(null);
+  const [pieceSelectionMode, setPieceSelectionMode] = useState<PieceSelectionMode>('grid');
 
   // Load and upload the test puzzle on mount
   useEffect(() => {
@@ -115,6 +124,29 @@ export default function TestPuzzlePage({ params }: PageProps) {
     }
   };
 
+  const handleRealisticPieceClick = async (centerX: number, centerY: number) => {
+    if (!puzzle) return;
+
+    setLoading(true);
+    setShowGridOverlay(false);
+
+    try {
+      // Generate realistic piece from backend
+      const generatedPiece = await generateRealisticPiece(puzzle.puzzleId, centerX, centerY);
+
+      // Convert base64 to blob for ML processing
+      const pieceBlob = await dataUrlToBlob(generatedPiece.imageData);
+
+      // Process with ML model to get position prediction
+      const result = await processPiece(puzzle.puzzleId, pieceBlob);
+      addPiece({ ...result, imageData: generatedPiece.imageData });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to generate piece');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleBack = () => {
     reset();
     router.push('/test-mode/select');
@@ -184,11 +216,18 @@ export default function TestPuzzlePage({ params }: PageProps) {
                           className="block h-auto max-h-[80vh] w-auto max-w-full"
                         />
                         <div className="absolute inset-0">
-                          <GridOverlay
-                            gridSize={gridSize}
-                            onCellClick={(index) => void handleCellClick(index)}
-                            selectedCell={selectedCell}
-                          />
+                          {pieceSelectionMode === 'grid' ? (
+                            <GridOverlay
+                              gridSize={gridSize}
+                              onCellClick={(index) => void handleCellClick(index)}
+                              selectedCell={selectedCell}
+                            />
+                          ) : (
+                            <ClickPieceSelector
+                              onPositionClick={(x, y) => void handleRealisticPieceClick(x, y)}
+                              isLoading={isLoading}
+                            />
+                          )}
                         </div>
                       </div>
                     </div>
@@ -211,20 +250,34 @@ export default function TestPuzzlePage({ params }: PageProps) {
                   </div>
                 )}
 
-                {/* Add piece button */}
-                <Button
-                  className="w-full"
-                  onClick={() => setShowGridOverlay(!showGridOverlay)}
-                  disabled={isLoading}
-                  variant={showGridOverlay ? 'secondary' : 'default'}
-                >
-                  {isLoading ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Plus className="mr-2 h-4 w-4" />
+                {/* Mode toggle and add piece button */}
+                <div className="flex flex-col gap-3">
+                  {showGridOverlay && (
+                    <div className="flex justify-center">
+                      <PieceModeToggle
+                        mode={pieceSelectionMode}
+                        onModeChange={setPieceSelectionMode}
+                      />
+                    </div>
                   )}
-                  {showGridOverlay ? 'Cancel Selection' : 'Add Piece from Grid'}
-                </Button>
+                  <Button
+                    className="w-full"
+                    onClick={() => setShowGridOverlay(!showGridOverlay)}
+                    disabled={isLoading}
+                    variant={showGridOverlay ? 'secondary' : 'default'}
+                  >
+                    {isLoading ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Plus className="mr-2 h-4 w-4" />
+                    )}
+                    {showGridOverlay
+                      ? 'Cancel Selection'
+                      : pieceSelectionMode === 'grid'
+                        ? 'Add Piece from Grid'
+                        : 'Add Realistic Piece'}
+                  </Button>
+                </div>
               </div>
             )}
           </>

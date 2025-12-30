@@ -31,3 +31,12 @@ export const GRID_DIMENSIONS: Record<GridSize, { dimension: number; totalCells: 
 };
 
 export type CameraMode = 'puzzle' | 'piece';
+
+export type PieceSelectionMode = 'grid' | 'realistic';
+
+export interface GeneratedPiece {
+  imageData: string;
+  centerX: number;
+  centerY: number;
+  config: Record<string, unknown>;
+}

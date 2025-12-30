@@ -1,4 +1,4 @@
-import type { Puzzle, Piece } from '@/types';
+import type { Puzzle, Piece, GeneratedPiece } from '@/types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -74,6 +74,42 @@ export async function processPiece(puzzleId: string, pieceBlob: Blob): Promise<P
     positionConfidence: data.position_confidence,
     rotation: data.rotation,
     rotationConfidence: data.rotation_confidence,
+  };
+}
+
+interface GeneratePieceApiResponse {
+  piece_image: string;
+  piece_config: Record<string, unknown>;
+}
+
+export async function generateRealisticPiece(
+  puzzleId: string,
+  centerX: number,
+  centerY: number,
+  pieceSizeRatio: number = 0.25
+): Promise<GeneratedPiece> {
+  const res = await fetch(`${API_BASE}/api/v1/puzzle/${puzzleId}/generate-piece`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      center_x: centerX,
+      center_y: centerY,
+      piece_size_ratio: pieceSizeRatio,
+    }),
+  });
+
+  if (!res.ok) {
+    throw new ApiError('Failed to generate piece', res.status);
+  }
+
+  const data: GeneratePieceApiResponse = await res.json();
+  return {
+    imageData: data.piece_image,
+    centerX,
+    centerY,
+    config: data.piece_config,
   };
 }
 
