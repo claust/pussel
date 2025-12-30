@@ -157,22 +157,26 @@ class ImageProcessor:
 
             # Run inference
             with torch.no_grad():
-                position, rotation_logits, _ = self.model(piece_tensor, puzzle_tensor)
+                position, rotation_logits, attention_map = self.model(piece_tensor, puzzle_tensor)
 
             # Position is already (cx, cy) in [0, 1] - use directly
             x_center = float(position[0, 0].item())
             y_center = float(position[0, 1].item())
 
+            # Get position confidence from attention map (max attention value)
+            position_confidence = float(attention_map.max().item())
+
             # Get rotation class and confidence
             rotation_probs = F.softmax(rotation_logits, dim=1)
             rotation_class = int(rotation_logits.argmax(dim=1).item())
             rotation_degrees = rotation_class * 90  # 0, 90, 180, 270
-            confidence = float(rotation_probs[0, rotation_class].item())
+            rotation_confidence = float(rotation_probs[0, rotation_class].item())
 
             return PieceResponse(
                 position=Position(x=x_center, y=y_center),
-                confidence=confidence,
+                position_confidence=position_confidence,
                 rotation=rotation_degrees,
+                rotation_confidence=rotation_confidence,
             )
 
         except FileNotFoundError:
@@ -183,8 +187,9 @@ class ImageProcessor:
             print(f"Error processing image: {str(e)}")
             return PieceResponse(
                 position=Position(x=0.5, y=0.5),
-                confidence=0.0,
+                position_confidence=0.0,
                 rotation=0,
+                rotation_confidence=0.0,
             )
 
 

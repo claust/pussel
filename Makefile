@@ -5,7 +5,7 @@
         format format-backend format-network format-frontend \
         test-backend install-dev-backend install-dev-network
 
-# Run all checks (Python + Dart)
+# Run all checks (Python + Next.js)
 check: check-backend check-network check-frontend
 
 # Backend checks
@@ -22,12 +22,11 @@ check-network:
 	cd network && flake8 . --config=../.flake8
 	cd network && pyright .
 
-# Frontend checks
+# Frontend checks (Next.js with Bun)
 check-frontend:
-	cd frontend && dart analyze
-	cd frontend && dart format --output=none --set-exit-if-changed lib/
+	cd frontend-next && bun run check
 
-# Auto-format all code (Python + Dart)
+# Auto-format all code (Python + Next.js)
 format: format-backend format-network format-frontend
 
 # Auto-format backend
@@ -42,7 +41,7 @@ format-network:
 
 # Auto-format frontend
 format-frontend:
-	cd frontend && dart format lib/
+	cd frontend-next && bun run format
 
 # Run backend tests with coverage
 test-backend:

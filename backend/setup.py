@@ -20,7 +20,7 @@ setup(
             "pytest-cov",
             "black",
             "flake8",
-            "mypy",
+            "pyright",
             "isort",
             "types-setuptools",
             "torch-stubs",
