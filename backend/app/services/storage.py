@@ -40,7 +40,7 @@ class StorageService:
 
                 content_settings = ContentSettings(content_type=file.content_type)
                 blob_client.upload_blob(file_contents, overwrite=True, content_settings=content_settings)
-                # Cast to ensure mypy knows this is a string
+                # Cast to ensure type checker knows this is a string
                 return cast(str, blob_client.url)
             except Exception as e:
                 print(f"Error saving file to Azure: {e}")

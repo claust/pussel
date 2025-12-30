@@ -94,6 +94,9 @@ def get_device(device_name: str = "auto") -> torch.device:
 class BoundedParameters(torch.nn.Module):
     """Parameter module with bounded values via sigmoid transformation."""
 
+    min_bounds: torch.Tensor
+    max_bounds: torch.Tensor
+
     def __init__(
         self,
         initial_values: torch.Tensor,

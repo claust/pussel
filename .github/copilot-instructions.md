@@ -21,7 +21,7 @@ The backend provides REST API endpoints for uploading puzzle images and processi
 
 ### Development Tools
 - **Testing**: pytest, pytest-cov
-- **Type Checking**: mypy (strict mode enabled)
+- **Type Checking**: pyright (standard mode enabled)
 - **Linting**: flake8
 - **Formatting**: black (line length: 88), isort
 - **Pre-commit Hooks**: Automated code quality checks
@@ -48,7 +48,7 @@ pussel/
 │   │   └── test_main.py            # API endpoint tests
 │   ├── .flake8                     # Flake8 configuration
 │   ├── .pylintrc                   # Pylint configuration
-│   ├── mypy.ini                    # Mypy configuration
+│   ├── pyrightconfig.json          # Pyright configuration
 │   ├── pyproject.toml              # Black and isort configuration
 │   ├── requirements.txt            # Python dependencies
 │   └── setup.py                    # Package setup
@@ -77,7 +77,7 @@ pussel/
 3. **Type Hints**:
    - **REQUIRED**: All function definitions must include type hints for parameters and return values
    - Use modern Python 3.12 syntax: `dict[str, str]` instead of `Dict[str, str]`
-   - Enable strict mypy checking - all functions must be fully typed
+   - Enable pyright type checking - all functions must be fully typed
    - No implicit Optional types allowed
 
 4. **Docstrings**:
@@ -157,7 +157,7 @@ isort . --check-only
 flake8 .
 
 # Type check
-mypy app
+pyright .
 ```
 
 ### Testing
@@ -184,7 +184,7 @@ Pipeline steps:
 3. Check formatting with black (`black . --check`)
 4. Check imports with isort (`isort . --check-only`)
 5. Lint with flake8 (`flake8 .`)
-6. Type check with mypy (`mypy app`)
+6. Type check with pyright (`pyright .`)
 7. Run tests with coverage (`pytest -v --cov=app --cov-report=xml`)
 8. Upload coverage to Codecov
 
@@ -229,7 +229,7 @@ Configured in `.pre-commit-config.yaml`:
 - black formatting
 - isort import sorting
 - flake8 linting
-- mypy type checking
+- pyright type checking
 
 Run manually: `pre-commit run --all-files`
 
