@@ -78,7 +78,7 @@ The project is a multi-component system consisting of a mobile frontend, a FastA
 - **Formatting:** `black` (88 chars) and `isort` (with `--profile black`).
 - **Linting:** `flake8` with `bugbear`, `docstrings`, and `import-order` plugins.
 - **Type Checking:**
-  - Backend uses `mypy` (strict mode).
+  - Backend uses `pyright` (standard mode).
   - Network uses `pyright`.
 - **Pre-commit:** configured at the root level; run `pre-commit run --all-files` to check all components.
 

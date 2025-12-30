@@ -10,7 +10,7 @@ A FastAPI-based backend service for the Puzzle Solver application that helps use
 - REST API endpoints
 - File upload handling
 - Comprehensive test suite
-- Type checking with mypy
+- Type checking with pyright
 - Code formatting with black and isort
 - Linting with flake8
 - Pre-commit hooks for code quality
@@ -48,7 +48,7 @@ The project uses several tools to maintain code quality:
   - flake8-docstrings
   - flake8-import-order
   - flake8-bugbear
-- **mypy**: Static type checking
+- **pyright**: Static type checking
 - **pre-commit**: Git hooks for code quality checks
 
 ### Running Code Quality Checks
@@ -62,7 +62,7 @@ isort .
 flake8
 
 # Run type checking
-mypy app
+pyright .
 ```
 
 ## Running the Application
@@ -136,7 +136,7 @@ backend/
 │   └── test_main.py      # API endpoint tests
 ├── .flake8              # Flake8 configuration
 ├── .pre-commit-config.yaml # Pre-commit hooks configuration
-├── mypy.ini             # Mypy configuration
+├── pyrightconfig.json   # Pyright configuration
 ├── requirements.txt     # Project dependencies
 └── README.md
 ```
@@ -160,7 +160,7 @@ The project uses GitHub Actions for continuous integration, which:
 - Checks code formatting with black
 - Verifies import order with isort
 - Runs linting with flake8
-- Performs type checking with mypy
+- Performs type checking with pyright
 - Executes test suite with coverage reporting
 - Uploads coverage reports to Codecov
 

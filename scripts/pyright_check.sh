@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # This script runs pyright with the project's virtual environment
-# Only checks network/ files (backend uses mypy separately)
+# Only checks network/ files (backend has its own pyright config)
 # Works from VS Code, CLI, or any git client
 # Usage: pyright_check.sh file1.py file2.py ...
 
