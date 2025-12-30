@@ -20,6 +20,9 @@ puzzle_shape_generation/
 ├── reference_pieces.json        # JSON config defining 6 sample pieces
 ├── scripts/
 │   ├── piece_generator.py          # Main CLI wrapper (creates PNG pieces)
+│   ├── puzzle_cutter.py            # Cut images into interlocking puzzle pieces
+│   ├── edge_grid.py                # Edge grid generation for puzzle cutting
+│   ├── image_masking.py            # Image cutting with polygon masks
 │   ├── models.py                   # Data classes (PieceConfig, TabParameters)
 │   ├── geometry.py                 # Core math for Bezier shape generation
 │   ├── rendering.py                # PNG rendering and visualization
@@ -73,7 +76,95 @@ python piece_generator.py --compare
 - JSON import/export for batch generation
 - Transparent PNG output
 
-### 2. Modular Libraries
+### 2. puzzle_cutter.py
+
+Cuts any image into interlocking jigsaw puzzle pieces with realistic Bezier curve edges. Unlike `piece_generator.py` which creates individual piece shapes, this script generates a complete grid of interlocking pieces from a source image.
+
+**Basic Usage:**
+```bash
+cd scripts
+
+# Cut into approximately 25 pieces (grid auto-calculated)
+python puzzle_cutter.py photo.jpg --pieces 25 --output-dir output/
+
+# Specify exact grid dimensions
+python puzzle_cutter.py photo.jpg --rows 4 --cols 6 --output-dir output/
+
+# With reproducible random seed
+python puzzle_cutter.py photo.jpg --pieces 100 --seed 42
+
+# Custom padding for larger tabs
+python puzzle_cutter.py photo.jpg --pieces 50 --padding 30
+```
+
+**All Options:**
+```
+positional arguments:
+  input_image           Path to the input image file
+
+options:
+  --pieces N            Target number of pieces (default: 100)
+  --rows R              Explicit number of rows (use with --cols)
+  --cols C              Explicit number of columns (use with --rows)
+  --output-dir DIR      Output directory for pieces (default: output/)
+  --padding N           Padding around each piece in pixels (default: 20)
+  --seed N              Random seed for reproducible results
+  --points-per-curve N  Points per Bezier curve (default: 20)
+  --prefix STR          Filename prefix (default: piece)
+  --quiet               Suppress progress output
+```
+
+**Output Format:**
+- Individual PNG files: `{prefix}_r{row:02d}_c{col:02d}.png`
+- RGBA format with transparent backgrounds
+- Each piece includes padding to accommodate tab protrusions
+
+**Key Features:**
+- **Auto grid calculation**: Specify target piece count, algorithm finds optimal rows × cols for roughly square pieces based on image aspect ratio
+- **Shared edge generation**: Interior edges are generated once and shared between adjacent pieces, ensuring perfect interlocking (tab on one piece matches blank on neighbor)
+- **Anti-aliased cutting**: 4× supersampling for smooth piece edges
+- **Border handling**: Border pieces have flat edges, interior pieces have curved tabs/blanks
+- **Reproducible**: Use `--seed` for consistent edge generation across runs
+
+**How It Works:**
+
+1. **Grid Dimension Calculation**: Given a target piece count and image dimensions, calculates optimal rows × cols:
+   ```
+   cols = sqrt(target_pieces × aspect_ratio)
+   rows = sqrt(target_pieces / aspect_ratio)
+   ```
+
+2. **Edge Grid Generation**: Creates two arrays of shared edges:
+   - Horizontal edges: `(rows+1) × cols` — boundaries between vertically adjacent pieces
+   - Vertical edges: `rows × (cols+1)` — boundaries between horizontally adjacent pieces
+   - Border edges are flat (straight lines)
+   - Interior edges get random tab/blank shapes using the same Bezier curve system as `piece_generator.py`
+
+3. **Edge Interlocking**: Each interior edge is generated once with a random direction (tab or blank). Adjacent pieces share the same edge curves, but traversed in opposite directions—so if piece A has a tab on its right edge, piece B (to the right) automatically has a matching blank on its left edge.
+
+4. **Image Cutting**: For each piece position:
+   - Assembles the 4 boundary edges (top, right, bottom, left)
+   - Samples points along the Bezier curves to create a polygon
+   - Creates an anti-aliased mask using 4× supersampling
+   - Extracts the piece from the source image with transparent background
+
+**Example Output:**
+```
+$ python puzzle_cutter.py sunset.jpg --pieces 25 --seed 42
+Input image: sunset.jpg (1920x1080)
+Grid: 4 rows x 7 cols = 28 pieces
+Piece size: ~274x270 pixels
+Random seed: 42
+Generating edge grid...
+Cutting 28 pieces...
+Saved 28 pieces to output/
+```
+
+**Supporting Modules:**
+- **edge_grid.py**: `EdgeGrid` class and grid generation functions
+- **image_masking.py**: `CoordinateMapper` class and image cutting utilities
+
+### 3. Modular Libraries
 
 The core logic is split into several modules:
 - **models.py**: Defines `BezierCurve`, `TabParameters`, and `PieceConfig` dataclasses.
@@ -81,8 +172,10 @@ The core logic is split into several modules:
 - **rendering.py**: Matplotlib-based rendering to PNG and curve visualization.
 - **io_utils.py**: JSON serialization utilities.
 - **comparison.py**: Logic for comparing generated pieces against reference images.
+- **edge_grid.py**: Grid generation for puzzle cutting (used by `puzzle_cutter.py`).
+- **image_masking.py**: Image cutting utilities with polygon masks (used by `puzzle_cutter.py`).
 
-### 3. shape_comparator.py
+### 4. shape_comparator.py
 
 Quantitatively compares generated pieces against reference images using contour-based metrics.
 
@@ -101,7 +194,7 @@ python shape_comparator.py --all
 - **Mean Contour Distance**: Average distance between contour points (0 = perfect)
 - **Hausdorff Distance**: Maximum distance between contours (0 = perfect)
 
-### 4. visualize_comparison.py
+### 5. visualize_comparison.py
 
 Visual debugging tool that overlays generated contours on top of reference images.
 
@@ -110,7 +203,7 @@ cd scripts
 python visualize_comparison.py 1
 ```
 
-### 5. optimize_parameters.py
+### 6. optimize_parameters.py
 
 Automatically optimizes the parameters in `reference_pieces.json` to minimize the difference between generated pieces and reference images.
 
