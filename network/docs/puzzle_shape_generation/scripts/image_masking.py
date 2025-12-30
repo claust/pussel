@@ -254,6 +254,14 @@ def cut_piece(
     result = Image.new("RGBA", (crop_width, crop_height), (0, 0, 0, 0))
     result.paste(cropped, mask=mask)
 
+    # Crop to actual content bounds (remove excess transparent pixels)
+    content_bbox = result.getbbox()
+    if content_bbox:
+        crop_offset_x = content_bbox[0]
+        crop_offset_y = content_bbox[1]
+        result = result.crop(content_bbox)
+        return result, (x_min + crop_offset_x, y_min + crop_offset_y)
+
     return result, (x_min, y_min)
 
 
