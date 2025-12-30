@@ -10,7 +10,7 @@ import random
 from dataclasses import dataclass
 from typing import List, Literal, Optional, Tuple
 
-from models import BezierCurve, TabParameters
+from .models import BezierCurve, TabParameters
 
 # Minimum distance between any two blank curves on a piece.
 # This is measured in normalized piece coordinates (piece is 1x1).
@@ -134,7 +134,7 @@ def _generate_tab_edge(is_tab: bool, params: Optional[TabParameters] = None) -> 
         An Edge object with the generated curves.
     """
     # Import here to avoid circular imports
-    from geometry import generate_realistic_tab_edge
+    from .geometry import generate_realistic_tab_edge
 
     if params is None:
         params = TabParameters.random()
@@ -196,8 +196,6 @@ def _min_distance_between_point_sets(
     points2: List[Tuple[float, float]],
 ) -> float:
     """Calculate minimum distance between two sets of points."""
-    import math
-
     min_dist = float("inf")
     for p1 in points1:
         for p2 in points2:
@@ -219,8 +217,8 @@ def _get_blank_curve_points(
     """Get sampled points from curves that indent INTO this piece.
 
     The geometry depends on the STORED edge type, not the perspective type:
-    - Stored "blank" → curves indent into this piece (after rotation)
-    - Stored "tab" → curves protrude out of this piece
+    - Stored "blank" -> curves indent into this piece (after rotation)
+    - Stored "tab" -> curves protrude out of this piece
 
     We check stored type "blank" because those curves go INTO the piece.
     """
@@ -232,11 +230,11 @@ def _get_blank_curve_points(
     if position == "top":
         translate, rotate = (0.0, 1.0), 0
     elif position == "left":
-        translate, rotate = (0.0, 0.0), 1  # 90° CCW
+        translate, rotate = (0.0, 0.0), 1  # 90 deg CCW
     elif position == "bottom":
-        translate, rotate = (1.0, 0.0), 2  # 180°
+        translate, rotate = (1.0, 0.0), 2  # 180 deg
     else:  # right
-        translate, rotate = (1.0, 1.0), 3  # 270° CCW (90° CW)
+        translate, rotate = (1.0, 1.0), 3  # 270 deg CCW (90 deg CW)
 
     transformed = transform_curves(edge.curves, translate, (1.0, 1.0), rotate)
 
@@ -295,7 +293,7 @@ def _regenerate_edge_params(edge: Edge, scale: float = 1.0) -> None:
     if edge.params is None or edge.edge_type == "flat":
         return
 
-    from geometry import generate_realistic_tab_edge
+    from .geometry import generate_realistic_tab_edge
 
     new_params = TabParameters.random()
     # Scale down height and bulb_width to make blanks smaller and less likely to overlap
@@ -568,45 +566,45 @@ def get_piece_curves(
 
     # Right edge: vertical_edges[row][col+1]
     # Need: (1,1) -> (1,0), tab protrudes +X
-    # Transform: rotate 90° CW (= 270° CCW = 3), then translate
-    # 90° CW: (x,y) -> (y,-x)
-    # (0,0) -> (0,0), (1,0) -> (0,-1), tab direction (0,1) -> (1,0) = +X ✓
-    # Then translate (1,1): (0,0) -> (1,1), (0,-1) -> (1,0) ✓
+    # Transform: rotate 90 deg CW (= 270 deg CCW = 3), then translate
+    # 90 deg CW: (x,y) -> (y,-x)
+    # (0,0) -> (0,0), (1,0) -> (0,-1), tab direction (0,1) -> (1,0) = +X
+    # Then translate (1,1): (0,0) -> (1,1), (0,-1) -> (1,0)
     right_edge = edge_grid.vertical_edges[row][col + 1]
     right_curves = transform_curves(
         right_edge.curves,
         translate=(1.0, 1.0),
         scale=(1.0, 1.0),
-        rotate_90_ccw=3,  # 90° CW = 270° CCW
+        rotate_90_ccw=3,  # 90 deg CW = 270 deg CCW
     )
     all_curves.extend(right_curves)
 
     # Bottom edge: horizontal_edges[row+1][col]
     # Need: (1,0) -> (0,0), tab protrudes -Y
-    # Transform: rotate 180° (= 2 x 90° CCW), then translate
-    # 180°: (x,y) -> (-x,-y)
-    # (0,0) -> (0,0), (1,0) -> (-1,0), tab direction (0,1) -> (0,-1) = -Y ✓
-    # Then translate (1,0): (0,0) -> (1,0), (-1,0) -> (0,0) ✓
+    # Transform: rotate 180 deg (= 2 x 90 deg CCW), then translate
+    # 180 deg: (x,y) -> (-x,-y)
+    # (0,0) -> (0,0), (1,0) -> (-1,0), tab direction (0,1) -> (0,-1) = -Y
+    # Then translate (1,0): (0,0) -> (1,0), (-1,0) -> (0,0)
     bottom_edge = edge_grid.horizontal_edges[row + 1][col]
     bottom_curves = transform_curves(
         bottom_edge.curves,
         translate=(1.0, 0.0),
         scale=(1.0, 1.0),
-        rotate_90_ccw=2,  # 180°
+        rotate_90_ccw=2,  # 180 deg
     )
     all_curves.extend(bottom_curves)
 
     # Left edge: vertical_edges[row][col]
     # Need: (0,0) -> (0,1), tab protrudes -X
-    # Transform: rotate 90° CCW
-    # 90° CCW: (x,y) -> (-y,x)
-    # (0,0) -> (0,0), (1,0) -> (0,1), tab direction (0,1) -> (-1,0) = -X ✓
+    # Transform: rotate 90 deg CCW
+    # 90 deg CCW: (x,y) -> (-y,x)
+    # (0,0) -> (0,0), (1,0) -> (0,1), tab direction (0,1) -> (-1,0) = -X
     left_edge = edge_grid.vertical_edges[row][col]
     left_curves = transform_curves(
         left_edge.curves,
         translate=(0.0, 0.0),
         scale=(1.0, 1.0),
-        rotate_90_ccw=1,  # 90° CCW
+        rotate_90_ccw=1,  # 90 deg CCW
     )
     all_curves.extend(left_curves)
 

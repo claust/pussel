@@ -10,8 +10,8 @@ from pathlib import Path
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
-from geometry import generate_piece_path
 from io_utils import load_pieces_from_json
+from puzzle_shapes import generate_piece_path
 from shape_comparator import extract_contour_from_image, normalize_contour, resample_contour
 
 

@@ -3,9 +3,8 @@
 
 import matplotlib.pyplot as plt
 import numpy as np
-from geometry import generate_realistic_tab_edge
 from matplotlib.figure import Figure
-from models import TabParameters
+from puzzle_shapes import TabParameters, generate_realistic_tab_edge
 
 
 def visualize_single_tab(params: TabParameters, title: str = "Tab Structure") -> Figure:

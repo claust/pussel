@@ -1,15 +1,15 @@
-"""Data models for Bézier puzzle pieces."""
+"""Data models for Bezier puzzle pieces."""
 
 import random
 from dataclasses import asdict, dataclass, field
-from typing import Any, List, Tuple
+from typing import Any, List, Optional, Tuple
 
 import numpy as np
 
 
 @dataclass
 class BezierCurve:
-    """A cubic Bézier curve defined by 4 control points."""
+    """A cubic Bezier curve defined by 4 control points."""
 
     p0: Tuple[float, float]  # Start point
     p1: Tuple[float, float]  # Control point 1
@@ -60,7 +60,7 @@ class TabParameters:
     # Asymmetry factor (-1 to 1, 0 = symmetric)
     asymmetry: float = 0.0
 
-    # Corner slope: controls tangent angle at corners (0 = 90°, higher = more slope)
+    # Corner slope: controls tangent angle at corners (0 = 90 degrees, higher = more slope)
     # Direction is automatic: tabs slope down toward bulge, blanks slope up from indent
     corner_slope: float = 0.10
 
@@ -121,7 +121,7 @@ class PieceConfig:
     # Edge types: 'tab', 'blank', or 'flat'
     edge_types: List[str] = field(default_factory=lambda: ["tab", "blank", "tab", "blank"])
     # Parameters for each edge (if None, random params are used)
-    edge_params: List[TabParameters | None] = field(default_factory=lambda: [None, None, None, None])
+    edge_params: List[Optional[TabParameters]] = field(default_factory=lambda: [None, None, None, None])
     # Piece size
     size: float = 1.0
     # Corner radius for rounded corners (relative to piece size)
@@ -147,7 +147,7 @@ class PieceConfig:
             flat_indices.remove(idx)
 
         # Generate random params for each edge
-        edge_params: List[TabParameters | None] = [TabParameters.random() for _ in range(4)]
+        edge_params: List[Optional[TabParameters]] = [TabParameters.random() for _ in range(4)]
 
         return cls(
             edge_types=edge_types,

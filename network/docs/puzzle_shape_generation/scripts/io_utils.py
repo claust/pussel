@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import List
 
-from models import PieceConfig
+from puzzle_shapes import PieceConfig
 
 
 def load_pieces_from_json(json_path: str | Path) -> List[PieceConfig]:

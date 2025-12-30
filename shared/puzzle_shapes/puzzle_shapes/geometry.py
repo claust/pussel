@@ -1,7 +1,4 @@
-"""Geometric logic for generating puzzle piece shapes.
-
-This module is ported from network/docs/puzzle_shape_generation/scripts/geometry.py
-"""
+"""Geometric logic for generating puzzle piece shapes."""
 
 from typing import List, Tuple
 

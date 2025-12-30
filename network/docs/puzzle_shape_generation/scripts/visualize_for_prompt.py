@@ -2,8 +2,7 @@
 """Script to generate an illustration of the Bézier curve structure for a puzzle piece tab."""
 import matplotlib.pyplot as plt
 import numpy as np
-from geometry import generate_realistic_tab_edge
-from models import TabParameters
+from puzzle_shapes import TabParameters, generate_realistic_tab_edge
 
 
 def create_prompt_illustration():

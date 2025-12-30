@@ -7,6 +7,7 @@
     "experiments",
     "**/__pycache__"
   ],
+  "extraPaths": ["../shared/puzzle_shapes"],
   "pythonVersion": "3.12",
   "typeCheckingMode": "standard",
   "reportMissingImports": "warning",

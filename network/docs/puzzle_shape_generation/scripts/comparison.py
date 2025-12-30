@@ -5,8 +5,8 @@ from typing import Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
-from geometry import generate_piece_path
 from io_utils import load_pieces_from_json
+from puzzle_shapes import generate_piece_path
 
 # PIECE_COLOR should be imported from rendering to stay consistent
 from rendering import PIECE_COLOR

@@ -19,8 +19,8 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-from geometry import generate_piece_path
 from io_utils import load_pieces_from_json
+from puzzle_shapes import generate_piece_path
 from scipy.spatial.distance import directed_hausdorff
 
 

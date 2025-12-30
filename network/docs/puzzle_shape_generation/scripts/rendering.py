@@ -5,10 +5,9 @@ from typing import List
 
 import matplotlib.pyplot as plt
 import numpy as np
-from geometry import generate_piece_path
 from io_utils import load_pieces_from_json
 from matplotlib.axes import Axes
-from models import BezierCurve, PieceConfig
+from puzzle_shapes import BezierCurve, PieceConfig, generate_piece_path
 
 # Hardcoded color for all pieces
 PIECE_COLOR = "#32CD32"  # Bright green (lime green)

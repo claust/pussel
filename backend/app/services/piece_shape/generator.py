@@ -8,9 +8,7 @@ from typing import Optional, Tuple
 
 import numpy as np
 from PIL import Image, ImageDraw
-
-from .geometry import generate_piece_path
-from .models import PieceConfig
+from puzzle_shapes import PieceConfig, generate_piece_path
 
 
 class PieceShapeGenerator:

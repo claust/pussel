@@ -7,9 +7,10 @@ using polygon masks generated from Bezier curve boundaries.
 from dataclasses import dataclass
 from typing import List, Tuple
 
-from edge_grid import EdgeGrid, get_piece_curves
-from models import BezierCurve
 from PIL import Image, ImageDraw
+
+from .edge_grid import EdgeGrid, get_piece_curves
+from .models import BezierCurve
 
 
 @dataclass
