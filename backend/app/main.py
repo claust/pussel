@@ -1,15 +1,19 @@
 """Main FastAPI application module for the puzzle solver."""
 
+import base64
+import io
 import os
 import uuid
 from typing import Dict, Optional
 
 from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from PIL import Image
 
 from app.config import settings
-from app.models.puzzle_model import PieceResponse, PuzzleResponse
+from app.models.puzzle_model import GeneratePieceRequest, GeneratePieceResponse, PieceResponse, PuzzleResponse
 from app.services.image_processor import get_image_processor
+from app.services.piece_shape import PieceShapeGenerator
 
 # Initialize FastAPI app
 app = FastAPI(title=settings.PROJECT_NAME)
@@ -87,3 +91,51 @@ async def process_piece(
 
     processor = get_image_processor()
     return await processor.process_piece(file, puzzle_id)
+
+
+@app.post("/api/v1/puzzle/{puzzle_id}/generate-piece", response_model=GeneratePieceResponse)
+async def generate_piece(
+    puzzle_id: str,
+    request: GeneratePieceRequest,
+) -> GeneratePieceResponse:
+    """Generate a realistic jigsaw-shaped piece at the specified position.
+
+    This endpoint creates a puzzle piece with realistic Bezier curve edges
+    (tabs and blanks) extracted from the uploaded puzzle image. The piece
+    is returned as a PNG with transparent background.
+
+    Args:
+        puzzle_id: ID of the puzzle to extract piece from.
+        request: Contains center_x, center_y (normalized 0-1 coordinates)
+            and optional piece_size_ratio.
+
+    Returns:
+        GeneratePieceResponse with piece_image (base64 PNG) and piece_config.
+
+    Raises:
+        HTTPException: If puzzle not found.
+    """
+    if puzzle_id not in puzzle_images:
+        raise HTTPException(status_code=404, detail="Puzzle not found")
+
+    # Load puzzle image
+    puzzle_path = puzzle_images[puzzle_id]
+    puzzle_img = Image.open(puzzle_path).convert("RGBA")
+
+    # Generate piece with random jigsaw shape
+    generator = PieceShapeGenerator(piece_size_ratio=request.piece_size_ratio)
+    piece_img, config = generator.generate_piece(
+        puzzle_img,
+        request.center_x,
+        request.center_y,
+    )
+
+    # Convert to base64 PNG
+    buffer = io.BytesIO()
+    piece_img.save(buffer, format="PNG")
+    piece_base64 = base64.b64encode(buffer.getvalue()).decode()
+
+    return GeneratePieceResponse(
+        piece_image=f"data:image/png;base64,{piece_base64}",
+        piece_config=config.to_dict(),
+    )
