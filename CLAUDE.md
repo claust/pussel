@@ -80,7 +80,7 @@ bun run check              # Run all checks (lint, typecheck, prettier)
 bun run format             # Auto-format with Prettier
 ```
 
-### ML Model Training
+### ML Model Training (Local)
 **Note**: Always activate the venv first: `source venv/bin/activate` (from repo root)
 
 ```bash
@@ -103,6 +103,29 @@ python visualize_piece.py datasets/example/puzzle_001.jpg datasets/example/piece
 # Code quality checks (from repo root, same as CI pipeline)
 make check-network         # Run all checks (format, lint, typecheck)
 make format-network        # Auto-format code with black and isort
+```
+
+### ML Model Training (RunPod GPU)
+For faster training, use RunPod with NVIDIA GPUs (RTX 4090 is ~10x faster than M4 Mac).
+
+**Prepare and Upload**:
+```bash
+cd network/experiments/exp20_realistic_pieces
+./runpod/prepare_package.sh  # Creates network/runpod_package/
+
+# Upload to RunPod (get IP/PORT from RunPod dashboard)
+scp -P <PORT> -i ~/.ssh/runpod_key runpod_package/runpod_training.tar.gz root@<IP>:/workspace/
+```
+
+**Run Training on RunPod**:
+```bash
+ssh -p <PORT> -i ~/.ssh/runpod_key root@<IP>
+cd /workspace && tar -xzf runpod_training.tar.gz && ./setup_and_train.sh
+```
+
+**Download Results**:
+```bash
+scp -P <PORT> -i ~/.ssh/runpod_key "root@<IP>:/workspace/outputs/*" ./outputs/
 ```
 
 ## Code Architecture

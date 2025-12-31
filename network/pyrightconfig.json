@@ -5,6 +5,7 @@
     "checkpoints",
     "logs",
     "experiments",
+    "runpod_package",
     "**/__pycache__"
   ],
   "extraPaths": ["../shared/puzzle_shapes"],
