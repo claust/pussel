@@ -283,6 +283,29 @@ backbone from exp18 remains the best approach.
 
 ---
 
+## Exp 20: 4x4 Grid with Realistic Pieces
+
+**Date:** December 2025 **Status:** PARTIAL SUCCESS (73% cell, 25% rotation)
+
+First attempt at scaling to 4×4 grid (16 cells) using **realistic puzzle pieces**
+with Bezier-curve interlocking edges (tabs and blanks) instead of square-cut
+pieces. Generated 12,000 puzzles with the new piece generator. Training ran on
+RunPod RTX 4090 (~2.9 hours vs estimated 33 hours on Mac M4). Results:
+**72.9% cell accuracy** (11.7× random baseline of 6.25%) but only **24.8%
+rotation accuracy** (at random baseline). Position prediction successfully
+scaled from 3×3 to 4×4, exceeding the 50% target. However, rotation prediction
+**completely failed to generalize** — train rotation reached 95.1% while test
+stayed flat at 24.8% from epoch 1, indicating severe overfitting. The rotation
+correlation module that worked well for square pieces (exp13-19) does not
+transfer to realistic pieces. Hypothesis: the irregular Bezier edges make
+rotation matching fundamentally harder because the piece silhouette changes
+unpredictably with rotation. **Key insight:** Position and rotation may need
+completely different approaches for realistic pieces — position via texture
+correlation (works), rotation perhaps via edge-shape matching or
+rotation-invariant features.
+
+---
+
 ## Summary Table
 
 | Exp | Focus                       | Test Result            | Key Finding                                    |
@@ -306,6 +329,7 @@ backbone from exp18 remains the best approach.
 | 17  | 3x3 grid + 10K puzzles      | **81% cell / 93% rot** | Data scaling approach validated for 3x3!       |
 | 18  | 3x3 grid + 20K puzzles      | **82% cell / 95% rot** | Data scaling continues to help (NEW BEST)      |
 | 19  | Siamese architecture        | 79% cell / 92% rot     | Dual backbone > Siamese for dissimilar inputs  |
+| 20  | 4x4 realistic pieces        | **73% cell** / 25% rot | Position scales to 4x4; rotation fails         |
 
 ---
 
@@ -332,6 +356,10 @@ puzzles. This is the current production-ready model for 3x3 grids.
 **For Fast Experimentation:** ShuffleNetV2_x0.5 (exp15) - 12.9s/epoch vs 39.3s
 for RepVGG and 98.1s for MobileOne. Use for rapid iteration.
 
+**For Position + Rotation (4×4 realistic pieces):** FastBackboneModel (exp20)
+with ShuffleNetV2_x0.5 - **73% cell accuracy** (position works!) but **25%
+rotation** (fails). Rotation correlation does not generalize to realistic pieces.
+
 **Key Learnings:**
 1. **Data quantity AND quality matter** (exp17): Must see all cells per puzzle
    together for proper feature learning
@@ -339,8 +367,18 @@ for RepVGG and 98.1s for MobileOne. Use for rapid iteration.
    (scale, content type), specialized encoders outperform weight sharing
 3. **Data scaling helps** (exp18): More diverse training data improves
    generalization
+4. **Realistic pieces break rotation** (exp20): The rotation correlation
+   approach that worked for square pieces (93-95% accuracy) completely fails
+   for Bezier-curve realistic pieces (25% = random). Position prediction
+   transfers well (73% accuracy), but rotation needs a fundamentally different
+   approach for irregular piece shapes.
 
-**Next Steps:** Scale to 4×4 grid (16 cells) or attempt continuous coordinate
-regression for sub-cell precision.
+**Next Steps:**
+- For realistic pieces: investigate rotation-invariant position features +
+  separate edge-shape-based rotation detection
+- Consider two-stage approach: (1) position via texture correlation,
+  (2) rotation via piece silhouette/edge matching
+- Test whether the rotation failure is due to piece shape variation or
+  inadequate data augmentation
 
 ---
