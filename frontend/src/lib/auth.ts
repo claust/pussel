@@ -23,11 +23,31 @@ declare module 'next-auth/jwt' {
   }
 }
 
+// Validate required environment variables at startup
+const googleClientId = process.env.GOOGLE_CLIENT_ID;
+const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+
+if (!googleClientId) {
+  throw new Error(
+    'GOOGLE_CLIENT_ID environment variable is not set. ' +
+      'Please configure it in your .env.local file. ' +
+      'Get your client ID from https://console.cloud.google.com/apis/credentials',
+  );
+}
+
+if (!googleClientSecret) {
+  throw new Error(
+    'GOOGLE_CLIENT_SECRET environment variable is not set. ' +
+      'Please configure it in your .env.local file. ' +
+      'Get your client secret from https://console.cloud.google.com/apis/credentials',
+  );
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
     Google({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      clientId: googleClientId,
+      clientSecret: googleClientSecret,
       authorization: {
         params: {
           prompt: 'consent',
