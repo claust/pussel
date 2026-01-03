@@ -36,7 +36,7 @@ export default function ProfilePage() {
               {user?.picture ? (
                 <img
                   src={user.picture}
-                  alt={user.name}
+                  alt={user?.name || 'User profile picture'}
                   className="border-primary h-24 w-24 rounded-full border-4"
                 />
               ) : (
