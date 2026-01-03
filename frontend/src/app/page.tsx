@@ -20,7 +20,11 @@ export default function HomePage() {
               <Link href="/profile">
                 <Button variant="ghost" size="sm" className="gap-2">
                   {user.picture ? (
-                    <img src={user.picture} alt={user.name || 'User profile picture'} className="h-6 w-6 rounded-full" />
+                    <img
+                      src={user.picture}
+                      alt={user.name || 'User profile picture'}
+                      className="h-6 w-6 rounded-full"
+                    />
                   ) : (
                     <User className="h-4 w-4" />
                   )}

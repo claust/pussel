@@ -275,8 +275,8 @@ class TestAuthService:
             result = auth_service.verify_google_token("fake-token")
             assert result is None
 
-    def test_verify_google_token_value_error(self) -> None:
-        """Test that ValueError is handled gracefully."""
+    def test_verify_google_token_handles_value_error(self) -> None:
+        """Test that ValueError exceptions are handled gracefully."""
         from app.auth.service import get_auth_service
 
         auth_service = get_auth_service()
@@ -288,8 +288,8 @@ class TestAuthService:
             result = auth_service.verify_google_token("fake-token")
             assert result is None
 
-    def test_verify_google_token_google_auth_error(self) -> None:
-        """Test that GoogleAuthError is handled gracefully."""
+    def test_verify_google_token_handles_google_auth_error(self) -> None:
+        """Test that GoogleAuthError exceptions are handled gracefully."""
         from app.auth.service import get_auth_service
 
         auth_service = get_auth_service()
