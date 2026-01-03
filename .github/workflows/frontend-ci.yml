@@ -68,6 +68,11 @@ jobs:
     defaults:
       run:
         working-directory: frontend
+    env:
+      # Auth.js requires these environment variables at build time
+      AUTH_SECRET: "build-secret-for-ci-only"
+      GOOGLE_CLIENT_ID: "build-client-id"
+      GOOGLE_CLIENT_SECRET: "build-client-secret"
 
     steps:
       - uses: actions/checkout@v4
