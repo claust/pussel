@@ -245,24 +245,20 @@ Run `pre-commit install` after cloning to enable automatic checks.
 All checks can be run from the repo root using the root Makefile:
 
 ```bash
-# Check all Python code (backend + network)
+# Auto-format all code
+make format                # Format both backend, network, and frontend
+make format-backend        # Format backend only
+make format-network        # Format network only
+make format-frontend.      # Format frontend only
+
+# Check all code
 make check
 
 # Check individual projects
 make check-backend         # Backend: black, isort, flake8, pyright
 make check-network         # Network: black, isort, flake8, pyright
+make check-frontend        # Frontend: oxlint
 
-# Auto-format Python code
-make format                # Format both backend and network
-make format-backend        # Format backend only
-make format-network        # Format network only
-```
-
-For the frontend, run checks from the `frontend/` directory:
-```bash
-cd frontend
-bun run check              # OxLint + TypeScript + Prettier
-bun run format             # Auto-format with Prettier
 ```
 
 **Note**: For network checks, the venv must be activated. The pre-commit hooks handle this automatically.
@@ -273,7 +269,7 @@ Or simply run: `pre-commit run --all-files` from the repo root.
 
 ### Commit Workflow
 1. Make your changes
-2. Run `make check` for Python or `bun run check` for frontend
+2. Run `make check`
 3. Fix any issues found (use format commands for auto-fixable issues)
 4. Commit (pre-commit hooks will run automatically if installed)
 5. Push and verify CI passes
