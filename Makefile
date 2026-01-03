@@ -41,6 +41,7 @@ format: format-backend format-network format-frontend
 format-backend:
 	cd backend && black . --line-length=120 --exclude venv
 	cd backend && isort . --profile=black --line-length=120 --skip venv
+	pre-commit run requirements-txt-fixer --all-files || true
 
 # Auto-format network
 format-network:
