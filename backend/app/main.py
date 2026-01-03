@@ -4,14 +4,17 @@ import base64
 import io
 import os
 import uuid
-from typing import Dict, Optional
+from typing import Annotated, Dict, Optional
 
-from fastapi import FastAPI, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 
+from app.auth.dependencies import get_current_user
+from app.auth.service import AuthService, get_auth_service
 from app.config import settings
 from app.models.puzzle_model import GeneratePieceRequest, GeneratePieceResponse, PieceResponse, PuzzleResponse
+from app.models.user_model import GoogleAuthRequest, TokenResponse, User
 from app.services.image_processor import get_image_processor
 from app.services.piece_shape import PieceShapeGenerator
 
@@ -37,11 +40,83 @@ def health_check() -> dict[str, str]:
     return {"status": "healthy"}
 
 
+# =============================================================================
+# Authentication Endpoints
+# =============================================================================
+
+
+@app.post("/api/v1/auth/google", response_model=TokenResponse)
+async def google_auth(
+    request: GoogleAuthRequest,
+    auth_service: Annotated[AuthService, Depends(get_auth_service)],
+) -> TokenResponse:
+    """Authenticate with Google OAuth.
+
+    Exchanges a Google ID token for an application JWT token.
+
+    Args:
+        request: The Google authentication request containing the ID token.
+        auth_service: The authentication service.
+
+    Returns:
+        TokenResponse containing the access token and user information.
+
+    Raises:
+        HTTPException: If the Google token is invalid.
+    """
+    user_info = auth_service.verify_google_token(request.id_token)
+    if user_info is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid Google token",
+        )
+
+    user = User(
+        id=user_info["sub"],
+        email=user_info["email"],
+        name=user_info["name"],
+        picture=user_info.get("picture"),
+    )
+
+    access_token, expires_in = auth_service.create_access_token(user)
+
+    return TokenResponse(
+        access_token=access_token,
+        token_type="bearer",
+        expires_in=expires_in,
+        user=user,
+    )
+
+
+@app.get("/api/v1/auth/me", response_model=User)
+async def get_current_user_profile(
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> User:
+    """Get the current authenticated user's profile.
+
+    Args:
+        current_user: The authenticated user from the JWT token.
+
+    Returns:
+        The current user's profile information.
+    """
+    return current_user
+
+
+# =============================================================================
+# Puzzle Endpoints (Protected)
+# =============================================================================
+
+
 @app.post("/api/v1/puzzle/upload", response_model=PuzzleResponse)
-async def upload_puzzle(file: Optional[UploadFile] = None) -> PuzzleResponse:
+async def upload_puzzle(
+    current_user: Annotated[User, Depends(get_current_user)],
+    file: Optional[UploadFile] = None,
+) -> PuzzleResponse:
     """Upload a complete puzzle image.
 
     Args:
+        current_user: The authenticated user.
         file: The puzzle image file.
 
     Returns:
@@ -50,6 +125,8 @@ async def upload_puzzle(file: Optional[UploadFile] = None) -> PuzzleResponse:
     Raises:
         HTTPException: If file size exceeds limit or file type is invalid.
     """
+    # Note: current_user can be used to associate puzzles with users in the future
+    _ = current_user  # Acknowledge the parameter is intentionally unused for now
     if file is None:
         raise HTTPException(status_code=400, detail="No file provided")
 
@@ -69,12 +146,14 @@ async def upload_puzzle(file: Optional[UploadFile] = None) -> PuzzleResponse:
 @app.post("/api/v1/puzzle/{puzzle_id}/piece", response_model=PieceResponse)
 async def process_piece(
     puzzle_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],
     file: Optional[UploadFile] = None,
 ) -> PieceResponse:
     """Process a puzzle piece image.
 
     Args:
         puzzle_id: ID of the puzzle to match against.
+        current_user: The authenticated user.
         file: The puzzle piece image file.
 
     Returns:
@@ -83,6 +162,7 @@ async def process_piece(
     Raises:
         HTTPException: If puzzle not found or file type is invalid.
     """
+    _ = current_user  # Acknowledge the parameter is intentionally unused for now
     if file is None:
         raise HTTPException(status_code=400, detail="No file provided")
 
@@ -97,6 +177,7 @@ async def process_piece(
 async def generate_piece(
     puzzle_id: str,
     request: GeneratePieceRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
 ) -> GeneratePieceResponse:
     """Generate a realistic jigsaw-shaped piece at the specified position.
 
@@ -108,6 +189,7 @@ async def generate_piece(
         puzzle_id: ID of the puzzle to extract piece from.
         request: Contains center_x, center_y (normalized 0-1 coordinates)
             and optional piece_size_ratio.
+        current_user: The authenticated user.
 
     Returns:
         GeneratePieceResponse with piece_image (base64 PNG) and piece_config.
@@ -115,6 +197,7 @@ async def generate_piece(
     Raises:
         HTTPException: If puzzle not found.
     """
+    _ = current_user  # Acknowledge the parameter is intentionally unused for now
     if puzzle_id not in puzzle_images:
         raise HTTPException(status_code=404, detail="Puzzle not found")
 

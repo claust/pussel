@@ -24,6 +24,12 @@ class Settings(BaseSettings):
     USE_AZURE_STORAGE: bool = False
     AZURE_STORAGE_CONNECTION_STRING: str = ""
 
+    # Authentication settings
+    JWT_SECRET: str = "change-me-in-production-use-a-strong-random-secret"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRE_MINUTES: int = 60
+    GOOGLE_CLIENT_ID: str = ""
+
     model_config = SettingsConfigDict(case_sensitive=True, env_file=".env")
 
 

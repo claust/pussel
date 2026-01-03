@@ -4,6 +4,7 @@ import os
 import shutil
 import sys
 import tempfile
+from datetime import datetime, timedelta, timezone
 from io import BufferedReader
 from pathlib import Path
 from typing import Generator, cast
@@ -11,6 +12,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
+from jose import jwt
 from typing_extensions import TypeAlias
 
 from app.main import app, settings
@@ -28,6 +30,24 @@ client = TestClient(app)
 
 # Type alias for file upload tuple
 FileUpload: TypeAlias = tuple[str, BufferedReader, str]
+
+
+def create_test_token() -> str:
+    """Create a valid test JWT token for authentication."""
+    expire = datetime.now(timezone.utc) + timedelta(hours=1)
+    payload = {
+        "sub": "test-user-id",
+        "email": "test@example.com",
+        "name": "Test User",
+        "picture": None,
+        "exp": expire,
+    }
+    return jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
+
+
+def get_auth_header() -> dict[str, str]:
+    """Create an authorization header with a valid test token."""
+    return {"Authorization": f"Bearer {create_test_token()}"}
 
 
 @pytest.fixture(autouse=True)
@@ -59,7 +79,7 @@ def test_upload_puzzle() -> None:
     try:
         with open(test_image_path, "rb") as f:
             files = {"file": ("test_puzzle.jpg", f, "image/jpeg")}
-            response = client.post("/api/v1/puzzle/upload", files=files)
+            response = client.post("/api/v1/puzzle/upload", files=files, headers=get_auth_header())
 
         assert response.status_code == 200
         assert "puzzle_id" in response.json()
@@ -83,7 +103,7 @@ def test_process_piece_invalid_puzzle() -> None:
             ("test_piece.jpg", temp_file, "image/jpeg"),
         )
         files = {"file": file_tuple}
-        response = client.post("/api/v1/puzzle/invalid-id/piece", files=files)
+        response = client.post("/api/v1/puzzle/invalid-id/piece", files=files, headers=get_auth_header())
         assert response.status_code == 404
 
 
@@ -109,7 +129,7 @@ def test_process_piece() -> None:
         # Upload puzzle
         with open("test_puzzle.jpg", "rb") as f:
             files = {"file": ("test_puzzle.jpg", f, "image/jpeg")}
-            response = client.post("/api/v1/puzzle/upload", files=files)
+            response = client.post("/api/v1/puzzle/upload", files=files, headers=get_auth_header())
         puzzle_id = response.json()["puzzle_id"]
 
         # Test piece processing with mocked image processor
@@ -128,6 +148,7 @@ def test_process_piece() -> None:
                 response = client.post(
                     f"/api/v1/puzzle/{puzzle_id}/piece",
                     files=files,
+                    headers=get_auth_header(),
                 )
 
         assert response.status_code == 200

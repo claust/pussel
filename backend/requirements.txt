@@ -1,3 +1,7 @@
+# Authentication dependencies
+google-auth>=2.27.0
+python-jose[cryptography]>=3.3.0
+
 # Azure dependencies
 azure-storage-blob>=12.19.0
 
