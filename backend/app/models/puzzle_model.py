@@ -19,6 +19,7 @@ class PieceResponse(BaseModel):
     position_confidence: float
     rotation: int
     rotation_confidence: float
+    cleaned_image: Optional[str] = None  # Base64 encoded PNG with background removed
 
 
 class PuzzleResponse(BaseModel):

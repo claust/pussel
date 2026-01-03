@@ -4,9 +4,9 @@ import base64
 import io
 import os
 import uuid
-from typing import Dict, Optional
+from typing import Annotated, Dict, Optional
 
-from fastapi import FastAPI, HTTPException, UploadFile
+from fastapi import FastAPI, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 
@@ -70,15 +70,17 @@ async def upload_puzzle(file: Optional[UploadFile] = None) -> PuzzleResponse:
 async def process_piece(
     puzzle_id: str,
     file: Optional[UploadFile] = None,
+    remove_bg: Annotated[bool, Query(description="Remove background from piece image using rembg")] = True,
 ) -> PieceResponse:
     """Process a puzzle piece image.
 
     Args:
         puzzle_id: ID of the puzzle to match against.
         file: The puzzle piece image file.
+        remove_bg: Whether to remove background from piece image (default: True).
 
     Returns:
-        PieceResponse: Response containing position and confidence.
+        PieceResponse: Response containing position, confidence, and optionally cleaned image.
 
     Raises:
         HTTPException: If puzzle not found or file type is invalid.
@@ -90,7 +92,7 @@ async def process_piece(
         raise HTTPException(status_code=404, detail="Puzzle not found")
 
     processor = get_image_processor()
-    return await processor.process_piece(file, puzzle_id)
+    return await processor.process_piece(file, puzzle_id, remove_background=remove_bg)
 
 
 @app.post("/api/v1/puzzle/{puzzle_id}/generate-piece", response_model=GeneratePieceResponse)
