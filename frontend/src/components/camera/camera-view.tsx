@@ -10,12 +10,19 @@ import { cn } from '@/lib/utils';
 interface CameraViewProps {
   onCapture: (blob: Blob) => void;
   onCancel: () => void;
+  onOrientationChange?: (isLandscape: boolean) => void;
   overlayImage?: string | null;
   className?: string;
 }
 
-export function CameraView({ onCapture, onCancel, overlayImage, className }: CameraViewProps) {
-  const { videoRef, isReady, isLoading, error, start, stop, capture } = useCamera();
+export function CameraView({
+  onCapture,
+  onCancel,
+  onOrientationChange,
+  overlayImage,
+  className,
+}: CameraViewProps) {
+  const { videoRef, isReady, isLoading, error, dimensions, start, stop, capture } = useCamera();
 
   useEffect(() => {
     void start();
@@ -23,6 +30,13 @@ export function CameraView({ onCapture, onCancel, overlayImage, className }: Cam
       stop();
     };
   }, [start, stop]);
+
+  // Notify parent of orientation changes
+  useEffect(() => {
+    if (dimensions && onOrientationChange) {
+      onOrientationChange(dimensions.isLandscape);
+    }
+  }, [dimensions, onOrientationChange]);
 
   const handleCapture = async () => {
     const blob = await capture();
