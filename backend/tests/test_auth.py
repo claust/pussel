@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
+from google.auth import exceptions as google_exceptions
 from jose import jwt
 
 from app.config import settings
@@ -274,29 +275,28 @@ class TestAuthService:
             result = auth_service.verify_google_token("fake-token")
             assert result is None
 
-    def test_verify_google_token_handles_google_auth_error(self) -> None:
-        """Test that GoogleAuthError exceptions are handled gracefully."""
-        from google.auth import exceptions as google_exceptions
-
-        from app.auth.service import get_auth_service
-
-        auth_service = get_auth_service()
-
-        # Mock google id_token verification to raise GoogleAuthError
-        with patch(
-            "google.oauth2.id_token.verify_oauth2_token",
-            side_effect=google_exceptions.GoogleAuthError("Invalid issuer"),
-        ):
-            result = auth_service.verify_google_token("fake-token")
-            assert result is None
-
     def test_verify_google_token_handles_value_error(self) -> None:
         """Test that ValueError exceptions are handled gracefully."""
         from app.auth.service import get_auth_service
 
         auth_service = get_auth_service()
 
-        # Mock google id_token verification to raise ValueError
-        with patch("google.oauth2.id_token.verify_oauth2_token", side_effect=ValueError("Token expired")):
+        with patch(
+            "google.oauth2.id_token.verify_oauth2_token",
+            side_effect=ValueError("Invalid token format"),
+        ):
+            result = auth_service.verify_google_token("fake-token")
+            assert result is None
+
+    def test_verify_google_token_handles_google_auth_error(self) -> None:
+        """Test that GoogleAuthError exceptions are handled gracefully."""
+        from app.auth.service import get_auth_service
+
+        auth_service = get_auth_service()
+
+        with patch(
+            "google.oauth2.id_token.verify_oauth2_token",
+            side_effect=google_exceptions.GoogleAuthError("Authentication error"),
+        ):
             result = auth_service.verify_google_token("fake-token")
             assert result is None
