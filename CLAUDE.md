@@ -13,9 +13,12 @@ Pussel is a computer vision-based puzzle solver application with three main comp
 
 ### Backend (Python/FastAPI)
 ```bash
-cd backend
+# Create venv at repo root (shared with network)
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install backend dependencies
+cd backend
 pip install -r requirements.txt
 pip install -e .
 pre-commit install
@@ -127,6 +130,40 @@ cd /workspace && tar -xzf runpod_training.tar.gz && ./setup_and_train.sh
 ```bash
 scp -P <PORT> -i ~/.ssh/runpod_key "root@<IP>:/workspace/outputs/*" ./outputs/
 ```
+
+## Running Development Servers
+
+### Quick Start (from repo root)
+```bash
+make start-backend         # Start FastAPI server on http://localhost:8000
+make start-frontend        # Start Next.js dev server on http://localhost:3000
+```
+
+### Stopping Servers
+```bash
+make stop-backend          # Kill process on port 8000
+make stop-frontend         # Kill process on port 3000
+```
+
+### Running in Background
+When using `run_in_background: true`, ensure the working directory is repo root:
+
+```bash
+make start-backend         # Start FastAPI server on http://localhost:8000
+make start-frontend        # Start Next.js dev server on http://localhost:3000
+```
+
+### Server URLs
+- **Backend API**: http://localhost:8000
+- **Backend Docs**: http://localhost:8000/docs (Swagger UI)
+- **Frontend**: http://localhost:3000
+
+### Debugging Tips
+1. **Check if servers are running**: `lsof -i:8000` (backend) or `lsof -i:3000` (frontend)
+2. **View backend logs**: The uvicorn `--reload` flag enables auto-reload on file changes
+3. **Frontend hot reload**: Next.js with Turbopack automatically reloads on changes
+4. **API testing**: Use the Swagger UI at `/docs` or curl commands
+5. **Check health**: `curl http://localhost:8000/health`
 
 ## Code Architecture
 
@@ -249,7 +286,7 @@ All checks can be run from the repo root using the root Makefile:
 make format                # Format both backend, network, and frontend
 make format-backend        # Format backend only
 make format-network        # Format network only
-make format-frontend.      # Format frontend only
+make format-frontend       # Format frontend only
 
 # Check all code
 make check

@@ -3,7 +3,8 @@
 
 .PHONY: check check-backend check-network check-shared check-frontend \
         format format-backend format-network format-shared format-frontend \
-        test-backend install-dev-backend install-dev-network
+        test-backend install-dev-backend install-dev-network \
+        start-backend start-frontend stop-backend stop-frontend
 
 # Run all checks (Python + Next.js)
 check: check-backend check-network check-shared check-frontend
@@ -66,3 +67,17 @@ install-dev-backend:
 install-dev-network:
 	cd network && pip install -r requirements.txt
 	pip install black isort flake8 flake8-docstrings flake8-import-order flake8-bugbear flake8-comprehensions flake8-pytest-style pyright
+
+# Start development servers
+start-backend:
+	cd backend && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+start-frontend:
+	cd frontend && bun run dev
+
+# Stop development servers (kills processes on their ports)
+stop-backend:
+	@lsof -ti:8000 | xargs kill -9 2>/dev/null || echo "Backend not running on port 8000"
+
+stop-frontend:
+	@lsof -ti:3000 | xargs kill -9 2>/dev/null || echo "Frontend not running on port 3000"
