@@ -63,7 +63,7 @@ function AuthSync() {
       }
     };
 
-    syncAuth();
+    void syncAuth();
   }, [session, status, setUser, setBackendToken, setLoading, setError, reset]);
 
   return null;
