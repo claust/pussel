@@ -1,4 +1,6 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
+
+const API_TIMEOUT = 5000; // Reduced timeout for faster failure detection
 
 test.describe('Test Mode - Grid Selection', () => {
   test.beforeEach(async ({ page }) => {
@@ -73,7 +75,7 @@ test.describe('Test Mode - Puzzle Selection', () => {
 });
 
 test.describe('Test Mode - Full Flow with Backend', () => {
-  // These tests require the backend to be running
+  // These tests require the backend to be running and TEST_AUTH_TOKEN to be set
   test.beforeAll(async () => {
     // Fail early if backend is not available
     let response: Response;
@@ -87,6 +89,14 @@ test.describe('Test Mode - Full Flow with Backend', () => {
         `Backend health check failed with status ${response.status}. Ensure backend is running on http://localhost:8000`
       );
     }
+
+    // Warn if auth token is not set
+    if (!process.env.TEST_AUTH_TOKEN) {
+      console.warn(
+        'WARNING: TEST_AUTH_TOKEN not set. API requests may fail with 401. ' +
+          'Generate token with: python backend/scripts/generate_test_token.py'
+      );
+    }
   });
 
   test('loads puzzle and displays UI elements', async ({ page }) => {
@@ -98,13 +108,13 @@ test.describe('Test Mode - Full Flow with Backend', () => {
     // Wait for puzzle page to load (URL change + heading visible)
     await expect(page).toHaveURL('/test-mode/puzzle/001');
     await expect(page.getByRole('heading', { name: 'Puzzle 1' })).toBeVisible({
-      timeout: 10000,
+      timeout: API_TIMEOUT,
     });
     await expect(page.getByText('2x2 grid')).toBeVisible();
 
     // Verify "Add Piece from Grid" button is visible (indicates puzzle is fully loaded)
     await expect(page.getByRole('button', { name: /Add Piece from Grid/i })).toBeVisible({
-      timeout: 10000,
+      timeout: API_TIMEOUT,
     });
   });
 
@@ -117,7 +127,7 @@ test.describe('Test Mode - Full Flow with Backend', () => {
     // Wait for puzzle page to load (URL change + Add Piece button visible)
     await expect(page).toHaveURL('/test-mode/puzzle/001');
     await expect(page.getByRole('button', { name: /Add Piece from Grid/i })).toBeVisible({
-      timeout: 10000,
+      timeout: API_TIMEOUT,
     });
 
     // Click Add Piece button
@@ -140,7 +150,7 @@ test.describe('Test Mode - Full Flow with Backend', () => {
     // Wait for puzzle page to load (URL change + Add Piece button visible)
     await expect(page).toHaveURL('/test-mode/puzzle/001');
     await expect(page.getByRole('button', { name: /Add Piece from Grid/i })).toBeVisible({
-      timeout: 10000,
+      timeout: API_TIMEOUT,
     });
 
     // Click Add Piece button
@@ -163,7 +173,7 @@ test.describe('Test Mode - Full Flow with Backend', () => {
     // Wait for puzzle page to load (URL change + Add Piece button visible)
     await expect(page).toHaveURL('/test-mode/puzzle/001');
     await expect(page.getByRole('button', { name: /Add Piece from Grid/i })).toBeVisible({
-      timeout: 10000,
+      timeout: API_TIMEOUT,
     });
 
     // Click back button
@@ -182,7 +192,7 @@ test.describe('Test Mode - Full Flow with Backend', () => {
     // Wait for puzzle page to load (URL change + Add Piece button visible)
     await expect(page).toHaveURL('/test-mode/puzzle/001');
     await expect(page.getByRole('button', { name: /Add Piece from Grid/i })).toBeVisible({
-      timeout: 10000,
+      timeout: API_TIMEOUT,
     });
 
     // Click fullscreen toggle (last button in header)
@@ -208,13 +218,13 @@ test.describe('Test Mode - Full Flow with Backend', () => {
     // Wait for puzzle page to load (URL change + heading visible)
     await expect(page).toHaveURL('/test-mode/puzzle/002');
     await expect(page.getByRole('heading', { name: 'Puzzle 2' })).toBeVisible({
-      timeout: 10000,
+      timeout: API_TIMEOUT,
     });
     await expect(page.getByText('3x3 grid')).toBeVisible();
 
     // Wait for Add Piece button (indicates puzzle is fully loaded)
     await expect(page.getByRole('button', { name: /Add Piece from Grid/i })).toBeVisible({
-      timeout: 10000,
+      timeout: API_TIMEOUT,
     });
   });
 });

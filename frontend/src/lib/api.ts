@@ -1,4 +1,5 @@
 import type { Puzzle, Piece, GeneratedPiece, CutPuzzleResponse } from '@/types';
+import { useAuthStore } from '@/stores/auth-store';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -10,6 +11,14 @@ export class ApiError extends Error {
     super(message);
     this.name = 'ApiError';
   }
+}
+
+function getAuthHeaders(): Record<string, string> {
+  const token = useAuthStore.getState().backendToken;
+  if (token) {
+    return { Authorization: `Bearer ${token}` };
+  }
+  return {};
 }
 
 export async function checkHealth(): Promise<boolean> {
@@ -34,8 +43,13 @@ export async function uploadPuzzle(imageBlob: Blob): Promise<Puzzle> {
 
   const res = await fetch(`${API_BASE}/api/v1/puzzle/upload`, {
     method: 'POST',
+    headers: getAuthHeaders(),
     body: formData,
   });
+
+  if (res.status === 401) {
+    throw new ApiError('Authentication required. Please sign in.', res.status);
+  }
 
   if (!res.ok) {
     throw new ApiError('Failed to upload puzzle', res.status);
@@ -62,8 +76,13 @@ export async function processPiece(puzzleId: string, pieceBlob: Blob): Promise<P
 
   const res = await fetch(`${API_BASE}/api/v1/puzzle/${puzzleId}/piece`, {
     method: 'POST',
+    headers: getAuthHeaders(),
     body: formData,
   });
+
+  if (res.status === 401) {
+    throw new ApiError('Authentication required. Please sign in.', res.status);
+  }
 
   if (!res.ok) {
     throw new ApiError('Failed to process piece', res.status);
@@ -94,6 +113,7 @@ export async function generateRealisticPiece(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      ...getAuthHeaders(),
     },
     body: JSON.stringify({
       center_x: centerX,
@@ -101,6 +121,10 @@ export async function generateRealisticPiece(
       piece_size_ratio: pieceSizeRatio,
     }),
   });
+
+  if (res.status === 401) {
+    throw new ApiError('Authentication required. Please sign in.', res.status);
+  }
 
   if (!res.ok) {
     throw new ApiError('Failed to generate piece', res.status);
@@ -125,6 +149,7 @@ export async function cutPuzzle(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      ...getAuthHeaders(),
     },
     body: JSON.stringify({
       rows,
@@ -132,6 +157,10 @@ export async function cutPuzzle(
       seed,
     }),
   });
+
+  if (res.status === 401) {
+    throw new ApiError('Authentication required. Please sign in.', res.status);
+  }
 
   if (!res.ok) {
     throw new ApiError('Failed to cut puzzle', res.status);
