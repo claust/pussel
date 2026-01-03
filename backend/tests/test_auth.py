@@ -273,3 +273,30 @@ class TestAuthService:
         with patch("google.oauth2.id_token.verify_oauth2_token", return_value=mock_idinfo):
             result = auth_service.verify_google_token("fake-token")
             assert result is None
+
+    def test_verify_google_token_handles_google_auth_error(self) -> None:
+        """Test that GoogleAuthError exceptions are handled gracefully."""
+        from google.auth import exceptions as google_exceptions
+
+        from app.auth.service import get_auth_service
+
+        auth_service = get_auth_service()
+
+        # Mock google id_token verification to raise GoogleAuthError
+        with patch(
+            "google.oauth2.id_token.verify_oauth2_token",
+            side_effect=google_exceptions.GoogleAuthError("Invalid issuer"),
+        ):
+            result = auth_service.verify_google_token("fake-token")
+            assert result is None
+
+    def test_verify_google_token_handles_value_error(self) -> None:
+        """Test that ValueError exceptions are handled gracefully."""
+        from app.auth.service import get_auth_service
+
+        auth_service = get_auth_service()
+
+        # Mock google id_token verification to raise ValueError
+        with patch("google.oauth2.id_token.verify_oauth2_token", side_effect=ValueError("Token expired")):
+            result = auth_service.verify_google_token("fake-token")
+            assert result is None
