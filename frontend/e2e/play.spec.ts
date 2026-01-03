@@ -40,14 +40,17 @@ test.describe('Play Page', () => {
 test.describe('Play Flow with Backend', () => {
   // These tests require the backend to be running
   test.beforeAll(async () => {
-    // Check if backend is available
+    // Fail early if backend is not available
+    let response: Response;
     try {
-      const response = await fetch('http://localhost:8000/health');
-      if (!response.ok) {
-        test.skip();
-      }
+      response = await fetch('http://localhost:8000/health');
     } catch {
-      test.skip();
+      throw new Error('Backend is not running. Start it with: make start-backend');
+    }
+    if (!response.ok) {
+      throw new Error(
+        `Backend health check failed with status ${response.status}. Ensure backend is running on http://localhost:8000`
+      );
     }
   });
 
