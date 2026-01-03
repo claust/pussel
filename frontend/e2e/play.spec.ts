@@ -1,7 +1,8 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import path from 'path';
 
 const TEST_PUZZLE_PATH = path.join(__dirname, '../public/test-puzzles/puzzle_001.jpg');
+const API_TIMEOUT = 5000; // Reduced timeout for faster failure detection
 
 test.describe('Play Page', () => {
   test.beforeEach(async ({ page }) => {
@@ -38,7 +39,7 @@ test.describe('Play Page', () => {
 });
 
 test.describe('Play Flow with Backend', () => {
-  // These tests require the backend to be running
+  // These tests require the backend to be running and TEST_AUTH_TOKEN to be set
   test.beforeAll(async () => {
     // Fail early if backend is not available
     let response: Response;
@@ -50,6 +51,14 @@ test.describe('Play Flow with Backend', () => {
     if (!response.ok) {
       throw new Error(
         `Backend health check failed with status ${response.status}. Ensure backend is running on http://localhost:8000`
+      );
+    }
+
+    // Warn if auth token is not set
+    if (!process.env.TEST_AUTH_TOKEN) {
+      console.warn(
+        'WARNING: TEST_AUTH_TOKEN not set. API requests may fail with 401. ' +
+          'Generate token with: python backend/scripts/generate_test_token.py'
       );
     }
   });
@@ -67,7 +76,7 @@ test.describe('Play Flow with Backend', () => {
 
     // Wait for upload and grid selection phase
     await expect(page.getByRole('heading', { name: 'Select Grid Size' })).toBeVisible({
-      timeout: 10000,
+      timeout: API_TIMEOUT,
     });
 
     // Verify puzzle preview is shown
@@ -91,7 +100,7 @@ test.describe('Play Flow with Backend', () => {
 
     // Wait for grid selection
     await expect(page.getByRole('heading', { name: 'Select Grid Size' })).toBeVisible({
-      timeout: 10000,
+      timeout: API_TIMEOUT,
     });
 
     // Select 3x3 grid
@@ -99,7 +108,7 @@ test.describe('Play Flow with Backend', () => {
 
     // Wait for play mode
     await expect(page.getByRole('heading', { name: 'Play Mode' })).toBeVisible({
-      timeout: 10000,
+      timeout: API_TIMEOUT,
     });
 
     // Verify play mode UI elements
@@ -116,13 +125,13 @@ test.describe('Play Flow with Backend', () => {
     const fileInput = page.locator('input[type="file"]');
     await fileInput.setInputFiles(TEST_PUZZLE_PATH);
     await expect(page.getByRole('heading', { name: 'Select Grid Size' })).toBeVisible({
-      timeout: 10000,
+      timeout: API_TIMEOUT,
     });
     await page.getByRole('button', { name: /2x2/i }).click();
 
     // Wait for play mode
     await expect(page.getByRole('heading', { name: 'Play Mode' })).toBeVisible({
-      timeout: 10000,
+      timeout: API_TIMEOUT,
     });
 
     // Click shuffle button - should not throw error
@@ -141,13 +150,13 @@ test.describe('Play Flow with Backend', () => {
     const fileInput = page.locator('input[type="file"]');
     await fileInput.setInputFiles(TEST_PUZZLE_PATH);
     await expect(page.getByRole('heading', { name: 'Select Grid Size' })).toBeVisible({
-      timeout: 10000,
+      timeout: API_TIMEOUT,
     });
     await page.getByRole('button', { name: /2x2/i }).click();
 
     // Wait for play mode
     await expect(page.getByRole('heading', { name: 'Play Mode' })).toBeVisible({
-      timeout: 10000,
+      timeout: API_TIMEOUT,
     });
 
     // Click New Puzzle
@@ -166,7 +175,7 @@ test.describe('Play Flow with Backend', () => {
     const fileInput = page.locator('input[type="file"]');
     await fileInput.setInputFiles(TEST_PUZZLE_PATH);
     await expect(page.getByRole('heading', { name: 'Select Grid Size' })).toBeVisible({
-      timeout: 10000,
+      timeout: API_TIMEOUT,
     });
 
     // Select 4x4 grid (16 pieces)
@@ -174,7 +183,7 @@ test.describe('Play Flow with Backend', () => {
 
     // Wait for play mode and verify piece count
     await expect(page.getByRole('heading', { name: 'Play Mode' })).toBeVisible({
-      timeout: 10000,
+      timeout: API_TIMEOUT,
     });
     await expect(page.getByText('0 / 16 pieces placed')).toBeVisible();
   });
