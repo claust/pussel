@@ -15,6 +15,7 @@ from .edge_grid import (
     get_edge_type_for_piece,
     get_opposite_edge_type,
     get_piece_curves,
+    invert_curves,
     reverse_curves,
     transform_curves,
 )
@@ -50,6 +51,7 @@ __all__ = [
     "generate_edge_grid",
     "get_edge_type_for_piece",
     "get_piece_curves",
+    "invert_curves",
     "reverse_curves",
     "transform_curves",
     "get_opposite_edge_type",

@@ -216,14 +216,24 @@ def _get_blank_curve_points(
 ) -> List[Tuple[float, float]]:
     """Get sampled points from curves that indent INTO this piece.
 
-    The geometry depends on the STORED edge type, not the perspective type:
-    - Stored "blank" -> curves indent into this piece (after rotation)
-    - Stored "tab" -> curves protrude out of this piece
+    For top/left edges (which are "owned" by this piece), a stored "blank"
+    type creates an indentation into the piece.
 
-    We check stored type "blank" because those curves go INTO the piece.
+    For bottom/right edges (which are "owned" by adjacent pieces), we invert
+    the curves, so a stored "tab" type creates an indentation into this piece.
     """
-    if edge.edge_type != "blank":  # Only stored "blank" curves indent into piece
-        return []
+    # Determine if this edge creates an indent based on position
+    # Top/left: stored "blank" -> indent
+    # Bottom/right: stored "tab" -> indent (because we invert for these edges)
+    if position in ("top", "left"):
+        if edge.edge_type != "blank":
+            return []
+        curves_to_sample = edge.curves
+    else:  # "bottom" or "right"
+        if edge.edge_type != "tab":
+            return []
+        # Invert curves to match how they're used in get_piece_curves()
+        curves_to_sample = invert_curves(edge.curves)
 
     # Transform parameters based on edge position
     # Piece coordinates: (0,0) bottom-left, (1,1) top-right
@@ -236,7 +246,7 @@ def _get_blank_curve_points(
     else:  # right
         translate, rotate = (1.0, 1.0), 3  # 270 deg CCW (90 deg CW)
 
-    transformed = transform_curves(edge.curves, translate, (1.0, 1.0), rotate)
+    transformed = transform_curves(curves_to_sample, translate, (1.0, 1.0), rotate)
 
     # Sample all curves but only keep points INSIDE the piece
     all_points: List[Tuple[float, float]] = []
@@ -331,11 +341,18 @@ def _fix_piece_violations(
         (bottom_edge, "bottom"),
     ]
 
-    # Get edges with stored type "blank" (these are the curves that indent into pieces)
-    blank_edges = [(edge, pos) for edge, pos in edges_info if edge.edge_type == "blank"]
+    # Get edges that create indents into this piece:
+    # - Top/left: stored "blank" -> indent
+    # - Bottom/right: stored "tab" -> indent (because we invert these edges)
+    indent_edges: List[Tuple[Edge, Literal["top", "right", "bottom", "left"]]] = []
+    for edge, pos in edges_info:
+        if pos in ("top", "left") and edge.edge_type == "blank":
+            indent_edges.append((edge, pos))
+        elif pos in ("bottom", "right") and edge.edge_type == "tab":
+            indent_edges.append((edge, pos))
 
-    if len(blank_edges) < 2:
-        return True  # No possible violation with < 2 blanks
+    if len(indent_edges) < 2:
+        return True  # No possible violation with < 2 indents
 
     for attempt in range(MAX_REGENERATION_ATTEMPTS):
         if _check_piece_blank_distances(top_edge, left_edge, right_edge, bottom_edge):
@@ -343,7 +360,7 @@ def _fix_piece_violations(
 
         # Progressive scaling: start at 1.0, decrease to 0.5 over attempts
         scale = 1.0 - 0.5 * (attempt / MAX_REGENERATION_ATTEMPTS)
-        for edge, _pos in blank_edges:
+        for edge, _pos in indent_edges:
             _regenerate_edge_params(edge, scale=scale)
 
     # Final check
@@ -474,6 +491,33 @@ def reverse_curves(curves: List[BezierCurve]) -> List[BezierCurve]:
     return reversed_list
 
 
+def invert_curves(curves: List[BezierCurve]) -> List[BezierCurve]:
+    """Invert curves vertically (flip Y relative to y=0 baseline).
+
+    This transforms a tab into a blank and vice versa by reflecting
+    all control points across the y=0 line. Used when an edge is
+    shared between two pieces - one piece sees it as a tab, the other
+    as a matching blank.
+
+    Args:
+        curves: List of Bezier curves to invert.
+
+    Returns:
+        New list with Y-inverted curves.
+    """
+    inverted = []
+    for curve in curves:
+        inverted.append(
+            BezierCurve(
+                p0=(curve.p0[0], -curve.p0[1]),
+                p1=(curve.p1[0], -curve.p1[1]),
+                p2=(curve.p2[0], -curve.p2[1]),
+                p3=(curve.p3[0], -curve.p3[1]),
+            )
+        )
+    return inverted
+
+
 def transform_curves(
     curves: List[BezierCurve],
     translate: Tuple[float, float],
@@ -565,14 +609,13 @@ def get_piece_curves(
     all_curves.extend(top_curves)
 
     # Right edge: vertical_edges[row][col+1]
+    # This edge is "owned" by the piece to the right, so we invert it
+    # to get the complementary shape (tab becomes blank, blank becomes tab).
     # Need: (1,1) -> (1,0), tab protrudes +X
     # Transform: rotate 90 deg CW (= 270 deg CCW = 3), then translate
-    # 90 deg CW: (x,y) -> (y,-x)
-    # (0,0) -> (0,0), (1,0) -> (0,-1), tab direction (0,1) -> (1,0) = +X
-    # Then translate (1,1): (0,0) -> (1,1), (0,-1) -> (1,0)
     right_edge = edge_grid.vertical_edges[row][col + 1]
     right_curves = transform_curves(
-        right_edge.curves,
+        invert_curves(right_edge.curves),
         translate=(1.0, 1.0),
         scale=(1.0, 1.0),
         rotate_90_ccw=3,  # 90 deg CW = 270 deg CCW
@@ -580,14 +623,13 @@ def get_piece_curves(
     all_curves.extend(right_curves)
 
     # Bottom edge: horizontal_edges[row+1][col]
+    # This edge is "owned" by the piece below, so we invert it
+    # to get the complementary shape (tab becomes blank, blank becomes tab).
     # Need: (1,0) -> (0,0), tab protrudes -Y
     # Transform: rotate 180 deg (= 2 x 90 deg CCW), then translate
-    # 180 deg: (x,y) -> (-x,-y)
-    # (0,0) -> (0,0), (1,0) -> (-1,0), tab direction (0,1) -> (0,-1) = -Y
-    # Then translate (1,0): (0,0) -> (1,0), (-1,0) -> (0,0)
     bottom_edge = edge_grid.horizontal_edges[row + 1][col]
     bottom_curves = transform_curves(
-        bottom_edge.curves,
+        invert_curves(bottom_edge.curves),
         translate=(1.0, 0.0),
         scale=(1.0, 1.0),
         rotate_90_ccw=2,  # 180 deg
