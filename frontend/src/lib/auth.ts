@@ -48,8 +48,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async session({ session, token }: { session: Session; token: JWT }) {
       return {
         ...session,
-        accessToken: token.accessToken as string | undefined,
-        idToken: token.idToken as string | undefined,
+        accessToken: token.accessToken,
+        idToken: token.idToken,
       };
     },
   },

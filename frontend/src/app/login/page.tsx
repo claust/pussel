@@ -10,15 +10,15 @@ function LoginContent() {
   const callbackUrl = searchParams.get('callbackUrl') || '/';
 
   const handleGoogleSignIn = () => {
-    signIn('google', { callbackUrl });
+    void signIn('google', { callbackUrl });
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="w-full max-w-md space-y-8 rounded-lg border bg-card p-8 shadow-lg">
+    <div className="bg-background flex min-h-screen items-center justify-center">
+      <div className="bg-card w-full max-w-md space-y-8 rounded-lg border p-8 shadow-lg">
         <div className="text-center">
-          <h1 className="text-3xl font-bold text-foreground">Welcome to Pussel</h1>
-          <p className="mt-2 text-muted-foreground">Sign in to access the puzzle solver</p>
+          <h1 className="text-foreground text-3xl font-bold">Welcome to Pussel</h1>
+          <p className="text-muted-foreground mt-2">Sign in to access the puzzle solver</p>
         </div>
 
         <div className="space-y-4">
@@ -45,7 +45,7 @@ function LoginContent() {
           </Button>
         </div>
 
-        <p className="text-center text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-center text-sm">
           By signing in, you agree to our Terms of Service and Privacy Policy
         </p>
       </div>
@@ -58,7 +58,7 @@ export default function LoginPage() {
     <Suspense
       fallback={
         <div className="flex min-h-screen items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          <div className="border-primary h-8 w-8 animate-spin rounded-full border-4 border-t-transparent" />
         </div>
       }
     >

@@ -13,7 +13,7 @@ export class ApiError extends Error {
   }
 }
 
-function getAuthHeaders(): HeadersInit {
+function getAuthHeaders(): Record<string, string> {
   const token = useAuthStore.getState().backendToken;
   if (token) {
     return { Authorization: `Bearer ${token}` };
