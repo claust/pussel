@@ -31,7 +31,7 @@ if (!googleClientId) {
   throw new Error(
     'GOOGLE_CLIENT_ID environment variable is not set. ' +
       'Please configure it in your .env.local file. ' +
-      'Get your client ID from https://console.cloud.google.com/apis/credentials',
+      'Get your client ID from https://console.cloud.google.com/apis/credentials'
   );
 }
 
@@ -39,7 +39,7 @@ if (!googleClientSecret) {
   throw new Error(
     'GOOGLE_CLIENT_SECRET environment variable is not set. ' +
       'Please configure it in your .env.local file. ' +
-      'Get your client secret from https://console.cloud.google.com/apis/credentials',
+      'Get your client secret from https://console.cloud.google.com/apis/credentials'
   );
 }
 
