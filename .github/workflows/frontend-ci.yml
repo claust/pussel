@@ -92,6 +92,14 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     needs: [lint-and-typecheck, test]
+    env:
+      # Auth.js requires these environment variables
+      AUTH_SECRET: "test-secret-for-ci-only-not-for-production"
+      AUTH_URL: "http://localhost:3000"
+      # Dummy values for CI - actual OAuth flow is not tested
+      GOOGLE_CLIENT_ID: "test-client-id"
+      GOOGLE_CLIENT_SECRET: "test-client-secret"
+      NEXT_PUBLIC_API_URL: "http://localhost:8000"
 
     steps:
       - uses: actions/checkout@v4
