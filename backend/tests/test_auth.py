@@ -273,3 +273,31 @@ class TestAuthService:
         with patch("google.oauth2.id_token.verify_oauth2_token", return_value=mock_idinfo):
             result = auth_service.verify_google_token("fake-token")
             assert result is None
+
+    def test_verify_google_token_value_error(self) -> None:
+        """Test that ValueError is handled gracefully."""
+        from app.auth.service import get_auth_service
+
+        auth_service = get_auth_service()
+
+        with patch(
+            "google.oauth2.id_token.verify_oauth2_token",
+            side_effect=ValueError("Invalid token format"),
+        ):
+            result = auth_service.verify_google_token("fake-token")
+            assert result is None
+
+    def test_verify_google_token_google_auth_error(self) -> None:
+        """Test that GoogleAuthError is handled gracefully."""
+        from google.auth import exceptions as google_exceptions
+
+        from app.auth.service import get_auth_service
+
+        auth_service = get_auth_service()
+
+        with patch(
+            "google.oauth2.id_token.verify_oauth2_token",
+            side_effect=google_exceptions.GoogleAuthError("Authentication error"),
+        ):
+            result = auth_service.verify_google_token("fake-token")
+            assert result is None

@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from typing import Optional
 
+from google.auth import exceptions as google_exceptions
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
 from jose import JWTError, jwt
@@ -50,8 +51,8 @@ class AuthService:
                 "name": idinfo.get("name", idinfo["email"].split("@")[0]),
                 "picture": idinfo.get("picture"),
             }
-        except ValueError:
-            # Invalid token
+        except (ValueError, google_exceptions.GoogleAuthError):
+            # Invalid token or authentication error
             return None
 
     def create_access_token(self, user: User) -> tuple[str, int]:
