@@ -1,13 +1,17 @@
+
 # Azure dependencies
 azure-storage-blob>=12.19.0
 
 # Development dependencies
 black>=25.1.0
+# Email validation dependency
+email-validator>=2.1.0
 
 # Web framework
 fastapi>=0.115.0
 flake8>=7.0.0
 flake8-docstrings>=1.7.0
+google-auth>=2.27.0
 httpx>=0.26.0
 isort>=5.13.2
 
@@ -15,13 +19,14 @@ isort>=5.13.2
 Pillow>=11.0.0
 pre-commit>=3.6.0
 
-# Shared puzzle shapes library (local)
-puzzle-shapes @ file://../shared/puzzle_shapes
+# Shared puzzle shapes library - installed separately via Makefile
+# See: pip install -e ../shared/puzzle_shapes
 pydantic>=2.6.1
 pydantic-settings>=2.1.0
 pyright>=1.1.390
 pytest>=8.0.1
 pytest-cov>=4.1.0
+python-jose[cryptography]>=3.3.0
 python-multipart>=0.0.20
 pytorch-lightning>=2.5.0
 rembg[cpu]>=2.0.50

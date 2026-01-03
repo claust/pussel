@@ -63,6 +63,7 @@ test-backend:
 
 # Install dev dependencies
 install-dev-backend:
+	pip install -e shared/puzzle_shapes
 	cd backend && pip install -r requirements.txt && pip install -e .
 
 install-dev-network:

@@ -1,3 +1,11 @@
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  picture?: string | null;
+  createdAt?: string;
+}
+
 export interface Position {
   x: number; // 0-1 normalized
   y: number; // 0-1 normalized

@@ -68,6 +68,11 @@ jobs:
     defaults:
       run:
         working-directory: frontend
+    env:
+      # Auth.js requires these environment variables at build time
+      AUTH_SECRET: "build-secret-for-ci-only"
+      GOOGLE_CLIENT_ID: "build-client-id"
+      GOOGLE_CLIENT_SECRET: "build-client-secret"
 
     steps:
       - uses: actions/checkout@v4
@@ -92,6 +97,14 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     needs: [lint-and-typecheck, test]
+    env:
+      # Auth.js requires these environment variables
+      AUTH_SECRET: "test-secret-for-ci-only-not-for-production"
+      AUTH_URL: "http://localhost:3000"
+      # Dummy values for CI - actual OAuth flow is not tested
+      GOOGLE_CLIENT_ID: "test-client-id"
+      GOOGLE_CLIENT_SECRET: "test-client-secret"
+      NEXT_PUBLIC_API_URL: "http://localhost:8000"
 
     steps:
       - uses: actions/checkout@v4
@@ -108,6 +121,14 @@ jobs:
           grep -v "puzzle-shapes" requirements.txt > requirements-ci.txt
           pip install -r requirements-ci.txt
           pip install -e .
+
+      - name: Generate test auth token
+        id: auth_token
+        run: |
+          cd backend
+          TOKEN=$(python scripts/generate_test_token.py)
+          echo "TEST_AUTH_TOKEN=${TOKEN}" >> $GITHUB_ENV
+          echo "Test auth token generated"
 
       - name: Start backend server
         run: |
