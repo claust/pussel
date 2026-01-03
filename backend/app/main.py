@@ -6,17 +6,25 @@ import os
 import uuid
 from typing import Annotated, Dict, Optional
 
-from fastapi import Depends, FastAPI, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 
 from app.auth.dependencies import get_current_user
 from app.auth.service import AuthService, get_auth_service
 from app.config import settings
-from app.models.puzzle_model import GeneratePieceRequest, GeneratePieceResponse, PieceResponse, PuzzleResponse
+from app.models.puzzle_model import (
+    CutPuzzleRequest,
+    CutPuzzleResponse,
+    GeneratePieceRequest,
+    GeneratePieceResponse,
+    PieceResponse,
+    PuzzleResponse,
+)
 from app.models.user_model import GoogleAuthRequest, TokenResponse, User
 from app.services.image_processor import get_image_processor
 from app.services.piece_shape import PieceShapeGenerator
+from app.services.puzzle_cutter import get_puzzle_cutter
 
 # Initialize FastAPI app
 app = FastAPI(title=settings.PROJECT_NAME)
@@ -148,6 +156,7 @@ async def process_piece(
     puzzle_id: str,
     current_user: Annotated[User, Depends(get_current_user)],
     file: Optional[UploadFile] = None,
+    remove_bg: Annotated[bool, Query(description="Remove background from piece image using rembg")] = True,
 ) -> PieceResponse:
     """Process a puzzle piece image.
 
@@ -155,9 +164,10 @@ async def process_piece(
         puzzle_id: ID of the puzzle to match against.
         current_user: The authenticated user.
         file: The puzzle piece image file.
+        remove_bg: Whether to remove background from piece image (default: True).
 
     Returns:
-        PieceResponse: Response containing position and confidence.
+        PieceResponse: Response containing position, confidence, and optionally cleaned image.
 
     Raises:
         HTTPException: If puzzle not found or file type is invalid.
@@ -170,7 +180,7 @@ async def process_piece(
         raise HTTPException(status_code=404, detail="Puzzle not found")
 
     processor = get_image_processor()
-    return await processor.process_piece(file, puzzle_id)
+    return await processor.process_piece(file, puzzle_id, remove_background=remove_bg)
 
 
 @app.post("/api/v1/puzzle/{puzzle_id}/generate-piece", response_model=GeneratePieceResponse)
@@ -221,4 +231,49 @@ async def generate_piece(
     return GeneratePieceResponse(
         piece_image=f"data:image/png;base64,{piece_base64}",
         piece_config=config.to_dict(),
+    )
+
+
+@app.post("/api/v1/puzzle/{puzzle_id}/cut-all", response_model=CutPuzzleResponse)
+async def cut_puzzle(
+    puzzle_id: str,
+    request: CutPuzzleRequest,
+) -> CutPuzzleResponse:
+    """Cut a puzzle into jigsaw-shaped pieces for manual solving.
+
+    This endpoint cuts the uploaded puzzle image into a grid of jigsaw-shaped
+    pieces with realistic Bezier curve edges. Each piece is returned as a PNG
+    with transparent background, along with its correct position for game play.
+
+    Args:
+        puzzle_id: ID of the puzzle to cut.
+        request: Contains rows, cols, and optional seed for reproducibility.
+
+    Returns:
+        CutPuzzleResponse with list of pieces, grid dimensions, and puzzle size.
+
+    Raises:
+        HTTPException: If puzzle not found.
+    """
+    if puzzle_id not in puzzle_images:
+        raise HTTPException(status_code=404, detail="Puzzle not found")
+
+    # Load puzzle image
+    puzzle_path = puzzle_images[puzzle_id]
+    puzzle_img = Image.open(puzzle_path)
+
+    # Cut into pieces
+    cutter = get_puzzle_cutter()
+    pieces, puzzle_width, puzzle_height = cutter.cut_puzzle(
+        puzzle_img,
+        rows=request.rows,
+        cols=request.cols,
+        seed=request.seed,
+    )
+
+    return CutPuzzleResponse(
+        pieces=pieces,
+        grid={"rows": request.rows, "cols": request.cols},
+        puzzle_width=puzzle_width,
+        puzzle_height=puzzle_height,
     )

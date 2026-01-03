@@ -8,11 +8,18 @@ export interface UseCameraOptions {
   height?: number;
 }
 
+export interface VideoDimensions {
+  width: number;
+  height: number;
+  isLandscape: boolean;
+}
+
 export interface UseCameraReturn {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   isReady: boolean;
   isLoading: boolean;
   error: string | null;
+  dimensions: VideoDimensions | null;
   start: () => Promise<void>;
   stop: () => void;
   capture: () => Promise<Blob | null>;
@@ -26,6 +33,7 @@ export function useCamera(options: UseCameraOptions = {}): UseCameraReturn {
   const [isReady, setIsReady] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dimensions, setDimensions] = useState<VideoDimensions | null>(null);
 
   const start = useCallback(async () => {
     setIsLoading(true);
@@ -49,8 +57,34 @@ export function useCamera(options: UseCameraOptions = {}): UseCameraReturn {
       streamRef.current = stream;
 
       if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        const video = videoRef.current;
+        video.srcObject = stream;
+
+        // Wait for video metadata to load before getting dimensions
+        await new Promise<void>((resolve) => {
+          const handleLoadedMetadata = () => {
+            video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+            resolve();
+          };
+          // Check if metadata is already loaded
+          if (video.readyState >= 1) {
+            resolve();
+          } else {
+            video.addEventListener('loadedmetadata', handleLoadedMetadata);
+          }
+        });
+
+        await video.play();
+
+        // Get actual video dimensions after metadata is loaded
+        const videoWidth = video.videoWidth;
+        const videoHeight = video.videoHeight;
+        setDimensions({
+          width: videoWidth,
+          height: videoHeight,
+          isLandscape: videoWidth > videoHeight,
+        });
+
         setIsReady(true);
       }
     } catch (err) {
@@ -74,6 +108,7 @@ export function useCamera(options: UseCameraOptions = {}): UseCameraReturn {
       videoRef.current.srcObject = null;
     }
     setIsReady(false);
+    setDimensions(null);
   }, []);
 
   const capture = useCallback(async (): Promise<Blob | null> => {
@@ -116,6 +151,7 @@ export function useCamera(options: UseCameraOptions = {}): UseCameraReturn {
     isReady,
     isLoading,
     error,
+    dimensions,
     start,
     stop,
     capture,

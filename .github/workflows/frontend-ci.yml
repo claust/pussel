@@ -88,3 +88,80 @@ jobs:
         with:
           name: next-build
           path: frontend/.next
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: [lint-and-typecheck, test]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install backend dependencies
+        run: |
+          pip install -e shared/puzzle_shapes
+          cd backend
+          grep -v "puzzle-shapes" requirements.txt > requirements-ci.txt
+          pip install -r requirements-ci.txt
+          pip install -e .
+
+      - name: Start backend server
+        run: |
+          cd backend
+          echo "Current directory: $(pwd)"
+          echo "Python path: $(which python)"
+          echo "Uvicorn path: $(which uvicorn)"
+          echo "Testing import..."
+          python -c "from app.main import app; print('Import successful')"
+          echo "Starting uvicorn..."
+          nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 > /tmp/backend.log 2>&1 &
+          BACKEND_PID=$!
+          echo "Backend PID: $BACKEND_PID"
+          echo "Waiting for backend to start..."
+          for i in {1..30}; do
+            if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
+              echo "Backend started successfully"
+              exit 0
+            fi
+            if ! kill -0 $BACKEND_PID 2>/dev/null; then
+              echo "Backend process died. Logs:"
+              cat /tmp/backend.log
+              exit 1
+            fi
+            sleep 1
+          done
+          echo "Backend failed to start within 30 seconds. Logs:"
+          cat /tmp/backend.log
+          exit 1
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install frontend dependencies
+        run: |
+          cd frontend
+          bun install --frozen-lockfile
+
+      - name: Install Playwright Browsers
+        run: |
+          cd frontend
+          bunx playwright install --with-deps chromium
+
+      - name: Run Playwright tests
+        run: |
+          cd frontend
+          bun run test:e2e
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 30

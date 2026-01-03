@@ -46,7 +46,7 @@ export default function HomePage() {
           <CardDescription>AI-powered puzzle piece position detection</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <Link href="/puzzle" className="w-full">
+          <Link href="/play" className="w-full">
             <Button className="w-full gap-2" size="lg">
               <Camera className="h-5 w-5" />
               New Puzzle
