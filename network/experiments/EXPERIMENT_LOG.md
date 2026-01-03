@@ -306,6 +306,40 @@ rotation-invariant features.
 
 ---
 
+## Exp 21: Masked Rotation Correlation
+
+**Date:** January 2026 **Status:** FAILED (73.7% cell, 24.7% rotation)
+
+Attempted to fix the rotation failure from exp20 by **masking out black background
+pixels** during rotation correlation. Hypothesis: the irregular Bezier edges create
+black background regions that interfere with rotation matching; masking these out
+would let the model compare only actual puzzle content. Generated masks at runtime
+by detecting pixels with mean RGB > 0.02 (threshold for non-black). The mask was
+applied to both piece and puzzle features during rotation correlation.
+
+Results: **73.7% cell accuracy** (matches exp20) but **24.7% rotation** (still at
+random baseline). Training rotation reached 93.6% while test stayed flat at ~25%
+throughout all 50 epochs — the same severe overfitting pattern as exp20. The
+hypothesis was **disproven**: masking doesn't solve the rotation generalization
+problem.
+
+**Why masking failed:**
+1. The problem isn't background interference — even comparing only puzzle content,
+   the model memorizes piece-specific features rather than learning rotation-invariant
+   representations
+2. The irregular Bezier edge shapes are visible in the feature maps (not just
+   background pixels) and can still be memorized
+3. Rotation correlation comparing piece-to-puzzle features is fundamentally prone
+   to overfitting on unique piece characteristics
+
+**Key insight:** The rotation overfitting is not caused by black background regions
+interfering with correlation. The failure is more fundamental — the model memorizes
+piece-specific texture/edge patterns during training. Future approaches should focus
+on rotation-invariant architectures or data augmentation strategies rather than
+input preprocessing.
+
+---
+
 ## Summary Table
 
 | Exp | Focus                       | Test Result            | Key Finding                                    |
@@ -330,6 +364,7 @@ rotation-invariant features.
 | 18  | 3x3 grid + 20K puzzles      | **82% cell / 95% rot** | Data scaling continues to help (NEW BEST)      |
 | 19  | Siamese architecture        | 79% cell / 92% rot     | Dual backbone > Siamese for dissimilar inputs  |
 | 20  | 4x4 realistic pieces        | **73% cell** / 25% rot | Position scales to 4x4; rotation fails         |
+| 21  | Masked rotation correlation | 74% cell / 25% rot     | Masking doesn't fix rotation overfitting       |
 
 ---
 
@@ -372,13 +407,20 @@ rotation** (fails). Rotation correlation does not generalize to realistic pieces
    for Bezier-curve realistic pieces (25% = random). Position prediction
    transfers well (73% accuracy), but rotation needs a fundamentally different
    approach for irregular piece shapes.
+5. **Masking doesn't solve rotation overfitting** (exp21): The rotation failure
+   is not caused by black background interference. The model memorizes
+   piece-specific texture/edge patterns regardless of masking.
 
-**Next Steps:**
-- For realistic pieces: investigate rotation-invariant position features +
-  separate edge-shape-based rotation detection
-- Consider two-stage approach: (1) position via texture correlation,
-  (2) rotation via piece silhouette/edge matching
-- Test whether the rotation failure is due to piece shape variation or
-  inadequate data augmentation
+**Next Steps (Updated after exp21):**
+- **Masking doesn't help** (exp21): The rotation failure is NOT caused by black
+  background interference. More fundamental changes needed.
+- **Rotation augmentation**: Train with all 4 rotations of each piece as separate
+  samples to force rotation-invariant feature learning
+- **Rotation-invariant architecture**: Use Group Equivariant CNNs or other
+  architectures explicitly designed for rotation equivariance
+- **Classification approach**: Predict rotation from piece features alone using
+  heavy data augmentation, rather than piece-puzzle correlation
+- **Edge removal**: Aggressively crop pieces to remove irregular edges, keeping
+  only central texture (may help correlation approach)
 
 ---
