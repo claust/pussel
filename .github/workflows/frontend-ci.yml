@@ -112,9 +112,18 @@ jobs:
       - name: Start backend server
         run: |
           cd backend
-          uvicorn app.main:app --host 0.0.0.0 --port 8000 &
-          sleep 3
-          curl -f http://localhost:8000/health || exit 1
+          uvicorn app.main:app --host 0.0.0.0 --port 8000 > /tmp/backend.log 2>&1 &
+          echo "Waiting for backend to start..."
+          for i in {1..30}; do
+            if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
+              echo "Backend started successfully"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Backend failed to start. Logs:"
+          cat /tmp/backend.log
+          exit 1
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
