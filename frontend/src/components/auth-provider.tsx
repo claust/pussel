@@ -42,8 +42,21 @@ function AuthSync() {
         });
 
         if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.detail || 'Failed to authenticate with backend');
+          let message = 'Failed to authenticate with backend';
+
+          try {
+            const errorBody = (await response.json()) as {
+              detail?: string;
+            };
+
+            if (errorBody && typeof errorBody.detail === 'string') {
+              message = errorBody.detail;
+            }
+          } catch {
+            // Ignore JSON parsing errors and fall back to default message.
+          }
+
+          throw new Error(message);
         }
 
         const data = await response.json();
