@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     JWT_EXPIRE_MINUTES: int = 60
     GOOGLE_CLIENT_ID: str = ""
 
+    # Background removal settings
+    ENABLE_BACKGROUND_REMOVAL: bool = True
+    REMBG_MODEL: str = "u2net"  # u2net, u2netp, isnet-general-use
+
     model_config = SettingsConfigDict(case_sensitive=True, env_file=".env")
 
 

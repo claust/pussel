@@ -1,4 +1,4 @@
-import type { Puzzle, Piece, GeneratedPiece } from '@/types';
+import type { Puzzle, Piece, GeneratedPiece, CutPuzzleResponse } from '@/types';
 import { useAuthStore } from '@/stores/auth-store';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -67,6 +67,7 @@ interface PieceApiResponse {
   position_confidence: number;
   rotation: 0 | 90 | 180 | 270;
   rotation_confidence: number;
+  cleaned_image?: string; // Base64 PNG with background removed
 }
 
 export async function processPiece(puzzleId: string, pieceBlob: Blob): Promise<Piece> {
@@ -93,6 +94,7 @@ export async function processPiece(puzzleId: string, pieceBlob: Blob): Promise<P
     positionConfidence: data.position_confidence,
     rotation: data.rotation,
     rotationConfidence: data.rotation_confidence,
+    imageData: data.cleaned_image, // Use cleaned image with background removed
   };
 }
 
@@ -135,6 +137,36 @@ export async function generateRealisticPiece(
     centerY,
     config: data.piece_config,
   };
+}
+
+export async function cutPuzzle(
+  puzzleId: string,
+  rows: number,
+  cols: number,
+  seed?: number
+): Promise<CutPuzzleResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/puzzle/${puzzleId}/cut-all`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify({
+      rows,
+      cols,
+      seed,
+    }),
+  });
+
+  if (res.status === 401) {
+    throw new ApiError('Authentication required. Please sign in.', res.status);
+  }
+
+  if (!res.ok) {
+    throw new ApiError('Failed to cut puzzle', res.status);
+  }
+
+  return res.json();
 }
 
 export { API_BASE };

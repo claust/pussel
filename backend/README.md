@@ -55,14 +55,10 @@ The project uses several tools to maintain code quality:
 
 ```bash
 # Format code
-black .
-isort .
+make format
 
-# Run linting
-flake8
-
-# Run type checking
-pyright .
+# Run linting and type checking
+make check
 ```
 
 ## Running the Application

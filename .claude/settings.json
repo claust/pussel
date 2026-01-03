@@ -1,6 +1,102 @@
 {
+  "permissions": {
+    "allow": [
+      "Read(//Applications/**)",
+      "Read(//Users/**)",
+      "WebSearch",
+      "WebFetch(domain:clipart-library.com)",
+      "WebFetch(domain:commons.wikimedia.org)",
+      "WebFetch(domain:docs.pytorch.org)",
+      "WebFetch(domain:github.com)",
+      "mcp__ide__getDiagnostics",
+      "mcp__plugin_playwright_playwright__browser_click",
+      "mcp__plugin_playwright_playwright__browser_close",
+      "mcp__plugin_playwright_playwright__browser_evaluate",
+      "mcp__plugin_playwright_playwright__browser_navigate",
+      "mcp__plugin_playwright_playwright__browser_resize",
+      "mcp__plugin_playwright_playwright__browser_run_code",
+      "mcp__plugin_playwright_playwright__browser_snapshot",
+      "mcp__plugin_playwright_playwright__browser_take_screenshot",
+      "mcp__plugin_playwright_playwright__browser_wait_for",
+      "Bash(awk:*)",
+      "Bash(bash)",
+      "Bash(cat:*)",
+      "Bash(chmod:*)",
+      "Bash(convert:*)",
+      "Bash(curl:*)",
+      "Bash(du:*)",
+      "Bash(echo:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Bash(head:*)",
+      "Bash(identify:*)",
+      "Bash(ioreg:*)",
+      "Bash(jq:*)",
+      "Bash(ls:*)",
+      "Bash(lsof:*)",
+      "Bash(magick:*)",
+      "Bash(make:*)",
+      "Bash(mkdir:*)",
+      "Bash(pkill:*)",
+      "Bash(sips:*)",
+      "Bash(sort:*)",
+      "Bash(source:*)",
+      "Bash(time:*)",
+      "Bash(timeout:*)",
+      "Bash(tmux:*)",
+      "Bash(tree:*)",
+      "Bash(xargs:*)",
+      "Bash(xxd:*)",
+      "Bash(yes:*)",
+      "Bash(git:*)",
+      "Bash(gh:*)",
+      "Bash(pip:*)",
+      "Bash(pyenv:*)",
+      "Bash(pytest:*)",
+      "Bash(python:*)",
+      "Bash(python3:*)",
+      "Bash(PYTORCH_ENABLE_MPS_FALLBACK=1 python:*)",
+      "Bash(black:*)",
+      "Bash(flake8:*)",
+      "Bash(isort:*)",
+      "Bash(pre-commit run:*)",
+      "Bash(pyright:*)",
+      "Bash(bun:*)",
+      "Bash(~/.bun/bin/bun:*)",
+      "Bash(~/.bun/bin/bunx:*)",
+      "Bash(npm:*)",
+      "Bash(npx:*)",
+      "Bash(uvicorn:*)",
+      "Bash(claude)",
+      "Bash(code --list-extensions:*)",
+      "Bash(gemini:*)",
+      "Bash(scp:*)",
+      "Bash(ssh:*)",
+      "Bash(ssh-keygen:*)",
+      "Bash(tailscale status:*)",
+      "Bash(/Applications/Tailscale.app/Contents/MacOS/Tailscale status:*)",
+      "Bash(/usr/libexec/ApplicationFirewall/socketfilterfw:*)"
+    ],
+    "deny": []
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/format-on-change.sh\"",
+            "timeout": 120
+          }
+        ]
+      }
+    ]
+  },
   "enabledPlugins": {
     "playwright@claude-plugins-official": true,
-    "typescript-lsp@claude-plugins-official": true
+    "typescript-lsp@claude-plugins-official": true,
+    "greptile@claude-plugins-official": true,
+    "frontend-design@claude-plugins-official": true
   }
 }
