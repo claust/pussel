@@ -1,4 +1,4 @@
-import type { Puzzle, Piece, GeneratedPiece } from '@/types';
+import type { Puzzle, Piece, GeneratedPiece, CutPuzzleResponse } from '@/types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -113,6 +113,31 @@ export async function generateRealisticPiece(
     centerY,
     config: data.piece_config,
   };
+}
+
+export async function cutPuzzle(
+  puzzleId: string,
+  rows: number,
+  cols: number,
+  seed?: number
+): Promise<CutPuzzleResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/puzzle/${puzzleId}/cut-all`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      rows,
+      cols,
+      seed,
+    }),
+  });
+
+  if (!res.ok) {
+    throw new ApiError('Failed to cut puzzle', res.status);
+  }
+
+  return res.json();
 }
 
 export { API_BASE };

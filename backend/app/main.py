@@ -11,9 +11,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 
 from app.config import settings
-from app.models.puzzle_model import GeneratePieceRequest, GeneratePieceResponse, PieceResponse, PuzzleResponse
+from app.models.puzzle_model import (
+    CutPuzzleRequest,
+    CutPuzzleResponse,
+    GeneratePieceRequest,
+    GeneratePieceResponse,
+    PieceResponse,
+    PuzzleResponse,
+)
 from app.services.image_processor import get_image_processor
 from app.services.piece_shape import PieceShapeGenerator
+from app.services.puzzle_cutter import get_puzzle_cutter
 
 # Initialize FastAPI app
 app = FastAPI(title=settings.PROJECT_NAME)
@@ -140,4 +148,49 @@ async def generate_piece(
     return GeneratePieceResponse(
         piece_image=f"data:image/png;base64,{piece_base64}",
         piece_config=config.to_dict(),
+    )
+
+
+@app.post("/api/v1/puzzle/{puzzle_id}/cut-all", response_model=CutPuzzleResponse)
+async def cut_puzzle(
+    puzzle_id: str,
+    request: CutPuzzleRequest,
+) -> CutPuzzleResponse:
+    """Cut a puzzle into jigsaw-shaped pieces for manual solving.
+
+    This endpoint cuts the uploaded puzzle image into a grid of jigsaw-shaped
+    pieces with realistic Bezier curve edges. Each piece is returned as a PNG
+    with transparent background, along with its correct position for game play.
+
+    Args:
+        puzzle_id: ID of the puzzle to cut.
+        request: Contains rows, cols, and optional seed for reproducibility.
+
+    Returns:
+        CutPuzzleResponse with list of pieces, grid dimensions, and puzzle size.
+
+    Raises:
+        HTTPException: If puzzle not found.
+    """
+    if puzzle_id not in puzzle_images:
+        raise HTTPException(status_code=404, detail="Puzzle not found")
+
+    # Load puzzle image
+    puzzle_path = puzzle_images[puzzle_id]
+    puzzle_img = Image.open(puzzle_path)
+
+    # Cut into pieces
+    cutter = get_puzzle_cutter()
+    pieces, puzzle_width, puzzle_height = cutter.cut_puzzle(
+        puzzle_img,
+        rows=request.rows,
+        cols=request.cols,
+        seed=request.seed,
+    )
+
+    return CutPuzzleResponse(
+        pieces=pieces,
+        grid={"rows": request.rows, "cols": request.cols},
+        puzzle_width=puzzle_width,
+        puzzle_height=puzzle_height,
     )
