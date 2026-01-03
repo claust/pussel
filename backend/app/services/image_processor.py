@@ -4,6 +4,7 @@ Uses FastBackboneModel that compares piece features with puzzle features
 to predict position (3x3 grid) and rotation.
 """
 
+import base64
 import io
 import os
 from pathlib import Path
@@ -19,6 +20,7 @@ from torch import Tensor
 from app.config import settings
 from app.models.model import FastBackboneModel
 from app.models.puzzle_model import PieceResponse, Position
+from app.services.background_remover import get_background_remover
 
 # Path to checkpoint (3x3 grid model with 82% cell accuracy, 95% rotation accuracy)
 DEFAULT_CHECKPOINT_PATH = str(
@@ -134,20 +136,48 @@ class ImageProcessor:
         else:
             self._puzzle_cache.clear()
 
-    async def process_piece(self, piece_file: UploadFile, puzzle_id: str) -> PieceResponse:
+    async def process_piece(
+        self,
+        piece_file: UploadFile,
+        puzzle_id: str,
+        remove_background: bool = True,
+    ) -> PieceResponse:
         """Process a puzzle piece image and predict its position and rotation.
 
         Args:
             piece_file: The puzzle piece image file.
             puzzle_id: The ID of the puzzle to match against.
+            remove_background: Whether to remove background from piece image.
 
         Returns:
-            PieceResponse with predicted position, confidence, and rotation.
+            PieceResponse with predicted position, confidence, rotation, and optionally cleaned image.
         """
         try:
-            # Read and preprocess piece image
+            # Read piece image bytes
             contents = await piece_file.read()
-            piece_img = Image.open(io.BytesIO(contents)).convert("RGB")
+
+            # Optionally remove background
+            cleaned_image_b64: Optional[str] = None
+            if remove_background and settings.ENABLE_BACKGROUND_REMOVAL:
+                remover = get_background_remover(settings.REMBG_MODEL)
+
+                # Get RGBA image with transparent background for frontend display
+                rgba_image = remover.remove_background(contents)
+
+                # Encode as base64 PNG for frontend
+                buffer = io.BytesIO()
+                rgba_image.save(buffer, format="PNG")
+                cleaned_image_b64 = f"data:image/png;base64,{base64.b64encode(buffer.getvalue()).decode()}"
+
+                # Convert to RGB with white background for model inference
+                piece_img = Image.new("RGB", rgba_image.size, (255, 255, 255))
+                if rgba_image.mode == "RGBA":
+                    piece_img.paste(rgba_image, mask=rgba_image.split()[3])
+                else:
+                    piece_img.paste(rgba_image)
+            else:
+                piece_img = Image.open(io.BytesIO(contents)).convert("RGB")
+
             piece_tensor = cast(Tensor, self.piece_transform(piece_img)).unsqueeze(0)
             piece_tensor = piece_tensor.to(self.device)
 
@@ -177,6 +207,7 @@ class ImageProcessor:
                 position_confidence=position_confidence,
                 rotation=rotation_degrees,
                 rotation_confidence=rotation_confidence,
+                cleaned_image=cleaned_image_b64,
             )
 
         except FileNotFoundError:
@@ -190,6 +221,7 @@ class ImageProcessor:
                 position_confidence=0.0,
                 rotation=0,
                 rotation_confidence=0.0,
+                cleaned_image=None,
             )
 
 

@@ -49,8 +49,9 @@ export default function PuzzlePage() {
       } else if (puzzle) {
         // Process piece
         const result = await processPiece(puzzle.puzzleId, blob);
-        const imageUrl = await blobToDataUrl(blob);
-        addPiece({ ...result, imageData: imageUrl });
+        // Prefer cleaned image (background removed) from API, fallback to original
+        const imageData = result.imageData || (await blobToDataUrl(blob));
+        addPiece({ ...result, imageData });
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');

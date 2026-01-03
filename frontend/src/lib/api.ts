@@ -53,6 +53,7 @@ interface PieceApiResponse {
   position_confidence: number;
   rotation: 0 | 90 | 180 | 270;
   rotation_confidence: number;
+  cleaned_image?: string; // Base64 PNG with background removed
 }
 
 export async function processPiece(puzzleId: string, pieceBlob: Blob): Promise<Piece> {
@@ -74,6 +75,7 @@ export async function processPiece(puzzleId: string, pieceBlob: Blob): Promise<P
     positionConfidence: data.position_confidence,
     rotation: data.rotation,
     rotationConfidence: data.rotation_confidence,
+    imageData: data.cleaned_image, // Use cleaned image with background removed
   };
 }
 

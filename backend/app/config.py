@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     USE_AZURE_STORAGE: bool = False
     AZURE_STORAGE_CONNECTION_STRING: str = ""
 
+    # Background removal settings
+    ENABLE_BACKGROUND_REMOVAL: bool = True
+    REMBG_MODEL: str = "u2net"  # u2net, u2netp, isnet-general-use
+
     model_config = SettingsConfigDict(case_sensitive=True, env_file=".env")
 
 

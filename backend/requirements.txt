@@ -24,6 +24,7 @@ pytest>=8.0.1
 pytest-cov>=4.1.0
 python-multipart>=0.0.20
 pytorch-lightning>=2.5.0
+rembg[cpu]>=2.0.50
 timm>=0.9.12
 torch>=2.6.0
 torchvision>=0.17.0
