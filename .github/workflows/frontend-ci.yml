@@ -105,7 +105,8 @@ jobs:
         run: |
           pip install -e shared/puzzle_shapes
           cd backend
-          pip install -r requirements.txt
+          grep -v "puzzle-shapes" requirements.txt > requirements-ci.txt
+          pip install -r requirements-ci.txt
           pip install -e .
 
       - name: Start backend server
