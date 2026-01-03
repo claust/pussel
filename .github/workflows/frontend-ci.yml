@@ -103,6 +103,7 @@ jobs:
 
       - name: Install backend dependencies
         run: |
+          pip install -e shared/puzzle_shapes
           cd backend
           pip install -r requirements.txt
           pip install -e .
