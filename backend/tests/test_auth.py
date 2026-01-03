@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
+from google.auth import exceptions as google_exceptions
 from jose import jwt
 
 from app.config import settings
@@ -289,8 +290,6 @@ class TestAuthService:
 
     def test_verify_google_token_google_auth_error(self) -> None:
         """Test that GoogleAuthError is handled gracefully."""
-        from google.auth import exceptions as google_exceptions
-
         from app.auth.service import get_auth_service
 
         auth_service = get_auth_service()
