@@ -4,12 +4,13 @@ azure-storage-blob>=12.19.0
 
 # Development dependencies
 black>=25.1.0
+# Authentication dependencies
+email-validator>=2.1.0
 
 # Web framework
 fastapi>=0.115.0
 flake8>=7.0.0
 flake8-docstrings>=1.7.0
-# Authentication dependencies
 google-auth>=2.27.0
 httpx>=0.26.0
 isort>=5.13.2
