@@ -117,6 +117,14 @@ jobs:
           pip install -r requirements-ci.txt
           pip install -e .
 
+      - name: Generate test auth token
+        id: auth_token
+        run: |
+          cd backend
+          TOKEN=$(python scripts/generate_test_token.py)
+          echo "TEST_AUTH_TOKEN=${TOKEN}" >> $GITHUB_ENV
+          echo "Test auth token generated"
+
       - name: Start backend server
         run: |
           cd backend
