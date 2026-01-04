@@ -19,19 +19,17 @@ A FastAPI-based backend service for the Puzzle Solver application that helps use
 
 ## Setup
 
-1. Create a virtual environment:
+1. Install uv (if not already installed):
 ```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-2. Install dependencies and package in development mode:
+2. Install dependencies (creates `.venv` automatically):
 ```bash
-pip install -r requirements.txt
-pip install -e .
+uv sync --all-extras
 ```
 
-3. Install pre-commit hooks:
+3. Install pre-commit hooks (from repo root):
 ```bash
 pre-commit install
 ```
@@ -65,7 +63,7 @@ make check
 
 Start the development server:
 ```bash
-uvicorn app.main:app --reload
+uv run uvicorn app.main:app --reload
 ```
 
 The API will be available at `http://localhost:8000`
@@ -108,12 +106,12 @@ GET /health
 ## Running Tests
 
 ```bash
-pytest -v --cov=app --cov-report=term-missing
+uv run pytest -v --cov=app --cov-report=term-missing
 ```
 
 For XML coverage report (used by CI):
 ```bash
-pytest -v --cov=app --cov-report=xml
+uv run pytest -v --cov=app --cov-report=xml
 ```
 
 ## Project Structure
@@ -130,10 +128,9 @@ backend/
 │       └── image_processor.py # Image processing logic
 ├── tests/
 │   └── test_main.py      # API endpoint tests
-├── .flake8              # Flake8 configuration
-├── .pre-commit-config.yaml # Pre-commit hooks configuration
+├── pyproject.toml       # Project config and dependencies (uv/PEP 621)
+├── uv.lock              # Locked dependencies
 ├── pyrightconfig.json   # Pyright configuration
-├── requirements.txt     # Project dependencies
 └── README.md
 ```
 
@@ -151,8 +148,8 @@ The application uses Pydantic settings for configuration:
 
 The project uses GitHub Actions for continuous integration, which:
 - Runs on Ubuntu latest
+- Uses uv for fast dependency installation (10-100x faster than pip)
 - Tests with Python 3.12
-- Installs dependencies and package in development mode
 - Checks code formatting with black
 - Verifies import order with isort
 - Runs linting with flake8

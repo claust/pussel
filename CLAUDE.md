@@ -13,14 +13,14 @@ Pussel is a computer vision-based puzzle solver application with three main comp
 
 ### Backend (Python/FastAPI)
 ```bash
-# Create venv at repo root (shared with network)
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+# Install uv (if not already installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Install backend dependencies
+# Install backend dependencies (creates .venv automatically)
 cd backend
-pip install -r requirements.txt
-pip install -e .
+uv sync --all-extras
+
+# Install pre-commit hooks (from repo root)
 pre-commit install
 ```
 
@@ -52,15 +52,15 @@ source ../venv/bin/activate  # From network/ directory
 ```bash
 # Run development server
 cd backend
-uvicorn app.main:app --reload
+uv run uvicorn app.main:app --reload
 
 # Run tests with coverage
 cd backend
-pytest -v --cov=app --cov-report=term-missing
+uv run pytest -v --cov=app --cov-report=term-missing
 
 # Run single test file
 cd backend
-pytest tests/test_main.py -v
+uv run pytest tests/test_main.py -v
 
 # Code quality checks (from repo root)
 make check-backend         # Run all checks (format, lint, typecheck)
@@ -248,11 +248,12 @@ GitHub Actions workflows test/deploy on push to master/main/dev:
 ## Important Notes
 
 ### Package Installation
-The backend uses both `requirements.txt` AND `setup.py`. Always run:
+The backend uses uv with `pyproject.toml` for dependency management. To install:
 ```bash
-pip install -r requirements.txt
-pip install -e .
+cd backend
+uv sync --all-extras
 ```
+This creates a `.venv` directory and installs all dependencies including dev tools.
 
 ### Type Checking
 pyright is configured with standard mode - all functions must have type annotations. See `backend/pyrightconfig.json` for configuration details.
