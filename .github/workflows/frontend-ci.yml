@@ -109,37 +109,32 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
         with:
-          python-version: '3.12'
+          enable-cache: true
+          cache-dependency-glob: "backend/uv.lock"
 
       - name: Install backend dependencies
-        run: |
-          pip install -e shared/puzzle_shapes
-          cd backend
-          grep -v "puzzle-shapes" requirements.txt > requirements-ci.txt
-          pip install -r requirements-ci.txt
-          pip install -e .
+        working-directory: backend
+        run: uv sync --locked --all-extras
 
       - name: Generate test auth token
         id: auth_token
+        working-directory: backend
         run: |
-          cd backend
-          TOKEN=$(python scripts/generate_test_token.py)
+          TOKEN=$(uv run python scripts/generate_test_token.py)
           echo "TEST_AUTH_TOKEN=${TOKEN}" >> $GITHUB_ENV
           echo "Test auth token generated"
 
       - name: Start backend server
+        working-directory: backend
         run: |
-          cd backend
           echo "Current directory: $(pwd)"
-          echo "Python path: $(which python)"
-          echo "Uvicorn path: $(which uvicorn)"
           echo "Testing import..."
-          python -c "from app.main import app; print('Import successful')"
+          uv run python -c "from app.main import app; print('Import successful')"
           echo "Starting uvicorn..."
-          nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 > /tmp/backend.log 2>&1 &
+          nohup uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 > /tmp/backend.log 2>&1 &
           BACKEND_PID=$!
           echo "Backend PID: $BACKEND_PID"
           echo "Waiting for backend to start..."
