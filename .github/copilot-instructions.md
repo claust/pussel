@@ -220,11 +220,7 @@ pussel/
 
 **Backend (Python/FastAPI)**:
 ```bash
-# Create virtual environment at repo root (shared with network)
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install backend dependencies (using uv)
+# Install backend dependencies (uv manages its own .venv automatically)
 cd backend
 uv sync --all-extras
 pre-commit install
@@ -246,11 +242,12 @@ cd network
 pip install -r requirements.txt
 ```
 
-**IMPORTANT**: Always activate the virtual environment before working with Python code:
+**IMPORTANT**: For network code, always activate the virtual environment:
 ```bash
 source venv/bin/activate  # From repo root, or:
-source ../venv/bin/activate  # From backend/ or network/ directory
+source ../venv/bin/activate  # From network/ directory
 ```
+Note: Backend uses uv which manages its own `.venv` automatically - no manual activation needed.
 
 ### Running Applications
 
@@ -600,7 +597,7 @@ Run manually: `pre-commit run --all-files`
 4. **Keep changes minimal**: Make focused, atomic commits
 5. **Document with docstrings**: Use Google-style docstrings for Python; JSDoc for TypeScript where needed
 6. **Follow existing patterns**: Match the structure and style of existing code
-7. **Virtual environment**: Always activate venv when working with Python code (backend, network)
+7. **Virtual environment**: Activate venv when working with network code (backend uses uv which manages .venv automatically)
 8. **Don't commit**: Build artifacts, `__pycache__`, `venv`, `node_modules`, `uploads/`, `.env` files, `.next/`, `dist/`
 9. **Package installation**: Backend uses uv - run `uv sync --all-extras` in the backend directory
 

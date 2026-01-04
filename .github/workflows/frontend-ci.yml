@@ -115,6 +115,9 @@ jobs:
           enable-cache: true
           cache-dependency-glob: "backend/uv.lock"
 
+      - name: Set up Python
+        run: uv python install 3.12
+
       - name: Install backend dependencies
         working-directory: backend
         run: uv sync --locked --all-extras
