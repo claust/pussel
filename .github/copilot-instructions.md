@@ -234,20 +234,10 @@ bun install
 
 **Network (ML Training)**:
 ```bash
-# Create and activate virtual environment (from repo root)
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
+# Install network dependencies (uv manages its own .venv automatically)
 cd network
-pip install -r requirements.txt
+uv sync --all-extras
 ```
-
-**IMPORTANT**: For network code, always activate the virtual environment:
-```bash
-source venv/bin/activate  # From repo root, or:
-source ../venv/bin/activate  # From network/ directory
-```
-Note: Backend uses uv which manages its own `.venv` automatically - no manual activation needed.
 
 ### Running Applications
 
@@ -327,24 +317,21 @@ make check-frontend        # Run all checks
 
 **Network**:
 ```bash
-# Activate venv first!
-source venv/bin/activate   # From repo root
-
 cd network
 
 # Format code
-black .
-isort .
+uv run black .
+uv run isort .
 
 # Check formatting
-black . --check
-isort . --check-only
+uv run black . --check
+uv run isort . --check-only
 
 # Lint
-flake8 .
+uv run flake8 .
 
 # Type check
-pyright .
+uv run pyright .
 
 # Or use Makefile from repo root
 make format-network        # Auto-format
@@ -395,35 +382,29 @@ make test-frontend
 
 **Network**:
 ```bash
-# Activate venv first!
-source venv/bin/activate   # From repo root
-
 cd network
-pytest -v
+uv run pytest -v
 ```
 
 ### ML Model Training
 
 **Local Training**:
 ```bash
-# Activate venv first!
-source venv/bin/activate   # From repo root
-
 cd network
 
 # Train with default config
-python train.py
+uv run python train.py
 
 # Custom training parameters
-python train.py --backbone efficientnet_b0 --batch_size 32 --max_epochs 50
+uv run python train.py --backbone efficientnet_b0 --batch_size 32 --max_epochs 50
 
 # Monitor training with TensorBoard
-tensorboard --logdir=logs
+uv run tensorboard --logdir=logs
 
 # Dataset utilities
-python puzzle_generator.py datasets/example/puzzle_001.jpg
-python resize_puzzles.py datasets/example --output-dir datasets/example/resized
-python visualize_piece.py datasets/example/puzzle_001.jpg datasets/example/pieces/piece_001.png
+uv run python puzzle_generator.py datasets/example/puzzle_001.jpg
+uv run python resize_puzzles.py datasets/example --output-dir datasets/example/resized
+uv run python visualize_piece.py datasets/example/puzzle_001.jpg datasets/example/pieces/piece_001.png
 ```
 
 **RunPod GPU Training** (for faster training):
@@ -481,12 +462,9 @@ Runs on:
 - Pull requests to master/main branch (if network or CI config changes)
 
 Pipeline steps:
-1. Set up Python 3.12
-2. Install dependencies
-3. Check formatting with black
-4. Check imports with isort
-5. Lint with flake8
-6. Type check with pyright
+1. Install uv
+2. Install dependencies (`uv sync --locked --all-extras`)
+3. Run all checks via Makefile (`make check-network`)
 
 **Important**: All checks must pass for CI to succeed. Always run these checks locally before committing.
 
@@ -585,8 +563,6 @@ Configured in `.pre-commit-config.yaml` at the repository root and applies to al
 
 Run manually: `pre-commit run --all-files`
 
-**Note**: Pre-commit hooks handle virtual environment activation automatically for network checks.
-
 ## Key Development Practices
 
 1. **Always type hint**: All Python functions must have complete type annotations; TypeScript should use strict mode
@@ -597,9 +573,8 @@ Run manually: `pre-commit run --all-files`
 4. **Keep changes minimal**: Make focused, atomic commits
 5. **Document with docstrings**: Use Google-style docstrings for Python; JSDoc for TypeScript where needed
 6. **Follow existing patterns**: Match the structure and style of existing code
-7. **Virtual environment**: Activate venv when working with network code (backend uses uv which manages .venv automatically)
-8. **Don't commit**: Build artifacts, `__pycache__`, `venv`, `node_modules`, `uploads/`, `.env` files, `.next/`, `dist/`
-9. **Package installation**: Backend uses uv - run `uv sync --all-extras` in the backend directory
+7. **Don't commit**: Build artifacts, `__pycache__`, `.venv`, `node_modules`, `uploads/`, `.env` files, `.next/`, `dist/`
+8. **Package installation**: Both backend and network use uv - run `uv sync --all-extras` in respective directories
 
 ## Resources
 

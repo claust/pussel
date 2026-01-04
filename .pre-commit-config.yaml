@@ -77,8 +77,8 @@ repos:
     hooks:
       - id: network-python-checks
         name: network python checks (make check-network)
-        description: Run black, isort, flake8, pyright via root Makefile
-        entry: bash -c 'source venv/bin/activate && make check-network'
+        description: Run black, isort, flake8, pyright via root Makefile (uses uv)
+        entry: make check-network
         language: system
         files: ^network/.*\.py$
         pass_filenames: false

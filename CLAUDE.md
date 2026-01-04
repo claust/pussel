@@ -32,18 +32,9 @@ bun install
 
 ### Network (ML Training)
 ```bash
-# Create and activate virtual environment (from repo root)
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
+# Install network dependencies (uv manages its own .venv automatically)
 cd network
-pip install -r requirements.txt
-```
-
-**IMPORTANT**: Always activate the virtual environment before working with network code:
-```bash
-source venv/bin/activate  # From repo root, or:
-source ../venv/bin/activate  # From network/ directory
+uv sync --all-extras
 ```
 
 ## Common Commands
@@ -84,24 +75,20 @@ bun run format             # Auto-format with Prettier
 ```
 
 ### ML Model Training (Local)
-**Note**: Always activate the venv first: `source venv/bin/activate` (from repo root)
-
 ```bash
-source venv/bin/activate   # Activate venv before running any commands
-
 cd network
-python train.py            # Train with default config
+uv run python train.py            # Train with default config
 
 # Custom training parameters
-python train.py --backbone efficientnet_b0 --batch_size 32 --max_epochs 50
+uv run python train.py --backbone efficientnet_b0 --batch_size 32 --max_epochs 50
 
 # Monitor training with TensorBoard
-tensorboard --logdir=logs
+uv run tensorboard --logdir=logs
 
 # Dataset utilities
-python puzzle_generator.py datasets/example/puzzle_001.jpg
-python resize_puzzles.py datasets/example --output-dir datasets/example/resized
-python visualize_piece.py datasets/example/puzzle_001.jpg datasets/example/pieces/piece_001.png
+uv run python puzzle_generator.py datasets/example/puzzle_001.jpg
+uv run python resize_puzzles.py datasets/example --output-dir datasets/example/resized
+uv run python visualize_piece.py datasets/example/puzzle_001.jpg datasets/example/pieces/piece_001.png
 
 # Code quality checks (from repo root, same as CI pipeline)
 make check-network         # Run all checks (format, lint, typecheck)
@@ -298,8 +285,6 @@ make check-network         # Network: black, isort, flake8, pyright
 make check-frontend        # Frontend: oxlint
 
 ```
-
-**Note**: For network checks, the venv must be activated. The pre-commit hooks handle this automatically.
 
 If checks fail, run the appropriate format command to auto-fix formatting issues, then address any remaining lint or type errors.
 
