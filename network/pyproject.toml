@@ -10,7 +10,7 @@ dependencies = [
     "torch>=2.6.0",
     "torchvision>=0.17.0",
     "pytorch-lightning>=2.5.0",
-    "timm>=0.9.2",
+    "timm>=0.9.12",
     # Data processing
     "albumentations>=2.0.8",
     "pillow>=11.0.0",
