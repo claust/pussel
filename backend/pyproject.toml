@@ -49,6 +49,8 @@ dev = [
     "pyright>=1.1.390",
     "types-Pillow",
     "types-requests",
+    "torch-stubs",
+    "torchvision-stubs",
     # Pre-commit
     "pre-commit>=3.6.0",
 ]
