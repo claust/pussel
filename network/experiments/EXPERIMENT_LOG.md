@@ -306,6 +306,38 @@ rotation-invariant features.
 
 ---
 
+## Exp 21: Masked Rotation Correlation
+
+**Date:** December 2025 **Status:** FAILED (74% cell, 25% rotation)
+
+Attempted to fix exp20's rotation failure by masking out the black background
+during feature extraction, hypothesizing that black pixels from irregular Bezier
+edges interfere with rotation correlation. Results: 73.9% cell accuracy
+(unchanged) and 24.7% rotation accuracy (still random baseline). Masking had
+zero effect. The rotation correlation approach fundamentally cannot learn
+rotation for realistic pieces because irregular Bezier edges create highly
+variable piece silhouettes that texture-based correlation cannot capture.
+
+---
+
+## Exp 22: RoMa V2 Dense Feature Matching
+
+**Date:** January 2026 **Status:** PARTIAL SUCCESS (64% cell, 58% rotation)
+
+Tested RoMa V2, a pretrained dense feature matcher (DINOv3 + Multi-view
+Transformer), as an alternative to CNN rotation correlation. For each piece,
+tried all 4 rotations and selected the one with highest overlap score, then
+extracted position from correspondence centroids. On 780 pieces: 63.5% cell
+accuracy (regressed from 73% CNN) but 58.1% rotation accuracy (2.3× improvement
+over 25% baseline!). This is the first approach to beat random on Bezier-edge
+pieces. The rotation breakthrough comes from RoMa's pretrained features that
+cannot overfit to puzzle data, combined with explicit rotation search rather
+than implicit learning. Position regressed due to noisy correspondences.
+Recommendation: hybrid approach using RoMa for rotation (58%) and CNN for
+position (73%), expecting ~42% combined accuracy.
+
+---
+
 ## Summary Table
 
 | Exp | Focus                       | Test Result            | Key Finding                                    |
@@ -330,6 +362,8 @@ rotation-invariant features.
 | 18  | 3x3 grid + 20K puzzles      | **82% cell / 95% rot** | Data scaling continues to help (NEW BEST)      |
 | 19  | Siamese architecture        | 79% cell / 92% rot     | Dual backbone > Siamese for dissimilar inputs  |
 | 20  | 4x4 realistic pieces        | **73% cell** / 25% rot | Position scales to 4x4; rotation fails         |
+| 21  | Masked rotation correlation | 74% cell / 25% rot     | Masking background doesn't help rotation       |
+| 22  | RoMa V2 dense matching      | 64% cell / **58% rot** | Dense matching breaks rotation barrier!        |
 
 ---
 
@@ -356,9 +390,13 @@ puzzles. This is the current production-ready model for 3x3 grids.
 **For Fast Experimentation:** ShuffleNetV2_x0.5 (exp15) - 12.9s/epoch vs 39.3s
 for RepVGG and 98.1s for MobileOne. Use for rapid iteration.
 
-**For Position + Rotation (4×4 realistic pieces):** FastBackboneModel (exp20)
-with ShuffleNetV2_x0.5 - **73% cell accuracy** (position works!) but **25%
-rotation** (fails). Rotation correlation does not generalize to realistic pieces.
+**For Position + Rotation (4×4 realistic pieces):** Best approach is a **hybrid**:
+- **Position:** FastBackboneModel CNN (exp20) - **73% cell accuracy**
+- **Rotation:** RoMa V2 dense matching (exp22) - **58% rotation accuracy**
+- Expected combined: ~42% accuracy (vs 37% RoMa-only, 18% CNN-only)
+
+Note: Masking the background (exp21) did not help — the rotation correlation
+architecture fundamentally cannot learn rotation for realistic Bezier-edge pieces.
 
 **Key Learnings:**
 1. **Data quantity AND quality matter** (exp17): Must see all cells per puzzle
@@ -367,18 +405,20 @@ rotation** (fails). Rotation correlation does not generalize to realistic pieces
    (scale, content type), specialized encoders outperform weight sharing
 3. **Data scaling helps** (exp18): More diverse training data improves
    generalization
-4. **Realistic pieces break rotation** (exp20): The rotation correlation
+4. **Realistic pieces break CNN rotation** (exp20-21): The rotation correlation
    approach that worked for square pieces (93-95% accuracy) completely fails
-   for Bezier-curve realistic pieces (25% = random). Position prediction
-   transfers well (73% accuracy), but rotation needs a fundamentally different
-   approach for irregular piece shapes.
+   for Bezier-curve realistic pieces (25% = random). Masking the background
+   does not help — the architecture cannot learn generalizable rotation features.
+5. **Dense feature matching breaks the rotation barrier** (exp22): RoMa V2's
+   overlap score maximization achieves 58% rotation accuracy (2.3× improvement),
+   proving rotation IS solvable for realistic pieces. Trade-off: position
+   accuracy regresses to 64%.
 
 **Next Steps:**
-- For realistic pieces: investigate rotation-invariant position features +
-  separate edge-shape-based rotation detection
-- Consider two-stage approach: (1) position via texture correlation,
-  (2) rotation via piece silhouette/edge matching
-- Test whether the rotation failure is due to piece shape variation or
-  inadequate data augmentation
+- Implement hybrid approach: RoMa for rotation, CNN for position
+- Improve RoMa position extraction (RANSAC filtering, confidence weighting)
+- Investigate faster dense matchers or distilled models for real-time inference
+- Consider using RoMa's rotation as soft labels to train a faster CNN rotation
+  predictor
 
 ---
