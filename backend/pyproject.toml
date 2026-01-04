@@ -16,7 +16,7 @@ dependencies = [
     "email-validator>=2.1.0",
     # Authentication
     "google-auth>=2.27.0",
-    "python-jose[cryptography]>=3.3.0",
+    "python-jose[cryptography]>=3.4.0",
     # HTTP client
     "httpx>=0.26.0",
     # Azure
