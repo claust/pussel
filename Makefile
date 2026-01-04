@@ -47,10 +47,10 @@ format-network:
 	cd network && black . --line-length=120
 	cd network && isort . --profile=black --line-length=120
 
-# Auto-format shared library
+# Auto-format shared library (uses backend's uv venv for consistency with check-shared)
 format-shared:
-	cd shared/puzzle_shapes && black . --line-length=120
-	cd shared/puzzle_shapes && isort . --profile=black --line-length=120
+	cd backend && uv run black ../shared/puzzle_shapes --line-length=120
+	cd backend && uv run isort ../shared/puzzle_shapes --profile=black --line-length=120
 
 # Auto-format frontend
 format-frontend:
