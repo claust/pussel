@@ -2,6 +2,7 @@
   "include": ["."],
   "exclude": [
     "venv",
+    ".venv",
     "**/__pycache__"
   ],
   "extraPaths": ["../shared/puzzle_shapes"],

@@ -1,25 +1,92 @@
+[project]
+name = "pussel-backend"
+version = "0.1.0"
+description = "FastAPI backend for puzzle image processing and piece matching"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+dependencies = [
+    # Web framework
+    "fastapi>=0.115.0",
+    "uvicorn>=0.27.1",
+    "python-multipart>=0.0.20",
+    # Data validation
+    "pydantic>=2.6.1",
+    "pydantic-settings>=2.1.0",
+    "email-validator>=2.1.0",
+    # Authentication
+    "google-auth>=2.27.0",
+    "python-jose[cryptography]>=3.3.0",
+    # HTTP client
+    "httpx>=0.26.0",
+    # Azure
+    "azure-storage-blob>=12.19.0",
+    # ML dependencies
+    "Pillow>=11.0.0",
+    "torch>=2.6.0",
+    "torchvision>=0.17.0",
+    "pytorch-lightning>=2.5.0",
+    "timm>=0.9.12",
+    "rembg[cpu]>=2.0.50",
+    # Force newer numba for Python 3.12 compatibility (rembg->pymatting->numba)
+    "numba>=0.60.0",
+    # Shared library (local path dependency)
+    "puzzle-shapes",
+]
+
+[project.optional-dependencies]
+dev = [
+    # Testing
+    "pytest>=8.0.1",
+    "pytest-cov>=4.1.0",
+    # Formatting
+    "black>=25.1.0",
+    "isort>=5.13.2",
+    # Linting
+    "flake8>=7.0.0",
+    "flake8-docstrings>=1.7.0",
+    "flake8-import-order>=0.18.2",
+    "flake8-bugbear>=24.0.0",
+    "flake8-comprehensions>=3.14.0",
+    "flake8-pytest-style>=2.0.0",
+    # Type checking
+    "pyright>=1.1.390",
+    "types-Pillow",
+    "types-requests",
+    # Pre-commit
+    "pre-commit>=3.6.0",
+]
+
 [build-system]
-requires = ["setuptools>=45", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.uv.sources]
+puzzle-shapes = { path = "../shared/puzzle_shapes", editable = true }
 
 [tool.black]
 line-length = 120
-include = '\.pyi?$'
-exclude = '''
-/(
-    \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | _build
-  | buck-out
-  | build
-  | dist
-)/
+extend-exclude = '''
+(
+    venv
+    | \.venv
+)
 '''
 
 [tool.isort]
 profile = "black"
 line_length = 120
-multi_line_output = 3
+skip = ["venv", ".venv"]
+
+[tool.pyright]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"
+exclude = ["venv", ".venv"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
