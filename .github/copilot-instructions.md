@@ -220,14 +220,9 @@ pussel/
 
 **Backend (Python/FastAPI)**:
 ```bash
-# Create virtual environment at repo root (shared with network)
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install backend dependencies
+# Install backend dependencies (uv manages its own .venv automatically)
 cd backend
-pip install -r requirements.txt
-pip install -e .
+uv sync --all-extras
 pre-commit install
 ```
 
@@ -247,11 +242,12 @@ cd network
 pip install -r requirements.txt
 ```
 
-**IMPORTANT**: Always activate the virtual environment before working with Python code:
+**IMPORTANT**: For network code, always activate the virtual environment:
 ```bash
 source venv/bin/activate  # From repo root, or:
-source ../venv/bin/activate  # From backend/ or network/ directory
+source ../venv/bin/activate  # From network/ directory
 ```
+Note: Backend uses uv which manages its own `.venv` automatically - no manual activation needed.
 
 ### Running Applications
 
@@ -456,8 +452,8 @@ Runs on:
 - Pull requests to master/main branch (if backend or CI config changes)
 
 Pipeline steps:
-1. Set up Python 3.12
-2. Install dependencies (`pip install -r requirements.txt` and `pip install -e .`)
+1. Install uv
+2. Install dependencies (`uv sync --locked --all-extras`)
 3. Check formatting with black (`black . --check`)
 4. Check imports with isort (`isort . --check-only`)
 5. Lint with flake8 (`flake8 .`)
@@ -601,9 +597,9 @@ Run manually: `pre-commit run --all-files`
 4. **Keep changes minimal**: Make focused, atomic commits
 5. **Document with docstrings**: Use Google-style docstrings for Python; JSDoc for TypeScript where needed
 6. **Follow existing patterns**: Match the structure and style of existing code
-7. **Virtual environment**: Always activate venv when working with Python code (backend, network)
+7. **Virtual environment**: Activate venv when working with network code (backend uses uv which manages .venv automatically)
 8. **Don't commit**: Build artifacts, `__pycache__`, `venv`, `node_modules`, `uploads/`, `.env` files, `.next/`, `dist/`
-9. **Package installation**: Backend uses both `requirements.txt` AND `setup.py` - always run both `pip install -r requirements.txt` and `pip install -e .`
+9. **Package installation**: Backend uses uv - run `uv sync --all-extras` in the backend directory
 
 ## Resources
 
