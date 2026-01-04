@@ -19,6 +19,7 @@ exclude =
     *.egg-info,
     .eggs,
     venv,
+    .venv,
     datasets,
     checkpoints,
     logs
