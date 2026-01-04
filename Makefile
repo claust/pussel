@@ -16,12 +16,12 @@ check-backend:
 	cd backend && uv run flake8 . --config=../.flake8
 	cd backend && uv run pyright .
 
-# Network checks
+# Network checks (uses uv to run tools from the network venv)
 check-network:
-	cd network && black . --check --line-length=120
-	cd network && isort . --check-only --profile=black --line-length=120
-	cd network && flake8 . --config=../.flake8
-	cd network && pyright .
+	cd network && uv run black . --check
+	cd network && uv run isort . --check-only
+	cd network && uv run flake8 . --config=../.flake8
+	cd network && uv run pyright .
 
 # Shared library checks (uses backend's uv venv since puzzle-shapes is installed there)
 check-shared:
@@ -42,10 +42,10 @@ format-backend:
 	cd backend && uv run black .
 	cd backend && uv run isort .
 
-# Auto-format network
+# Auto-format network (uses uv to run tools from the network venv)
 format-network:
-	cd network && black . --line-length=120
-	cd network && isort . --profile=black --line-length=120
+	cd network && uv run black .
+	cd network && uv run isort .
 
 # Auto-format shared library (uses backend's uv venv for consistency with check-shared)
 format-shared:
@@ -65,8 +65,7 @@ install-dev-backend:
 	cd backend && uv sync --all-extras
 
 install-dev-network:
-	cd network && pip install -r requirements.txt
-	pip install black isort flake8 flake8-docstrings flake8-import-order flake8-bugbear flake8-comprehensions flake8-pytest-style pyright
+	cd network && uv sync --all-extras
 
 # Start development servers (uses uv)
 start-backend:
