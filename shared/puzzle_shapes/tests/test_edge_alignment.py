@@ -463,9 +463,7 @@ class TestVisualEdgeAlignment:
                 color = yellow if is_even else blue
 
                 # Get polygon for this piece
-                polygon = TestVisualEdgeAlignment.get_piece_polygon(
-                    grid, row, col, piece_size, rows, points_per_curve
-                )
+                polygon = TestVisualEdgeAlignment.get_piece_polygon(grid, row, col, piece_size, rows, points_per_curve)
 
                 # Create a temporary image for this piece with transparency
                 piece_img = Image.new("RGBA", (img_width, img_height), (0, 0, 0, 0))
@@ -535,12 +533,10 @@ class TestVisualEdgeAlignment:
         max_allowed_artifacts = 50  # pixels
 
         assert white_count < max_allowed_artifacts, (
-            f"Found {white_count} white pixels (gaps) in 3x3 puzzle. "
-            f"Sample positions: {samples[:5]}"
+            f"Found {white_count} white pixels (gaps) in 3x3 puzzle. " f"Sample positions: {samples[:5]}"
         )
         assert green_count < max_allowed_artifacts, (
-            f"Found {green_count} green pixels (overlaps) in 3x3 puzzle. "
-            f"Sample positions: {samples[:5]}"
+            f"Found {green_count} green pixels (overlaps) in 3x3 puzzle. " f"Sample positions: {samples[:5]}"
         )
 
     def test_visual_no_gaps_or_overlaps_4x4(self) -> None:
@@ -553,12 +549,10 @@ class TestVisualEdgeAlignment:
         max_allowed_artifacts = 50
 
         assert white_count < max_allowed_artifacts, (
-            f"Found {white_count} white pixels (gaps) in 4x4 puzzle. "
-            f"Sample positions: {samples[:5]}"
+            f"Found {white_count} white pixels (gaps) in 4x4 puzzle. " f"Sample positions: {samples[:5]}"
         )
         assert green_count < max_allowed_artifacts, (
-            f"Found {green_count} green pixels (overlaps) in 4x4 puzzle. "
-            f"Sample positions: {samples[:5]}"
+            f"Found {green_count} green pixels (overlaps) in 4x4 puzzle. " f"Sample positions: {samples[:5]}"
         )
 
     def test_visual_multiple_seeds(self) -> None:
@@ -572,10 +566,8 @@ class TestVisualEdgeAlignment:
             white_count, green_count, samples = self.check_for_artifacts(image)
 
             assert white_count < max_allowed_artifacts, (
-                f"Seed {seed}: Found {white_count} white pixels (gaps). "
-                f"Sample positions: {samples[:5]}"
+                f"Seed {seed}: Found {white_count} white pixels (gaps). " f"Sample positions: {samples[:5]}"
             )
             assert green_count < max_allowed_artifacts, (
-                f"Seed {seed}: Found {green_count} green pixels (overlaps). "
-                f"Sample positions: {samples[:5]}"
+                f"Seed {seed}: Found {green_count} green pixels (overlaps). " f"Sample positions: {samples[:5]}"
             )
