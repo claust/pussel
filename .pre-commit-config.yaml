@@ -26,7 +26,7 @@ repos:
       - id: black
         language_version: python3.12
         args: [--line-length=120]
-        exclude: ^network/
+        exclude: ^(network/|shared/)
 
   - repo: https://github.com/pycqa/isort
     rev: 5.13.2
@@ -34,7 +34,7 @@ repos:
       - id: isort
         name: isort (python)
         args: [--profile=black, --line-length=120]
-        exclude: ^network/
+        exclude: ^(network/|shared/)
 
   - repo: https://github.com/pycqa/flake8
     rev: 7.0.0
@@ -46,7 +46,7 @@ repos:
           - flake8-bugbear
           - flake8-comprehensions
           - flake8-pytest-style
-        exclude: ^network/
+        exclude: ^(network/|shared/)
 
   # Backend pyright type checking
   - repo: local
@@ -60,13 +60,13 @@ repos:
         pass_filenames: false
         require_serial: true
 
-  # Shared library pyright type checking
+  # Shared library Python checks - runs make check-shared for formatting, linting, and type checking
   - repo: local
     hooks:
-      - id: shared-pyright
-        name: shared library pyright type checking
-        description: Run pyright type checking for shared puzzle_shapes library
-        entry: bash -c 'cd shared/puzzle_shapes && pyright .'
+      - id: shared-python-checks
+        name: shared library python checks (make check-shared)
+        description: Run black, isort, flake8, pyright via root Makefile (uses uv)
+        entry: make check-shared
         language: system
         files: ^shared/.*\.py$
         pass_filenames: false
