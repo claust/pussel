@@ -1546,6 +1546,7 @@ dependencies = [
     { name = "matplotlib" },
     { name = "pandas" },
     { name = "pillow" },
+    { name = "puzzle-shapes" },
     { name = "pytorch-lightning" },
     { name = "requests" },
     { name = "scikit-learn" },
@@ -1587,6 +1588,7 @@ requires-dist = [
     { name = "pandas", specifier = ">=2.0.0" },
     { name = "pandas-stubs", marker = "extra == 'dev'" },
     { name = "pillow", specifier = ">=11.0.0" },
+    { name = "puzzle-shapes", directory = "../shared/puzzle_shapes" },
     { name = "pyright", marker = "extra == 'dev'", specifier = ">=1.1.390" },
     { name = "pytorch-lightning", specifier = ">=2.5.0" },
     { name = "requests", specifier = ">=2.31.0" },
@@ -1598,6 +1600,26 @@ requires-dist = [
     { name = "types-pillow", marker = "extra == 'dev'" },
     { name = "types-requests", marker = "extra == 'dev'" },
     { name = "types-tqdm", marker = "extra == 'dev'" },
+]
+provides-extras = ["dev"]
+
+[[package]]
+name = "puzzle-shapes"
+version = "0.1.0"
+source = { directory = "../shared/puzzle_shapes" }
+dependencies = [
+    { name = "numpy" },
+    { name = "pillow" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "black", marker = "extra == 'dev'", specifier = ">=23.0.0" },
+    { name = "isort", marker = "extra == 'dev'", specifier = ">=5.12.0" },
+    { name = "numpy", specifier = ">=1.24.0" },
+    { name = "pillow", specifier = ">=10.0.0" },
+    { name = "pyright", marker = "extra == 'dev'", specifier = ">=1.1.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
 ]
 provides-extras = ["dev"]
 
