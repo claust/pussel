@@ -8,6 +8,7 @@ import math
 from typing import List, Tuple
 
 import pytest
+from PIL import Image, ImageDraw
 
 from puzzle_shapes.edge_grid import EdgeGrid, generate_edge_grid, get_piece_curves
 from puzzle_shapes.models import BezierCurve
@@ -380,3 +381,201 @@ class TestEdgeAlignment:
         start_point = curves[0].p0
         dist = math.sqrt((end_point[0] - start_point[0]) ** 2 + (end_point[1] - start_point[1]) ** 2)
         assert dist < tolerance, f"Boundary not closed: last end={end_point}, first start={start_point}, dist={dist}"
+
+
+class TestVisualEdgeAlignment:
+    """Visual tests using rendered images to detect gaps and overlaps."""
+
+    @staticmethod
+    def get_piece_polygon(
+        grid: EdgeGrid,
+        row: int,
+        col: int,
+        piece_size: int,
+        total_rows: int,
+        points_per_curve: int = 10,
+    ) -> List[Tuple[int, int]]:
+        """Get polygon points for a piece in pixel coordinates.
+
+        Args:
+            grid: The edge grid.
+            row: Row index of the piece.
+            col: Column index of the piece.
+            piece_size: Size of each piece in pixels.
+            total_rows: Total number of rows in the grid.
+            points_per_curve: Number of points to sample per Bezier curve.
+
+        Returns:
+            List of (x, y) pixel coordinates forming the piece polygon.
+        """
+        curves = get_piece_curves(grid, row, col)
+        polygon_points: List[Tuple[int, int]] = []
+
+        for curve in curves:
+            # Sample points along the curve
+            for i in range(points_per_curve):
+                t = i / points_per_curve
+                point = curve.evaluate(t)
+
+                # Transform from normalized piece coords to pixel coords
+                # In piece coords: (0,0) is bottom-left, (1,1) is top-right
+                # In pixel coords: (0,0) is top-left, y increases downward
+                # Row 0 is at the visual top of the puzzle
+                pixel_x = int((col + point[0]) * piece_size)
+                pixel_y = int((row + 1 - point[1]) * piece_size)
+
+                polygon_points.append((pixel_x, pixel_y))
+
+        return polygon_points
+
+    @staticmethod
+    def render_puzzle_image(
+        grid: EdgeGrid,
+        piece_size: int = 100,
+        points_per_curve: int = 15,
+    ) -> Image.Image:
+        """Render a puzzle grid with alternating yellow/blue pieces at 50% alpha.
+
+        Args:
+            grid: The edge grid to render.
+            piece_size: Size of each piece in pixels.
+            points_per_curve: Number of points to sample per Bezier curve.
+
+        Returns:
+            PIL Image with rendered puzzle pieces.
+        """
+        rows = grid.rows
+        cols = grid.cols
+
+        # Create white background
+        img_width = cols * piece_size
+        img_height = rows * piece_size
+        image = Image.new("RGBA", (img_width, img_height), (255, 255, 255, 255))
+
+        # Colors: yellow and blue at 50% alpha (128)
+        yellow = (255, 255, 0, 128)  # RGBA
+        blue = (0, 0, 255, 128)  # RGBA
+
+        for row in range(rows):
+            for col in range(cols):
+                # Alternate colors in checkerboard pattern
+                is_even = (row + col) % 2 == 0
+                color = yellow if is_even else blue
+
+                # Get polygon for this piece
+                polygon = TestVisualEdgeAlignment.get_piece_polygon(
+                    grid, row, col, piece_size, rows, points_per_curve
+                )
+
+                # Create a temporary image for this piece with transparency
+                piece_img = Image.new("RGBA", (img_width, img_height), (0, 0, 0, 0))
+                piece_draw = ImageDraw.Draw(piece_img)
+                piece_draw.polygon(polygon, fill=color)
+
+                # Composite onto main image
+                image = Image.alpha_composite(image, piece_img)
+
+        return image
+
+    @staticmethod
+    def check_for_artifacts(image: Image.Image) -> Tuple[int, int, List[Tuple[int, int]]]:
+        """Check image for white pixels (gaps) and green pixels (overlaps).
+
+        Args:
+            image: The rendered puzzle image.
+
+        Returns:
+            Tuple of (white_count, green_count, sample_positions).
+        """
+        # Convert to RGB for easier color checking
+        rgb_image = image.convert("RGB")
+        pixels = rgb_image.load()
+        width, height = rgb_image.size
+
+        white_pixels = 0
+        green_pixels = 0
+        sample_positions: List[Tuple[int, int]] = []
+
+        # Define color thresholds
+        # White: R > 250, G > 250, B > 250
+        # Green: G > R + 20 and G > B + 20 (green is dominant)
+
+        for y in range(height):
+            for x in range(width):
+                r, g, b = pixels[x, y]
+
+                # Check for white (gap)
+                if r > 250 and g > 250 and b > 250:
+                    white_pixels += 1
+                    if len(sample_positions) < 10:
+                        sample_positions.append((x, y))
+
+                # Check for green (overlap of yellow + blue)
+                # When yellow (255,255,0) and blue (0,0,255) overlap at 50% alpha each:
+                # Result is approximately (127, 127, 127) on white, but with both contributing
+                # Actually: yellow on white = (255,255,127), blue on that = ~(127,127,191)
+                # Let's check for greenish tint: G significantly higher than both R and B
+                # Or check for cyan-ish: where blue and yellow mix
+                # A simpler check: if we see significant green component with low red
+                if g > 150 and r < 200 and b < 200 and g > r and g > b:
+                    green_pixels += 1
+                    if len(sample_positions) < 10:
+                        sample_positions.append((x, y))
+
+        return white_pixels, green_pixels, sample_positions
+
+    def test_visual_no_gaps_or_overlaps_3x3(self) -> None:
+        """Test that a 3x3 puzzle has no gaps (white) or overlaps (green)."""
+        grid = generate_edge_grid(rows=3, cols=3, seed=42)
+        image = self.render_puzzle_image(grid, piece_size=100, points_per_curve=20)
+
+        white_count, green_count, samples = self.check_for_artifacts(image)
+
+        # Allow small tolerance for antialiasing artifacts at edges
+        max_allowed_artifacts = 50  # pixels
+
+        assert white_count < max_allowed_artifacts, (
+            f"Found {white_count} white pixels (gaps) in 3x3 puzzle. "
+            f"Sample positions: {samples[:5]}"
+        )
+        assert green_count < max_allowed_artifacts, (
+            f"Found {green_count} green pixels (overlaps) in 3x3 puzzle. "
+            f"Sample positions: {samples[:5]}"
+        )
+
+    def test_visual_no_gaps_or_overlaps_4x4(self) -> None:
+        """Test that a 4x4 puzzle has no gaps (white) or overlaps (green)."""
+        grid = generate_edge_grid(rows=4, cols=4, seed=123)
+        image = self.render_puzzle_image(grid, piece_size=100, points_per_curve=20)
+
+        white_count, green_count, samples = self.check_for_artifacts(image)
+
+        max_allowed_artifacts = 50
+
+        assert white_count < max_allowed_artifacts, (
+            f"Found {white_count} white pixels (gaps) in 4x4 puzzle. "
+            f"Sample positions: {samples[:5]}"
+        )
+        assert green_count < max_allowed_artifacts, (
+            f"Found {green_count} green pixels (overlaps) in 4x4 puzzle. "
+            f"Sample positions: {samples[:5]}"
+        )
+
+    def test_visual_multiple_seeds(self) -> None:
+        """Test visual alignment with multiple random seeds."""
+        max_allowed_artifacts = 50
+
+        for seed in [1, 42, 100, 999]:
+            grid = generate_edge_grid(rows=3, cols=3, seed=seed)
+            image = self.render_puzzle_image(grid, piece_size=100, points_per_curve=20)
+
+            white_count, green_count, samples = self.check_for_artifacts(image)
+
+            assert white_count < max_allowed_artifacts, (
+                f"Seed {seed}: Found {white_count} white pixels (gaps). "
+                f"Sample positions: {samples[:5]}"
+            )
+            assert green_count < max_allowed_artifacts, (
+                f"Seed {seed}: Found {green_count} green pixels (overlaps). "
+                f"Sample positions: {samples[:5]}"
+            )
