@@ -23,7 +23,7 @@ def sample_curve_points(curve: BezierCurve, num_points: int = 20) -> List[Tuple[
     return points
 
 
-def get_edge_curves(curves: List[BezierCurve]) -> dict:
+def get_edge_curves(curves: List[BezierCurve]) -> dict[str, list[BezierCurve]]:
     """Split a piece's curves into edges by finding corner transitions.
 
     Curves are returned in clockwise order: top -> right -> bottom -> left.
