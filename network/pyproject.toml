@@ -20,6 +20,8 @@ dependencies = [
     "matplotlib>=3.7.0",
     "requests>=2.31.0",
     "tqdm>=4.65.0",
+    # Shared packages
+    "puzzle-shapes",
 ]
 
 [project.optional-dependencies]
@@ -76,3 +78,6 @@ extend-exclude = '''
 pythonVersion = "3.12"
 typeCheckingMode = "standard"
 exclude = [".venv", "datasets", "checkpoints", "logs", "experiments"]
+
+[tool.uv.sources]
+puzzle-shapes = { path = "../shared/puzzle_shapes" }
