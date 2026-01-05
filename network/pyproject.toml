@@ -20,6 +20,8 @@ dependencies = [
     "matplotlib>=3.7.0",
     "requests>=2.31.0",
     "tqdm>=4.65.0",
+    # Shared library for puzzle piece shapes
+    "puzzle-shapes",
 ]
 
 [project.optional-dependencies]
@@ -45,6 +47,9 @@ dev = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.uv.sources]
+puzzle-shapes = { path = "../shared/puzzle_shapes", editable = true }
 
 [tool.hatch.build.targets.wheel]
 packages = ["pussel_network"]
