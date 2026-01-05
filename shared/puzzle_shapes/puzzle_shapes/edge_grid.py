@@ -609,30 +609,28 @@ def get_piece_curves(
     all_curves.extend(top_curves)
 
     # Right edge: vertical_edges[row][col+1]
-    # This edge is "owned" by the piece to the right, so we invert it
-    # to get the complementary shape (tab becomes blank, blank becomes tab).
-    # Need: (1,1) -> (1,0), tab protrudes +X
-    # Transform: rotate 90 deg CW (= 270 deg CCW = 3), then translate
+    # This edge is shared with the piece to the right (which uses it as its left edge).
+    # For proper alignment in image space, use the SAME rotation as the left edge (90° CCW)
+    # but reverse the curves (to traverse top→bottom for clockwise) and translate to x=1.
     right_edge = edge_grid.vertical_edges[row][col + 1]
     right_curves = transform_curves(
-        invert_curves(right_edge.curves),
-        translate=(1.0, 1.0),
+        reverse_curves(right_edge.curves),
+        translate=(1.0, 0.0),
         scale=(1.0, 1.0),
-        rotate_90_ccw=3,  # 90 deg CW = 270 deg CCW
+        rotate_90_ccw=1,  # Same as left edge
     )
     all_curves.extend(right_curves)
 
     # Bottom edge: horizontal_edges[row+1][col]
-    # This edge is "owned" by the piece below, so we invert it
-    # to get the complementary shape (tab becomes blank, blank becomes tab).
-    # Need: (1,0) -> (0,0), tab protrudes -Y
-    # Transform: rotate 180 deg (= 2 x 90 deg CCW), then translate
+    # This edge is shared with the piece below (which uses it as its top edge).
+    # For proper alignment in image space, use NO rotation (same as top edge)
+    # but reverse the curves (to traverse right→left for clockwise).
     bottom_edge = edge_grid.horizontal_edges[row + 1][col]
     bottom_curves = transform_curves(
-        invert_curves(bottom_edge.curves),
-        translate=(1.0, 0.0),
+        reverse_curves(bottom_edge.curves),
+        translate=(0.0, 0.0),
         scale=(1.0, 1.0),
-        rotate_90_ccw=2,  # 180 deg
+        rotate_90_ccw=0,  # Same as top edge
     )
     all_curves.extend(bottom_curves)
 
