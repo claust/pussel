@@ -113,7 +113,7 @@ raster order — which the count check in §4 catches.
    variation across pieces is good — it's the realism we're testing — but the
    piece must be clearly visible.
 
-### Per puzzle (~30–45 min for a 24–50 piece puzzle)
+### Per puzzle (~30–45 min for a 16–48 piece puzzle)
 
 1. **Photograph the box lid** straight-on, artwork filling the frame. This is
    the reference "puzzle image". Take 2–3 shots, keep the best.
@@ -195,7 +195,7 @@ rectified one.
 
 ### Repo location and git strategy
 
-`network/datasets/*` is gitignored (line 181 of the root `.gitignore`), which
+`network/datasets/*` is gitignored by the root `.gitignore`, which
 is correct for the 12K-puzzle synthetic sets — but the north star set is
 small, precious, and *must* be versioned. Add an exception:
 
