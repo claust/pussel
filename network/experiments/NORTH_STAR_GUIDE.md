@@ -31,7 +31,7 @@ Design goals, in order:
 | Photos per piece | 1 (upright; rotations applied digitally at eval, same as exp20 protocol) |
 | Reference images per puzzle | 2 (raw box photo + rectified crop of the artwork) |
 | Backgrounds | ≥2 per puzzle (e.g. wood table, white paper, dark cloth) |
-| Committed size budget | < 50 MB total (plain git, no LFS) |
+| Committed size budget | < 75 MB total (plain git, no LFS) |
 
 Even 100 real pieces will tell us more than another 20K synthetic puzzles — do
 not let scope creep delay v1. Anything not captured in v1 becomes v2 in a new
@@ -72,10 +72,13 @@ Everything else is derived at eval time: normalized piece center is
 (e.g. the current model's 4×4 head) is
 `cell = floor(y_norm * 4) * 4 + floor(x_norm * 4)`.
 
-**Rotation convention:** identical to exp20/exp23 — the label is the rotation
-the eval harness applies digitally to the upright photo, so labels are exact by
-construction (`(0 + applied) % 360`). This keeps v1 cheap and directly
-comparable to the synthetic benchmark. A physically-rotated subset (place the
+**Rotation convention:** the label is the rotation the eval harness applies
+digitally to the upright photo, so labels are exact by construction
+(`(0 + applied) % 360`). This keeps v1 cheap and directly comparable to the
+synthetic benchmark. The applied rotation must be done on a square canvas
+(pad-to-square → `rotate(expand=True)` → crop back) so it doesn't clip the
+piece — see §5; the label arithmetic is unchanged. A physically-rotated subset
+(place the
 piece at a real 90°/180°/270° and record it) is a good v2 addition to check
 that digital rotation isn't flattering, but is deliberately out of scope for
 v1.
@@ -156,9 +159,13 @@ are the master copy; the repo gets processed derivatives only.
 ### Processing: downscale + convert
 
 Committed images are **sRGB JPEG, max side 1024 px, quality ~85** — roughly
-150–350 KB each, so 200 pieces + references ≈ 40–60 MB worst case, fine for
-plain git. (Model inputs are 256×256/128×128 and exp23's classical methods
-used ~110–130 px pieces, so 1024 px retains ample headroom for future
+150–350 KB each, so 200 pieces + per-puzzle references land around 50–70 MB
+worst case, within the < 75 MB budget and fine for plain git. If a batch runs
+larger (more pieces, or JPEGs at the top of that range), the lever is to drop
+quality to ~80 or max side to 768 px — both still far exceed the 256×256 /
+~110–130 px resolutions any current method consumes. (Model inputs are
+256×256/128×128 and exp23's classical methods used ~110–130 px pieces, so
+1024 px retains ample headroom for future
 higher-res work.) macOS can do the conversion natively, including EXIF
 auto-rotation:
 
@@ -218,9 +225,9 @@ puzzle01_alps,puzzle01_alps/pieces/piece_r00_c00.jpg,6,4,0,0,0,wood_table,2026-0
 Following exp22/exp23's lesson: ground truth lives in an explicit CSV, not
 (only) encoded in filenames.
 
-**No Git LFS.** At < 50 MB of derivatives, plain git is simpler and avoids the
-LFS bandwidth quota being drained by CI clones. If a future version balloons
-past ~150 MB, revisit.
+**No Git LFS.** At well under 100 MB of derivatives, plain git is simpler and
+avoids the LFS bandwidth quota being drained by CI clones. If a future version
+balloons past ~150 MB, revisit.
 
 ---
 
@@ -229,9 +236,15 @@ past ~150 MB, revisit.
 One eval script (a sibling of `exp20_realistic_pieces/reevaluate_checkpoint.py`
 and `exp23_classical_baselines/evaluate.py`) consumes `metadata.csv`:
 
-- **Samples:** each piece × 4 digital rotations (PIL `rotate(expand=False)`
-  on the upright photo, exactly as the synthetic protocol) — v1 gives
-  ~480–800 samples.
+- **Samples:** each piece × 4 digital rotations of the upright photo — v1
+  gives ~480–800 samples. **Rotate on a square canvas so nothing is
+  clipped:** pad the piece crop to a square first, then `rotate(expand=True)`
+  and crop/pad back to the fixed input size. Do *not* copy the synthetic
+  `rotate(expand=False)` call verbatim — `CRITICAL_REVIEW.md` (§7) flags it
+  as a real geometry bug that clips tab protrusions on non-square canvases at
+  90°/270°, and baking that artifact into the benchmark would penalize
+  exactly the rotations it corrupts. (The label composition is still
+  `(0 + applied) % 360`; only the pixel operation changes.)
 - **Reference input:** the puzzle's `box_rectified.jpg`, resized to whatever
   each method expects (256×256 for the CNN).
 - **Metrics:** report at two granularities —
