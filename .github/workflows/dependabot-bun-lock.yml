@@ -1,0 +1,59 @@
+name: Dependabot bun.lock
+
+# Dependabot's npm ecosystem updates frontend/package.json but does NOT maintain
+# Bun's bun.lock (dependabot/dependabot-core#11602), so its frontend PRs fail
+# `bun install --frozen-lockfile` in CI. This job regenerates bun.lock on
+# Dependabot frontend PRs and commits it back to the PR branch.
+#
+# It pushes with a PAT (secrets.DEPENDABOT_LOCK_TOKEN) rather than the built-in
+# GITHUB_TOKEN on purpose: a push made with GITHUB_TOKEN does not re-trigger
+# other workflows, so the frozen-install checks would stay red. A PAT push
+# re-triggers Frontend CI, so the PR goes green automatically.
+#
+# IMPORTANT: the token must be stored as a **Dependabot** secret (Settings →
+# Secrets and variables → Dependabot), not an Actions secret — workflow runs
+# triggered by Dependabot can only read Dependabot secrets.
+
+on:
+  pull_request:
+    paths:
+      - "frontend/package.json"
+
+# The default token only needs read; the actual push uses the PAT below.
+permissions:
+  contents: read
+
+jobs:
+  relock:
+    # Only Dependabot PRs. The commit below changes bun.lock only (not
+    # package.json), so this path-filtered workflow does not loop, and the
+    # `git diff --quiet` guard is a second stop.
+    if: ${{ github.actor == 'dependabot[bot]' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          token: ${{ secrets.DEPENDABOT_LOCK_TOKEN }}
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Regenerate bun.lock
+        run: bun install --ignore-scripts
+
+      - name: Commit and push if bun.lock changed
+        run: |
+          if git diff --quiet bun.lock; then
+            echo "bun.lock already in sync — nothing to do."
+            exit 0
+          fi
+          git config user.name "dependabot[bot]"
+          git config user.email "49699333+dependabot[bot]@users.noreply.github.com"
+          git add bun.lock
+          git commit -m "chore(frontend): sync bun.lock for Dependabot update"
+          git push
