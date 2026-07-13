@@ -12,7 +12,7 @@ dependencies = [
     "python-multipart>=0.0.20",
     # Data validation
     "pydantic>=2.6.1",
-    "pydantic-settings>=2.1.0",
+    "pydantic-settings>=2.14.2",
     "email-validator>=2.1.0",
     # Authentication
     "google-auth>=2.27.0",
@@ -23,9 +23,9 @@ dependencies = [
     "azure-storage-blob>=12.19.0",
     # ML dependencies
     "Pillow>=11.0.0",
-    "torch>=2.6.0",
+    "torch>=2.12.1",
     "torchvision>=0.17.0",
-    "pytorch-lightning>=2.5.0",
+    "pytorch-lightning>=2.6.1",
     "timm>=0.9.12",
     "rembg[cpu]>=2.0.50",
     # Force newer numba for Python 3.12 compatibility (rembg->pymatting->numba)
@@ -37,10 +37,10 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     # Testing
-    "pytest>=8.0.1",
+    "pytest>=9.0.3",
     "pytest-cov>=4.1.0",
     # Formatting
-    "black>=25.1.0",
+    "black>=26.3.1",
     "isort>=5.13.2",
     # Linting
     "flake8>=7.0.0",
