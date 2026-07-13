@@ -1,5 +1,17 @@
 # Experiment 20: Realistic Puzzle Pieces with 4x4 Grid
 
+> **RESULT UPDATE (July 2026):** The original run reported 72.9% cell /
+> 24.8% rotation. The rotation number was a test-set bug:
+> `RealisticPieceTestDataset` discarded the rotation baked into each piece
+> PNG at generation time, scrambling the labels and capping measurable
+> rotation accuracy at 25%. After fixing the label composition
+> (`dataset.py`) and re-evaluating the original checkpoint on a
+> deterministic regeneration of the same test split
+> (`regenerate_test_split.py` + `reevaluate_checkpoint.py`), the true
+> result is **72.9% cell / 94.6% rotation / 72.2% both**
+> (`outputs/reeval_fixed_labels.json`). Rotation did NOT fail on
+> realistic pieces.
+
 ## Objective
 
 Test whether the model can generalize to realistically-shaped puzzle pieces
