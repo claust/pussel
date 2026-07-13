@@ -1588,7 +1588,7 @@ requires-dist = [
     { name = "pandas", specifier = ">=2.0.0" },
     { name = "pandas-stubs", marker = "extra == 'dev'" },
     { name = "pillow", specifier = ">=12.2.0" },
-    { name = "puzzle-shapes", directory = "../shared/puzzle_shapes" },
+    { name = "puzzle-shapes", editable = "../shared/puzzle_shapes" },
     { name = "pyright", marker = "extra == 'dev'", specifier = ">=1.1.390" },
     { name = "pytorch-lightning", specifier = ">=2.5.0" },
     { name = "requests", specifier = ">=2.33.0" },
@@ -1606,7 +1606,7 @@ provides-extras = ["dev"]
 [[package]]
 name = "puzzle-shapes"
 version = "0.1.0"
-source = { directory = "../shared/puzzle_shapes" }
+source = { editable = "../shared/puzzle_shapes" }
 dependencies = [
     { name = "numpy" },
     { name = "pillow" },
