@@ -5,12 +5,12 @@ permissions:
 
 on:
   push:
-    branches: [master, main, dev]
+    branches: [main, release]
     paths:
       - 'frontend/**'
       - '.github/workflows/frontend-ci.yml'
   pull_request:
-    branches: [master, main, dev]
+    branches: [main, release]
     paths:
       - 'frontend/**'
       - '.github/workflows/frontend-ci.yml'

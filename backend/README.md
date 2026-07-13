@@ -158,8 +158,8 @@ The project uses GitHub Actions for continuous integration, which:
 - Uploads coverage reports to Codecov
 
 The workflow is triggered on:
-- Push to master/main branch
-- Pull requests to master/main branch
+- Push to main/release branch
+- Pull requests to main/release branch
 - Only when changes affect backend code or CI configuration
 
 ## Future Improvements
