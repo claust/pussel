@@ -141,8 +141,10 @@ def main() -> None:
         print(f"  {row_counts}")
 
     results = {
-        "checkpoint": str(args.checkpoint),
-        "dataset_root": str(args.dataset_root),
+        # Store basenames only: absolute paths are machine-specific and would
+        # make this committed artifact non-portable / produce noisy diffs.
+        "checkpoint": args.checkpoint.name,
+        "dataset_root": args.dataset_root.name,
         "n_test_puzzles": len(test_ids),
         "n_samples": n,
         "cell_accuracy": cell_acc,

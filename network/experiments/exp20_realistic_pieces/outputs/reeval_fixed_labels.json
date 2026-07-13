@@ -1,6 +1,6 @@
 {
-  "checkpoint": "/Users/claus/Repos/pussel/network/experiments/exp20_realistic_pieces/outputs/checkpoint_best.pt",
-  "dataset_root": "/Users/claus/Repos/pussel/network/datasets/realistic_4x4_20k_test",
+  "checkpoint": "checkpoint_best.pt",
+  "dataset_root": "realistic_4x4_20k_test",
   "n_test_puzzles": 1200,
   "n_samples": 76800,
   "cell_accuracy": 0.7288671875,
