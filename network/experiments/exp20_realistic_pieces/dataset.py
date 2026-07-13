@@ -294,7 +294,11 @@ class RealisticPieceTestDataset(Dataset):
         self.piece_size = piece_size
         self.puzzle_size = puzzle_size
 
-        # Build sample list: for each piece, create 4 samples (one per rotation)
+        # Build sample list: for each piece, create 4 samples (one per applied rotation).
+        # Each entry: (puzzle_id, piece_path, cx, cy, base_rotation, applied_rotation_idx)
+        # where base_rotation is the rotation already baked into the piece PNG at
+        # generation time (parsed from the filename) and applied_rotation_idx is the
+        # additional test-time rotation. The label is the composition of both.
         self.samples: list[tuple[str, Path, float, float, int, int]] = []
 
         for puzzle_id in puzzle_ids:
@@ -302,22 +306,22 @@ class RealisticPieceTestDataset(Dataset):
             if not puzzle_dir.exists():
                 continue
 
-            # Get unique pieces (ignore the rotation in filename for grouping)
-            piece_positions: dict[tuple[float, float], Path] = {}
+            # Get unique pieces (one file per position; keep its baked-in rotation)
+            piece_positions: dict[tuple[float, float], tuple[Path, int]] = {}
             piece_files = list(puzzle_dir.glob(f"{puzzle_id}_x*_y*_rot*.png"))
 
             for piece_path in piece_files:
                 parsed = parse_piece_filename(piece_path.name)
                 if parsed:
-                    _, cx, cy, _ = parsed
+                    _, cx, cy, base_rotation = parsed
                     # Use first file found for each position
                     if (cx, cy) not in piece_positions:
-                        piece_positions[(cx, cy)] = piece_path
+                        piece_positions[(cx, cy)] = (piece_path, base_rotation)
 
-            # For each unique position, create samples for all 4 rotations
-            for (cx, cy), piece_path in piece_positions.items():
-                for rotation_idx in range(4):
-                    self.samples.append((puzzle_id, piece_path, cx, cy, 0, rotation_idx))
+            # For each unique position, create samples for all 4 applied rotations
+            for (cx, cy), (piece_path, base_rotation) in piece_positions.items():
+                for applied_rotation_idx in range(4):
+                    self.samples.append((puzzle_id, piece_path, cx, cy, base_rotation, applied_rotation_idx))
 
         # Cache for loaded puzzle images
         self._puzzle_cache: dict[str, Image.Image] = {}
@@ -372,13 +376,16 @@ class RealisticPieceTestDataset(Dataset):
         Returns:
             Tuple of (piece_tensor, puzzle_tensor, target_coords, cell_idx, rotation_idx).
         """
-        puzzle_id, piece_path, cx, cy, base_rotation, rotation_idx = self.samples[idx]
+        puzzle_id, piece_path, cx, cy, base_rotation, applied_rotation_idx = self.samples[idx]
 
-        # Load piece
+        # Load piece (already has base_rotation baked in from generation)
         piece_img = self._load_piece(piece_path)
 
-        # Apply test rotation
-        piece_img = self._rotate_piece(piece_img, rotation_idx)
+        # Apply additional test rotation; the label is the total rotation,
+        # matching the training path in RealisticPieceDataset.
+        piece_img = self._rotate_piece(piece_img, applied_rotation_idx)
+        total_rotation = (base_rotation + ROTATION_ANGLES[applied_rotation_idx]) % 360
+        rotation_idx = total_rotation // 90
 
         # Load puzzle
         puzzle_img = self._load_puzzle(puzzle_id)
