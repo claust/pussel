@@ -1,0 +1,10 @@
+# Virtual workspace root — no [project] of its own; it only ties the members
+# together so they resolve into a single shared uv.lock. This prevents the
+# cross-lock drift that arises when backend and network each locked the
+# shared `puzzle-shapes` path dependency independently.
+[tool.uv.workspace]
+members = [
+    "backend",
+    "network",
+    "shared/puzzle_shapes",
+]

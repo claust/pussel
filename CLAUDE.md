@@ -11,30 +11,32 @@ Pussel is a computer vision-based puzzle solver application with three main comp
 
 ## Development Setup
 
-### Backend (Python/FastAPI)
+### Python (Backend + Network + Shared — one uv workspace)
+The Python projects (`backend`, `network`, and the `shared/puzzle_shapes`
+library) form a **single uv workspace** defined by the root `pyproject.toml`.
+There is **one** lockfile — `uv.lock` at the repo root — and one shared
+`.venv` at the repo root. This keeps the shared `puzzle-shapes` dependency in
+lockstep across projects (no per-project lock drift).
+
 ```bash
 # Install uv (if not already installed)
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Install backend dependencies (creates .venv automatically)
-cd backend
+# Install ALL Python dependencies for the whole workspace (from repo root)
 uv sync --all-extras
 
 # Install pre-commit hooks (from repo root)
 pre-commit install
 ```
 
+`uv run` from within `backend/` or `network/` automatically uses the shared
+root `.venv`, so the existing `cd backend && uv run …` / `cd network && uv run …`
+commands below still work unchanged.
+
 ### Frontend (Next.js/Bun)
 ```bash
 cd frontend
 bun install
-```
-
-### Network (ML Training)
-```bash
-# Install network dependencies (uv manages its own .venv automatically)
-cd network
-uv sync --all-extras
 ```
 
 ## Common Commands
@@ -235,12 +237,17 @@ GitHub Actions workflows test/deploy on push to main/release:
 ## Important Notes
 
 ### Package Installation
-The backend uses uv with `pyproject.toml` for dependency management. To install:
+The Python code is a single uv workspace (root `pyproject.toml` with members
+`backend`, `network`, `shared/puzzle_shapes`) sharing one root `uv.lock`. To
+install everything:
 ```bash
-cd backend
 uv sync --all-extras
 ```
-This creates a `.venv` directory and installs all dependencies including dev tools.
+This creates a root `.venv` and installs all workspace dependencies (including
+dev tools) from the single root lockfile. Add or bump a dependency in a
+member's `pyproject.toml`, then run `uv lock` at the root to update the shared
+lock. CI runs `uv sync --locked --all-extras` from the root and fails if the
+lock is stale.
 
 ### Type Checking
 pyright is configured with standard mode - all functions must have type annotations. See `backend/pyrightconfig.json` for configuration details.

@@ -1,22 +1,13 @@
 version: 2
 updates:
-  # Backend (Python, uv)
+  # Python — single uv workspace at the repo root (backend, network, shared
+  # all resolve into one root uv.lock, so Dependabot updates it in one place).
   - package-ecosystem: "uv"
-    directory: "/backend"
+    directory: "/"
     schedule:
       interval: "weekly"
     groups:
-      backend-deps:
-        patterns:
-          - "*"
-
-  # Network / ML (Python, uv)
-  - package-ecosystem: "uv"
-    directory: "/network"
-    schedule:
-      interval: "weekly"
-    groups:
-      network-deps:
+      python-deps:
         patterns:
           - "*"
 
