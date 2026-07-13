@@ -80,4 +80,4 @@ typeCheckingMode = "standard"
 exclude = [".venv", "datasets", "checkpoints", "logs", "experiments"]
 
 [tool.uv.sources]
-puzzle-shapes = { path = "../shared/puzzle_shapes" }
+puzzle-shapes = { path = "../shared/puzzle_shapes", editable = true }
