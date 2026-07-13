@@ -425,6 +425,48 @@ Conclusions:
 
 ---
 
+## Exp 23: Classical Baselines (NCC, SIFT, ORB)
+
+**Date:** July 2026 **Status:** BASELINE (best classical: **82.2% both** —
+above the CNN's 72.2%)
+
+Ran the non-learned baselines called for by item #2 of the critical
+review on the exact exp20 re-evaluation protocol (1,200 regenerated test
+puzzles × 16 pieces × 4 applied rotations = 76,800 samples, labels
+composed as `(baked + applied) % 360`). Classical methods used native
+resolution (256×256 puzzles, ~110–130 px piece crops, no 128×128
+squashing). Full results in `exp23_classical_baselines/`.
+
+| Method              | Cell      | Rotation  | Both      | Coverage | ms/sample |
+| ------------------- | --------- | --------- | --------- | -------- | --------- |
+| SIFT→NCC hybrid     | **82.9%** | 90.3%     | **82.2%** | 99.6%    | 45        |
+| Masked NCC          | 77.5%     | 87.2%     | 76.9%     | 99.6%    | 77        |
+| CNN (exp20 re-eval) | 72.9%     | **94.6%** | 72.2%     | 100%     | ~10 (GPU) |
+| SIFT                | 43.9%     | 44.1%     | 43.6%     | 45.4%    | 3.2       |
+| ORB (tuned)         | 38.4%     | 38.3%     | 37.7%     | 40.4%    | 4.8       |
+
+NCC = `cv2.matchTemplate` (`TM_CCOEFF_NORMED`, black-background mask)
+over the 4 candidate rotations. SIFT/ORB = ratio test + partial-affine
+RANSAC; position from inlier centroid, rotation from the transform angle
+snapped to 90°. SIFT is nearly perfect when it matches (96.7% cell /
+97.3% rotation on the 45% of pieces with enough texture) — its headline
+number is a coverage failure, not wrong answers — hence the hybrid:
+SIFT when it matches, NCC otherwise, still zero-training.
+
+Conclusions:
+
+1. **The classical floor is above the CNN.** Even plain masked NCC beats
+   the trained model on position and both-correct; the hybrid beats it
+   by 10 points. The CNN only wins rotation (94.6% vs 90.3%).
+2. **The surrogate task is largely solvable by template matching**, as
+   the review suspected. Learned results on this benchmark must clear
+   ~82% both-correct to demonstrate value over classical matching —
+   until the benchmark is made adversarial to pixel matching
+   (photometric jitter, perspective, backgrounds) or replaced with
+   photographed pieces.
+
+---
+
 ## Summary Table
 
 | Exp | Focus                       | Test Result            | Key Finding                                    |
@@ -451,6 +493,7 @@ Conclusions:
 | 20  | 4x4 realistic pieces        | **73% cell / 95% rot** | Scales to 4x4 (rot re-measured after label fix)|
 | 21  | Masked rotation correlation | 74% cell / 25% rot     | INVALID — capped by test-label bug             |
 | 22  | RoMa V2 dense matching      | 64% cell / 58% rot     | Loses to CNN on both metrics (after label fix) |
+| 23  | Classical baselines         | **83% cell / 90% rot** | SIFT→NCC hybrid beats the CNN with no training |
 
 ---
 
@@ -477,10 +520,13 @@ puzzles. This is the current production-ready model for 3x3 grids.
 **For Fast Experimentation:** ShuffleNetV2_x0.5 (exp15) - 12.9s/epoch vs 39.3s
 for RepVGG and 98.1s for MobileOne. Use for rapid iteration.
 
-**For Position + Rotation (4×4 realistic pieces):** FastBackboneModel CNN
-(exp20) alone — **72.9% cell / 94.6% rotation / 72.2% both** (re-evaluated
-July 2026 after fixing the test-label bug). RoMa (exp22) is worse on both
-metrics and ~1000× slower; the hybrid plan is dropped.
+**For Position + Rotation (4×4 realistic pieces):** the zero-training
+SIFT→NCC classical hybrid (exp23) — **82.9% cell / 90.3% rotation / 82.2%
+both** at ~45 ms/piece on CPU — currently beats the FastBackboneModel CNN
+(exp20, re-evaluated July 2026: 72.9% cell / 94.6% rotation / 72.2% both).
+The CNN wins only on rotation. RoMa (exp22) is worse than both and ~1000×
+slower; the RoMa hybrid plan is dropped. Any future learned model on this
+benchmark must clear the 82% classical floor to count as progress.
 
 **Key Learnings:**
 1. **Data quantity AND quality matter** (exp17): Must see all cells per puzzle
@@ -497,12 +543,12 @@ metrics and ~1000× slower; the hybrid plan is dropped.
    were driven by a metric that was capped at 25% by construction. A
    perfect-model sanity check on any new test path would have caught it.
 
-**Next Steps** (from the critical review, reordered now that #1 is done):
-- Run classical baselines (NCC template matching, SIFT/ORB) on the same
-  benchmark to establish the floor
+**Next Steps** (from the critical review; #1 and #2 are done):
 - Fix the methodology harness: frozen train/val/test split, checkpoint
   selection on val (not test), train metrics in eval mode
 - Attack realism: photographed-piece "north star" test set; independent
-  photometric jitter / perspective / backgrounds in synthetic data
+  photometric jitter / perspective / backgrounds in synthetic data —
+  now urgent, since exp23 showed the synthetic benchmark is largely
+  solvable by pixel matching and cannot demonstrate learned-model value
 
 ---
