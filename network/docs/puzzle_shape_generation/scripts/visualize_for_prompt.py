@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Script to generate an illustration of the Bézier curve structure for a puzzle piece tab."""
+
 import matplotlib.pyplot as plt
 import numpy as np
 from puzzle_shapes import TabParameters, generate_realistic_tab_edge
