@@ -39,9 +39,15 @@ subfolder; v1 is never edited after it is committed (see §7).
 
 ### Choosing puzzles
 
-- **Small piece counts are ideal** (24–100 pieces): fast to assemble and
-  disassemble, and each piece is large enough that its grid cell is
-  unambiguous. Kids' puzzles are perfect.
+- **Small piece counts** (16–48 pieces, matching the v1 scope in §1): fast to
+  assemble and disassemble, and each piece is large enough that its grid cell
+  is unambiguous. Kids' puzzles are perfect.
+- **Grid-cut puzzles only for v1.** The `rows × cols` label scheme (§2)
+  assumes pieces sit on a regular rectangular lattice — true for the vast
+  majority of mass-market ribbon/grid-cut puzzles. Random- or artistic-cut
+  puzzles (irregular piece boundaries with no consistent grid) have no
+  well-defined `(row, col)` and are out of scope for v1; if you want to
+  include one later, label it by normalized center coordinate only (§2).
 - **Vary the artwork**: at least one photographic landscape, one busy
   illustration/collage, and one *hard* low-texture puzzle (lots of sky or
   flat color). exp23 showed SIFT fails exactly on low-texture pieces — the
@@ -59,7 +65,8 @@ subfolder; v1 is never edited after it is committed (see §7).
 
 ## 2. Ground truth scheme
 
-Every jigsaw puzzle is a grid of `rows × cols` pieces. A piece's label is:
+Grid-cut puzzles — the v1 scope (§1) — lay their pieces on a regular
+`rows × cols` lattice. A piece's label is:
 
 - `row`, `col` — integer grid position, `(0, 0)` = top-left when the puzzle is
   viewed upright (as on the box).
