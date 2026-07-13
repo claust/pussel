@@ -2,12 +2,12 @@ name: Network CI
 
 on:
   push:
-    branches: [ master, dev ]
+    branches: [ main, release ]
     paths:
       - 'network/**'
       - '.github/workflows/network-ci.yml'
   pull_request:
-    branches: [ master, dev ]
+    branches: [ main, release ]
     paths:
       - 'network/**'
       - '.github/workflows/network-ci.yml'
