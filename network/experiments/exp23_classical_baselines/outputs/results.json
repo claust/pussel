@@ -1,0 +1,137 @@
+{
+  "dataset_root": "realistic_4x4_20k_test",
+  "puzzle_root": "puzzles",
+  "n_puzzles": 1200,
+  "n_samples": 76800,
+  "subsample": {
+    "seed": 42,
+    "n_puzzles": 200
+  },
+  "protocol": {
+    "applied_rotations_per_piece": 4,
+    "label_composition": "(baked_rotation_from_filename + applied) % 360",
+    "piece_resolution": "native crop (~110-130 px), not resized",
+    "puzzle_resolution": "native 256x256",
+    "ncc": {
+      "opencv_method": "TM_CCOEFF_NORMED",
+      "masked": true,
+      "mask_threshold": 8
+    },
+    "keypoint": {
+      "lowe_ratio": 0.75,
+      "ransac_reproj_threshold": 3.0,
+      "min_good_matches": 4,
+      "min_inliers": 3,
+      "orb_params": {
+        "nfeatures": 3000,
+        "fastThreshold": 0,
+        "edgeThreshold": 10,
+        "nlevels": 12
+      }
+    }
+  },
+  "cnn_reference": {
+    "checkpoint": "exp20 checkpoint_best.pt (reeval_fixed_labels.json)",
+    "cell_accuracy": 0.729,
+    "rotation_accuracy": 0.946,
+    "both_accuracy": 0.722
+  },
+  "methods": {
+    "ncc": {
+      "full": {
+        "n_samples": 76800,
+        "coverage": 0.9958072916666667,
+        "cell_accuracy": 0.7751432291666667,
+        "rotation_accuracy": 0.8721875,
+        "both_accuracy": 0.7690494791666667,
+        "cell_accuracy_covered": 0.7784068621041346,
+        "rotation_accuracy_covered": 0.8758597243651769,
+        "both_accuracy_covered": 0.772287455215879
+      },
+      "subsample": {
+        "n_samples": 12800,
+        "coverage": 0.99640625,
+        "cell_accuracy": 0.7853125,
+        "rotation_accuracy": 0.8859375,
+        "both_accuracy": 0.78015625,
+        "cell_accuracy_covered": 0.7881448957189902,
+        "rotation_accuracy_covered": 0.889132821075741,
+        "both_accuracy_covered": 0.7829700486122001
+      },
+      "runtime_ms_per_sample": 76.77820453695479,
+      "puzzle_prep_ms_per_puzzle": 0.0
+    },
+    "sift": {
+      "full": {
+        "n_samples": 76800,
+        "coverage": 0.4536588541666667,
+        "cell_accuracy": 0.43854166666666666,
+        "rotation_accuracy": 0.4413671875,
+        "both_accuracy": 0.4361328125,
+        "cell_accuracy_covered": 0.9666771906661692,
+        "rotation_accuracy_covered": 0.9729054849171953,
+        "both_accuracy_covered": 0.9613673545535433
+      },
+      "subsample": {
+        "n_samples": 12800,
+        "coverage": 0.462421875,
+        "cell_accuracy": 0.445625,
+        "rotation_accuracy": 0.44828125,
+        "both_accuracy": 0.44265625,
+        "cell_accuracy_covered": 0.963676296671735,
+        "rotation_accuracy_covered": 0.9694205102213211,
+        "both_accuracy_covered": 0.9572562932927859
+      },
+      "runtime_ms_per_sample": 3.231012778504881,
+      "puzzle_prep_ms_per_puzzle": 9.283352888399653
+    },
+    "orb": {
+      "full": {
+        "n_samples": 76800,
+        "coverage": 0.40358072916666665,
+        "cell_accuracy": 0.38376302083333336,
+        "rotation_accuracy": 0.3825390625,
+        "both_accuracy": 0.3770442708333333,
+        "cell_accuracy_covered": 0.9508953056944669,
+        "rotation_accuracy_covered": 0.9478625584771737,
+        "both_accuracy_covered": 0.9342474592676238
+      },
+      "subsample": {
+        "n_samples": 12800,
+        "coverage": 0.4196875,
+        "cell_accuracy": 0.3984375,
+        "rotation_accuracy": 0.3965625,
+        "both_accuracy": 0.39140625,
+        "cell_accuracy_covered": 0.9493670886075949,
+        "rotation_accuracy_covered": 0.9448994787788533,
+        "both_accuracy_covered": 0.9326135517498139
+      },
+      "runtime_ms_per_sample": 4.790394365288553,
+      "puzzle_prep_ms_per_puzzle": 9.104627712361738
+    },
+    "sift_else_ncc": {
+      "full": {
+        "n_samples": 76800,
+        "coverage": 0.9958072916666667,
+        "cell_accuracy": 0.82859375,
+        "rotation_accuracy": 0.9031510416666667,
+        "both_accuracy": 0.8219401041666666,
+        "cell_accuracy_covered": 0.832082428933811,
+        "rotation_accuracy_covered": 0.9069536337247313,
+        "both_accuracy_covered": 0.8254007688485577
+      },
+      "subsample": {
+        "n_samples": 12800,
+        "coverage": 0.99640625,
+        "cell_accuracy": 0.8415625,
+        "rotation_accuracy": 0.9184375,
+        "both_accuracy": 0.83546875,
+        "cell_accuracy_covered": 0.8445977732476085,
+        "rotation_accuracy_covered": 0.9217500392033872,
+        "both_accuracy_covered": 0.838482044848675
+      },
+      "runtime_ms_per_sample": 45.39359526747418,
+      "puzzle_prep_ms_per_puzzle": 9.283352888399653
+    }
+  }
+}
