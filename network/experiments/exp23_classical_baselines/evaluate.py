@@ -37,8 +37,8 @@ from dataset import ROTATION_ANGLES, get_cell_index, parse_piece_filename  # noq
 
 METHOD_NAMES = ("ncc", "sift", "orb")
 
-# Pixels with max(R, G, B) above this are considered piece content (the
-# background introduced by the generator is pure black).
+# Pixels whose grayscale value is above this are considered piece content
+# (the background introduced by the generator is pure black).
 MASK_THRESHOLD = 8
 
 LOWE_RATIO = 0.75
@@ -403,11 +403,13 @@ def summarize(
     results: dict[str, Any] = {}
     for method in methods:
         match_seconds = sum(r["times"][method] for r in all_records)
+        # The derived hybrid reuses SIFT's per-puzzle keypoint extraction.
+        prep_seconds = prep_totals.get("sift" if method == "sift_else_ncc" else method, 0.0)
         results[method] = {
             "full": compute_metrics(all_records, method),
             "subsample": compute_metrics(subsample_records, method),
             "runtime_ms_per_sample": match_seconds / len(all_records) * 1000 if all_records else 0.0,
-            "puzzle_prep_ms_per_puzzle": prep_totals.get(method, 0.0) / n_puzzles * 1000 if n_puzzles else 0.0,
+            "puzzle_prep_ms_per_puzzle": prep_seconds / n_puzzles * 1000 if n_puzzles else 0.0,
         }
     return results
 

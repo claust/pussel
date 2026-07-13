@@ -131,7 +131,7 @@
         "both_accuracy_covered": 0.838482044848675
       },
       "runtime_ms_per_sample": 45.39359526747418,
-      "puzzle_prep_ms_per_puzzle": 0.0
+      "puzzle_prep_ms_per_puzzle": 9.283352888399653
     }
   }
 }
