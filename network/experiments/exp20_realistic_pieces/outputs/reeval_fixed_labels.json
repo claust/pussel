@@ -1,0 +1,43 @@
+{
+  "checkpoint": "checkpoint_best.pt",
+  "dataset_root": "realistic_4x4_20k_test",
+  "n_test_puzzles": 1200,
+  "n_samples": 76800,
+  "cell_accuracy": 0.7288671875,
+  "rotation_accuracy": 0.9456901041666667,
+  "cell_and_rotation_accuracy": 0.7222916666666667,
+  "per_rotation_accuracy": {
+    "0deg": 0.94984375,
+    "90deg": 0.9424479166666667,
+    "180deg": 0.9474479166666666,
+    "270deg": 0.9430208333333333
+  },
+  "rotation_confusion_true_x_pred": [
+    [
+      18237,
+      124,
+      727,
+      112
+    ],
+    [
+      160,
+      18095,
+      109,
+      836
+    ],
+    [
+      764,
+      123,
+      18191,
+      122
+    ],
+    [
+      138,
+      833,
+      123,
+      18106
+    ]
+  ],
+  "original_buggy_cell_accuracy": 0.7285677083333333,
+  "original_buggy_rotation_accuracy": 0.24764322916666667
+}
