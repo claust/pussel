@@ -219,11 +219,11 @@ All code follows strict quality standards enforced via pre-commit hooks:
 - **Frontend**: OxLint (type-aware), Prettier, TypeScript strict mode
 
 ### CI/CD
-GitHub Actions workflows test/deploy on push to master/main/dev:
+GitHub Actions workflows test/deploy on push to main/release:
 - **Backend CI** (`.github/workflows/backend-ci.yml`):
   - Code quality: black, isort, flake8, pyright
   - Tests with coverage (uploads to Codecov)
-  - Azure deployment (dev branch only)
+  - Azure deployment (main branch only)
 - **Frontend CI** (`.github/workflows/frontend-ci.yml`):
   - OxLint type-aware linting
   - TypeScript type checking

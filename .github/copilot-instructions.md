@@ -429,8 +429,8 @@ The project uses GitHub Actions for continuous integration with separate workflo
 
 ### Backend CI (`.github/workflows/backend-ci.yml`)
 Runs on:
-- Push to master/main branch (if backend or CI config changes)
-- Pull requests to master/main branch (if backend or CI config changes)
+- Push to main/release branch (if backend or CI config changes)
+- Pull requests to main/release branch (if backend or CI config changes)
 
 Pipeline steps:
 1. Install uv
@@ -444,8 +444,8 @@ Pipeline steps:
 
 ### Frontend CI (`.github/workflows/frontend-ci.yml`)
 Runs on:
-- Push to master/main branch (if frontend or CI config changes)
-- Pull requests to master/main branch (if frontend or CI config changes)
+- Push to main/release branch (if frontend or CI config changes)
+- Pull requests to main/release branch (if frontend or CI config changes)
 
 Pipeline steps:
 1. Set up Bun
@@ -458,8 +458,8 @@ Pipeline steps:
 
 ### Network CI (`.github/workflows/network-ci.yml`)
 Runs on:
-- Push to master/main branch (if network or CI config changes)
-- Pull requests to master/main branch (if network or CI config changes)
+- Push to main/release branch (if network or CI config changes)
+- Pull requests to main/release branch (if network or CI config changes)
 
 Pipeline steps:
 1. Install uv
