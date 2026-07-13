@@ -24,8 +24,11 @@ labels):
 **Resolution:** classical methods use the images at native resolution —
 puzzle JPEGs are 256x256 and piece PNGs are variable-size tight crops
 (~110–130 px) on black backgrounds. Unlike the CNN input pipeline, pieces are
-*not* squashed to 128x128 squares. Runtimes are per sample, single CPU core
-(Apple M-series); the run is parallelized over puzzles with 8 workers.
+*not* squashed to 128x128 squares. Runtimes are wall-clock per sample on an
+Apple M-series CPU with OpenCV's default internal threading (not pinned to a
+single core); the run is additionally parallelized over puzzles with 8 worker
+processes, so absolute numbers are machine-dependent and best read relative
+to each other.
 
 ### Methods
 

@@ -13,6 +13,7 @@ dependencies = [
     "timm>=0.9.12",
     # Data processing
     "albumentations>=2.0.8",
+    "opencv-python-headless>=4.11.0",
     "pillow>=12.2.0",
     "pandas>=2.0.0",
     "scikit-learn>=1.2.0",

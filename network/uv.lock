@@ -1544,6 +1544,7 @@ source = { editable = "." }
 dependencies = [
     { name = "albumentations" },
     { name = "matplotlib" },
+    { name = "opencv-python-headless" },
     { name = "pandas" },
     { name = "pillow" },
     { name = "puzzle-shapes" },
@@ -1585,6 +1586,7 @@ requires-dist = [
     { name = "flake8-pytest-style", marker = "extra == 'dev'", specifier = ">=2.0.0" },
     { name = "isort", marker = "extra == 'dev'", specifier = ">=5.13.2" },
     { name = "matplotlib", specifier = ">=3.7.0" },
+    { name = "opencv-python-headless", specifier = ">=4.11.0" },
     { name = "pandas", specifier = ">=2.0.0" },
     { name = "pandas-stubs", marker = "extra == 'dev'" },
     { name = "pillow", specifier = ">=12.2.0" },
