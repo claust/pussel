@@ -183,6 +183,9 @@ chosen on this faulty comparison.
    Before scaling to 5×5 or 8×8 grids, photograph pieces of one or two
    real puzzles and build a small "north star" test set. Even 100 real
    pieces will tell us more than another 20K synthetic puzzles.
+
+   > **PLANNED (2026-07-13):** capture protocol, labeling scheme, and
+   > repo-storage plan written up in `NORTH_STAR_GUIDE.md`.
 5. Meanwhile, make the synthetic data adversarial to pixel-matching:
    apply *independent* photometric jitter to piece and puzzle, random
    scale/perspective warps on the piece, realistic backgrounds instead
