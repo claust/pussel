@@ -13,12 +13,12 @@ dependencies = [
     "timm>=0.9.12",
     # Data processing
     "albumentations>=2.0.8",
-    "pillow>=11.0.0",
+    "pillow>=12.2.0",
     "pandas>=2.0.0",
     "scikit-learn>=1.2.0",
     # Utilities
     "matplotlib>=3.7.0",
-    "requests>=2.31.0",
+    "requests>=2.33.0",
     "tqdm>=4.65.0",
     # Shared packages
     "puzzle-shapes",
@@ -27,7 +27,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     # Formatting
-    "black>=25.1.0",
+    "black>=26.3.1",
     "isort>=5.13.2",
     # Linting
     "flake8>=7.0.0",
