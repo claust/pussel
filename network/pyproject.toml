@@ -7,20 +7,20 @@ requires-python = ">=3.12"
 license = { text = "MIT" }
 dependencies = [
     # ML frameworks
-    "torch>=2.6.0",
+    "torch>=2.13.0",
     "torchvision>=0.17.0",
-    "pytorch-lightning>=2.5.0",
-    "timm>=0.9.12",
+    "pytorch-lightning>=2.6.5",
+    "timm>=1.0.28",
     # Data processing
     "albumentations>=2.0.8",
-    "opencv-python-headless>=4.11.0",
+    "opencv-python-headless>=5.0.0.93",
     "pillow>=12.2.0",
-    "pandas>=2.0.0",
-    "scikit-learn>=1.2.0",
+    "pandas>=3.0.3",
+    "scikit-learn>=1.9.0",
     # Utilities
-    "matplotlib>=3.7.0",
-    "requests>=2.33.0",
-    "tqdm>=4.65.0",
+    "matplotlib>=3.11.0",
+    "requests>=2.34.2",
+    "tqdm>=4.68.4",
     # Shared packages
     "puzzle-shapes",
 ]
@@ -28,8 +28,8 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     # Formatting
-    "black>=26.3.1",
-    "isort>=5.13.2",
+    "black>=26.5.1",
+    "isort>=8.0.1",
     # Linting
     "flake8>=7.0.0",
     "flake8-docstrings>=1.7.0",
@@ -38,7 +38,7 @@ dev = [
     "flake8-comprehensions>=3.14.0",
     "flake8-pytest-style>=2.0.0",
     # Type checking
-    "pyright>=1.1.390",
+    "pyright>=1.1.411",
     "types-Pillow",
     "types-requests",
     "pandas-stubs",
