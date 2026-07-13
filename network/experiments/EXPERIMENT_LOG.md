@@ -546,7 +546,8 @@ benchmark must clear the 82% classical floor to count as progress.
 **Next Steps** (from the critical review; #1 and #2 are done):
 - Fix the methodology harness: frozen train/val/test split, checkpoint
   selection on val (not test), train metrics in eval mode
-- Attack realism: photographed-piece "north star" test set; independent
+- Attack realism: photographed-piece "north star" test set (capture plan
+  in [NORTH_STAR_GUIDE.md](NORTH_STAR_GUIDE.md)); independent
   photometric jitter / perspective / backgrounds in synthetic data —
   now urgent, since exp23 showed the synthetic benchmark is largely
   solvable by pixel matching and cannot demonstrate learned-model value
