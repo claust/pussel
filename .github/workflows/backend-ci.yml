@@ -2,14 +2,14 @@ name: Backend CI/CD
 
 on:
   push:
-    branches: [master, dev]
+    branches: [main, release]
     paths:
       - "backend/**"
       - "shared/**"
       - ".github/workflows/backend-ci.yml"
       - "infrastructure/**"
   pull_request:
-    branches: [master, main, dev]
+    branches: [main, release]
     paths:
       - "backend/**"
       - "shared/**"
@@ -66,7 +66,7 @@ jobs:
   infrastructure:
     needs: test
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/dev' && github.event_name != 'pull_request'
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     outputs:
       resource_group: ${{ steps.infra_output.outputs.resource_group }}
       acr_name: ${{ steps.infra_output.outputs.acr_name }}
@@ -125,7 +125,7 @@ jobs:
 
   build:
     needs: [test, infrastructure]
-    if: github.ref == 'refs/heads/dev' && github.event_name != 'pull_request'
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
 
     steps:
@@ -160,7 +160,7 @@ jobs:
 
   deploy:
     needs: [build, infrastructure]
-    if: github.ref == 'refs/heads/dev' && github.event_name != 'pull_request'
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
 
     steps:
