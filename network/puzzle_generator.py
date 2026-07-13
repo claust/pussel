@@ -28,7 +28,6 @@ Example usage:
     --context-size 256 256 --piece-size 224 224 --validation-split 0.2
 """
 
-
 import argparse
 import csv
 import json
