@@ -61,7 +61,10 @@ jobs:
           file: ./backend/coverage.xml
           flags: backend
           name: backend-coverage
-          fail_ci_if_error: true
+          # Dependabot and fork PRs don't receive repository secrets, so the
+          # token is empty and the upload against a protected branch fails.
+          # Only treat upload errors as fatal when a token is actually present.
+          fail_ci_if_error: ${{ secrets.CODECOV_TOKEN != '' }}
 
   infrastructure:
     needs: test
