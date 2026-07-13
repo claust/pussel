@@ -74,6 +74,14 @@ training set. Consequences:
 
 ### 2. Every experiment measures a toy surrogate of the real task
 
+> **CONFIRMED (2026-07-13):** exp23 ran the classical baselines on the
+> exp20 benchmark. A zero-training SIFT→NCC hybrid scores **82.9% cell /
+> 90.3% rotation / 82.2% both** — 10 points above the CNN's 72.2%
+> both-correct — and even plain masked NCC beats the CNN on position
+> (77.5% vs 72.9%). The CNN *under-performs* the classical floor on the
+> surrogate, winning only rotation (94.6% vs 90.3%). See
+> `exp23_classical_baselines/`.
+
 The "piece" is a pixel-exact crop of the very same digital image the
 network receives as the puzzle input — same pixels, same lighting, no
 camera, no perspective, no background, no scale uncertainty (exp20 adds
@@ -155,6 +163,11 @@ chosen on this faulty comparison.
    template matching over cells × 4 rotations, and SIFT/ORB matching.
    This gives the floor every learned result must beat — and a reality
    check on whether the surrogate task is trivially solvable.
+
+   > **DONE (2026-07-13, exp23):** the floor is 82.2% both-correct
+   > (SIFT→NCC hybrid, no training), above the CNN's 72.2%. The
+   > surrogate is largely solvable by template matching; learned models
+   > must beat 82% here before any synthetic-benchmark gain counts.
 3. **Fix the methodology harness once, centrally:** a frozen
    train/val/test split shared by all experiments (val for selection,
    test touched once per experiment), checkpoint selection on val, train
