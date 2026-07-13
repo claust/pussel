@@ -1,0 +1,4 @@
+interface:
+  display_name: "GitHub PR Copilot Review"
+  short_description: "Publish PRs and request Copilot review"
+  default_prompt: "Use $gh-pr-copilot-review to commit, push, create a PR, request Copilot review, and monitor the review."
