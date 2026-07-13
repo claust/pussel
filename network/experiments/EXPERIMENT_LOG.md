@@ -338,6 +338,45 @@ position (73%), expecting ~42% combined accuracy.
 
 ---
 
+## Critical Review of Experiments 1–22
+
+**Date:** July 2026 **Status:** REVIEW (full details in
+[CRITICAL_REVIEW.md](CRITICAL_REVIEW.md))
+
+Audited all experiments against their code and result JSONs. What holds
+up: spatial correlation for position (exp7), rotation-as-matching
+(exp12), and data scaling (exp13, the cleanest experiment in the
+series). What doesn't:
+
+1. **exp20's test set has broken rotation labels** — the rotation baked
+   into each generated piece is discarded when building test samples
+   (`exp20_realistic_pieces/dataset.py:312-320`), capping test rotation
+   accuracy at 25% for any model, including a perfect one. The dead-flat
+   24.7% curve was a measurement bug, not a model failure. This
+   invalidates exp20's rotation conclusion, all of exp21 (whose code is
+   also missing from the repo), and exp22's RoMa-vs-CNN comparison,
+   which scored RoMa against correct labels and the CNN against broken
+   ones.
+2. **All experiments measure a toy surrogate**: pieces are pixel-exact
+   crops of the same digital image used as puzzle input — no camera, no
+   lighting gap, no background. No classical baseline (NCC, SIFT) was
+   ever run to establish a floor.
+3. **No validation set anywhere**; the test set drove checkpoint
+   selection and design decisions from exp7 onward.
+4. **Key comparisons were confounded or used wrong baselines**: exp17's
+   "cells together" insight is confounded with 9× more data; exp14/15
+   compared against a fictional exp13 baseline (12 h / 5.27M params vs
+   the logged 4 h / 2.52M) — the "34× faster" ShuffleNet claim is ~1.24×
+   when normalized, so the backbone choice since exp16 rests on an
+   error. exp5/exp6's negative results were invalid by construction.
+
+**Immediate next steps:** fix the exp20 test labels and re-evaluate the
+existing checkpoint before any further RoMa/hybrid work; add classical
+baselines; introduce a proper train/val/test split; build a small
+photographed-piece test set as the real benchmark.
+
+---
+
 ## Summary Table
 
 | Exp | Focus                       | Test Result            | Key Finding                                    |
