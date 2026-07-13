@@ -6,6 +6,9 @@ repos:
       - id: end-of-file-fixer
       - id: check-yaml
       - id: check-added-large-files
+        # uv.lock is a legitimately large, intentionally committed lockfile
+        # (the unified workspace lock is ~640 KB); don't block it.
+        exclude: ^uv\.lock$
       - id: debug-statements
       - id: requirements-txt-fixer
 
