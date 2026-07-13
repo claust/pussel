@@ -218,10 +218,10 @@ pussel/
 
 ### Initial Setup
 
-**Backend (Python/FastAPI)**:
+**Python (Backend + Network + Shared — one uv workspace)**:
 ```bash
-# Install backend dependencies (uv manages its own .venv automatically)
-cd backend
+# backend, network and shared/puzzle_shapes are a single uv workspace with one
+# root uv.lock and one root .venv. Install everything from the repo root:
 uv sync --all-extras
 pre-commit install
 ```
@@ -230,13 +230,6 @@ pre-commit install
 ```bash
 cd frontend
 bun install
-```
-
-**Network (ML Training)**:
-```bash
-# Install network dependencies (uv manages its own .venv automatically)
-cd network
-uv sync --all-extras
 ```
 
 ### Running Applications

@@ -65,7 +65,7 @@ build-backend = "hatchling.build"
 packages = ["app"]
 
 [tool.uv.sources]
-puzzle-shapes = { path = "../shared/puzzle_shapes", editable = true }
+puzzle-shapes = { workspace = true }
 
 [tool.black]
 line-length = 120
