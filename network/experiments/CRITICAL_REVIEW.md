@@ -36,6 +36,12 @@ grids (exp18), 73% position on 4×4 Bezier pieces (exp20).
 
 ### 1. The exp20 test set has broken rotation labels (CRITICAL)
 
+> **RESOLVED (2026-07-13):** Fixed the label composition and re-evaluated
+> the original exp20 checkpoint on a deterministic regeneration of the
+> same test split: **72.9% cell (exact reproduction) / 94.6% rotation**.
+> Rotation never failed; the RoMa/hybrid pivot is dropped. See the
+> "Exp 20 Re-Evaluation" entry in EXPERIMENT_LOG.md.
+
 This invalidates the last three experiments and the current roadmap.
 
 Piece PNGs are generated with a random rotation baked in
