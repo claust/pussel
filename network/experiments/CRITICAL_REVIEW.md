@@ -95,6 +95,15 @@ good performance or *under*-performance on the surrogate.
 
 ### 3. No validation set anywhere; the test set steered development
 
+> **RESOLVED (2026-07-14):** the realistic 4x4 benchmark now has a
+> frozen train/val/test split checked in at
+> `exp20_realistic_pieces/splits/realistic_4x4_v1.json` (test portion
+> identical to the original exp20 test split; 600-puzzle val carved from
+> the original train portion). The training harness
+> (`exp20_realistic_pieces/harness.py` + `train.py`) selects checkpoints
+> on val, measures train metrics in eval mode on a frozen `train_eval`
+> subset, and touches test once per experiment (opt-in `--eval-test`).
+
 exp7–9 iterate on the identical seed-42 200-puzzle test set; exp10–14
 select `model_best.pt` by test accuracy (e.g.
 `exp12_rotation_correlation/train.py:340-387`). Every hyperparameter and
@@ -175,6 +184,13 @@ chosen on this faulty comparison.
    results JSON (that would have prevented the exp13 baseline fiction).
    Re-run the load-bearing comparisons (dual vs Siamese, MobileNetV3 vs
    ShuffleNet) with matched controls and ~3 seeds before trusting them.
+
+   > **DONE (2026-07-14), except README auto-population and the
+   > comparison re-runs:** frozen split + val-selection + eval-mode
+   > train metrics landed in `exp20_realistic_pieces/`
+   > (`splits.py`, `splits/realistic_4x4_v1.json`, `harness.py`,
+   > unified `train.py`; `train_cuda.py` merged in). See the RESOLVED
+   > note under issue #3 above.
 
 ### Then attack the real gap — realism, not grid size
 
