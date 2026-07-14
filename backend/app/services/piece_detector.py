@@ -41,6 +41,11 @@ FULL_CONFIDENCE_MAX_SKIN = 0.15
 # Cap on polygon outline points returned to the client
 MAX_POLYGON_POINTS = 60
 
+# Floor for the confidence reported on an accepted region, so a detection
+# (found=True) always carries a strictly positive confidence in (0, 1] even
+# when the raw score rounds to 0.000.
+MIN_REPORTED_CONFIDENCE = 0.001
+
 
 class DetectedRegion(NamedTuple):
     """A detected piece candidate with normalized coordinates and confidence."""
@@ -217,7 +222,9 @@ class PieceDetector:
         raw_confidence = area_score * aspect_score * skin_score
         if raw_confidence <= 0.0:
             return None
-        confidence = round(raw_confidence, 3)
+        # Floor the reported value so an accepted region keeps confidence in
+        # (0, 1] even when the raw score would round to 0.000.
+        confidence = max(round(raw_confidence, 3), MIN_REPORTED_CONFIDENCE)
 
         perimeter = cv2.arcLength(contour, closed=True)
         polygon = cv2.approxPolyDP(contour, 0.005 * perimeter, closed=True).reshape(-1, 2)
