@@ -5,7 +5,6 @@ import io
 from unittest.mock import patch
 
 import pytest
-
 from fastapi import UploadFile
 from PIL import Image
 
