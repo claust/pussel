@@ -481,7 +481,8 @@ def create_datasets_from_split(
             if not allow_missing:
                 raise ValueError(
                     f"{message}. Generate the pieces first (generate_dataset.py), or pass "
-                    "allow_missing=True for a smoke test (results will NOT be comparable)."
+                    "allow_missing=True (train.py: --allow-missing-puzzles) for a smoke test "
+                    "(results will NOT be comparable)."
                 )
             # Drop missing IDs so the dataset log and split reflect what is
             # actually loaded (smoke-test path only).
