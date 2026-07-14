@@ -4,10 +4,10 @@ from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from typing import Optional
 
+import jwt
 from google.auth import exceptions as google_exceptions
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
-from jose import JWTError, jwt
 
 from app.config import settings
 from app.models.user_model import TokenPayload, User
@@ -94,7 +94,7 @@ class AuthService:
                 algorithms=[settings.JWT_ALGORITHM],
             )
             return TokenPayload(**payload)
-        except JWTError:
+        except jwt.PyJWTError:
             return None
 
     def get_user_from_token(self, token: str) -> Optional[User]:
