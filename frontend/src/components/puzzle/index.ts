@@ -1,5 +1,6 @@
 export { PuzzleDetail } from './puzzle-detail';
 export { PieceCard } from './piece-card';
+export { PieceQueue } from './piece-queue';
 export { GridOverlay } from './grid-overlay';
 export { RotationSelector } from './rotation-selector';
 export { ClickPieceSelector } from './click-piece-selector';
