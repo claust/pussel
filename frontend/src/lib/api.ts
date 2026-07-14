@@ -131,7 +131,10 @@ export async function detectFrame(
   };
 }
 
-export async function detectPieceRegion(frameBlob: Blob): Promise<PieceRegion> {
+export async function detectPieceRegion(
+  frameBlob: Blob,
+  signal?: AbortSignal
+): Promise<PieceRegion> {
   const formData = new FormData();
   formData.append('file', frameBlob, 'frame.jpg');
 
@@ -139,13 +142,18 @@ export async function detectPieceRegion(frameBlob: Blob): Promise<PieceRegion> {
     method: 'POST',
     headers: getAuthHeaders(),
     body: formData,
+    signal,
   });
+
+  if (res.status === 401) {
+    throw new ApiError('Authentication required. Please sign in.', res.status);
+  }
 
   if (!res.ok) {
     throw new ApiError('Failed to detect piece region', res.status);
   }
 
-  return res.json();
+  return res.json() as Promise<PieceRegion>;
 }
 
 interface PieceApiResponse {

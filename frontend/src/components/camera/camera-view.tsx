@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Camera, Loader2, AlertCircle, Upload } from 'lucide-react';
 import { useCamera } from '@/hooks/use-camera';
 import { Button } from '@/components/ui/button';
-import { detectPieceRegion } from '@/lib/api';
+import { ApiError, detectPieceRegion } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import type { PieceRegion } from '@/types';
 import { FileUpload } from './file-upload';
@@ -46,6 +46,7 @@ export function CameraView({
     if (!livePieceDetection || !isReady) return;
 
     let cancelled = false;
+    const controller = new AbortController();
     const canvas = document.createElement('canvas');
 
     const detectLoop = async () => {
@@ -66,11 +67,16 @@ export function CameraView({
               canvas.toBlob(resolve, 'image/jpeg', 0.7)
             );
             if (blob) {
-              const region = await detectPieceRegion(blob);
+              const region = await detectPieceRegion(blob, controller.signal);
               if (!cancelled) setPieceRegion(region);
             }
-          } catch {
-            // Keep the camera usable even if detection fails; try again next tick
+          } catch (err) {
+            // Cleanup aborted the in-flight request; stop silently
+            if (controller.signal.aborted) return;
+            // Auth expired: stop polling instead of hammering the endpoint
+            // (the auth provider handles re-authentication separately)
+            if (err instanceof ApiError && err.status === 401) return;
+            // Otherwise keep the camera usable and try again next tick
             if (!cancelled) setPieceRegion(null);
           }
         }
@@ -84,6 +90,7 @@ export function CameraView({
     void detectLoop();
     return () => {
       cancelled = true;
+      controller.abort();
       setPieceRegion(null);
     };
   }, [livePieceDetection, isReady, videoRef]);
