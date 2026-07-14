@@ -160,7 +160,7 @@ make start-frontend        # Start Next.js dev server on http://localhost:3000
 - **`app/main.py`** - FastAPI application with CORS, endpoints, and in-memory puzzle storage
 - **`app/config.py`** - Pydantic settings for configuration (upload dir, size limits, CORS)
 - **`app/models/puzzle_model.py`** - Pydantic models for API requests/responses
-- **`app/services/image_processor.py`** - Mock image processing (to be replaced with ML model)
+- **`app/services/image_processor.py`** - Runs the trained CNN model (loads `FastBackboneModel` from a checkpoint in `network/experiments/`) to predict piece position + rotation via `torch.no_grad()` inference; falls back to a neutral result (position 0.5,0.5, confidence 0.0) on error
 - **`app/services/storage.py`** - File storage utilities
 
 #### API Endpoints
@@ -225,14 +225,30 @@ GitHub Actions workflows test/deploy on push to main/release:
 - **Backend CI** (`.github/workflows/backend-ci.yml`):
   - Code quality: black, isort, flake8, pyright
   - Tests with coverage (uploads to Codecov)
-  - Azure deployment (main branch only)
+  - Azure deployment (main branch only) — builds a container, pushes to Azure
+    Container Registry, and deploys to an Azure Web App via the Bicep infra in
+    `infrastructure/`
 - **Frontend CI** (`.github/workflows/frontend-ci.yml`):
   - OxLint type-aware linting
   - TypeScript type checking
   - Prettier formatting check
   - Vitest tests
   - Next.js production build
+  - Playwright e2e tests (against a locally started backend)
+  - **No deployment step** — the frontend is not deployed by CI or IaC (see below)
 - **Network CI** (`.github/workflows/network-ci.yml`): Python quality checks for ML code
+
+### Deployment Status
+- **Backend**: deployed to **Azure** (App Service running a container) via
+  `backend-ci.yml` + `infrastructure/main.bicep`. Infra provisions only the
+  backend App Service, a Container Registry, and a Storage Account.
+- **Frontend**: **not deployed anywhere.** There is no Vercel setup (the
+  `vercel.svg`, `.vercel` gitignore entry, and README "Deploy on Vercel" text
+  are leftover `create-next-app` scaffolding, not a real config) and no Azure
+  frontend resource. The `pussel-frontend.azurewebsites.net` /
+  `pussel.thomasen.dk` origins in `infrastructure/modules/appService.bicep` are
+  only CORS allowlist entries, not deploy targets. The frontend currently runs
+  locally against a local or Azure backend (`NEXT_PUBLIC_API_URL`).
 
 ## Important Notes
 
@@ -259,7 +275,11 @@ pyright is configured with standard mode - all functions must have type annotati
 - CI requires `.env.test` file for environment variables
 
 ### ML Model Integration
-Current backend uses mock image processor in `app/services/image_processor.py`. The trained model from `network/` should eventually replace this mock implementation.
+The backend serves the trained model directly: `app/services/image_processor.py`
+loads a checkpoint from `network/experiments/` (e.g.
+`exp18_3x3_20k_puzzles/outputs/checkpoint_best.pt`) and runs inference on each
+piece. To ship a newer model, retrain in `network/` and point the processor at
+the new checkpoint.
 
 ### Pre-commit Hooks
 Pre-commit is configured at the root level and applies to:

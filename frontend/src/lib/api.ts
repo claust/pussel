@@ -1,4 +1,12 @@
-import type { Puzzle, Piece, GeneratedPiece, CutPuzzleResponse } from '@/types';
+import type {
+  Puzzle,
+  Piece,
+  GeneratedPiece,
+  CutPuzzleResponse,
+  QuadCorners,
+  DetectFrameResult,
+  PieceRegion,
+} from '@/types';
 import { useAuthStore } from '@/stores/auth-store';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -60,6 +68,92 @@ export async function uploadPuzzle(imageBlob: Blob): Promise<Puzzle> {
     puzzleId: data.puzzle_id,
     imageUrl: data.image_url,
   };
+}
+
+interface CornerApi {
+  x: number;
+  y: number;
+}
+
+interface DetectFrameApiResponse {
+  trimmed_image: string;
+  corners: {
+    top_left: CornerApi;
+    top_right: CornerApi;
+    bottom_right: CornerApi;
+    bottom_left: CornerApi;
+  };
+  confidence: number;
+}
+
+export async function detectFrame(
+  photoBlob: Blob,
+  corners?: QuadCorners
+): Promise<DetectFrameResult> {
+  const formData = new FormData();
+  formData.append('file', photoBlob, 'puzzle-photo.jpg');
+  if (corners) {
+    formData.append(
+      'corners',
+      JSON.stringify({
+        top_left: corners.topLeft,
+        top_right: corners.topRight,
+        bottom_right: corners.bottomRight,
+        bottom_left: corners.bottomLeft,
+      })
+    );
+  }
+
+  const res = await fetch(`${API_BASE}/api/v1/puzzle/detect-frame`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: formData,
+  });
+
+  if (res.status === 401) {
+    throw new ApiError('Authentication required. Please sign in.', res.status);
+  }
+
+  if (!res.ok) {
+    throw new ApiError('Failed to detect puzzle frame', res.status);
+  }
+
+  const data: DetectFrameApiResponse = await res.json();
+  return {
+    trimmedImageUrl: data.trimmed_image,
+    corners: {
+      topLeft: data.corners.top_left,
+      topRight: data.corners.top_right,
+      bottomRight: data.corners.bottom_right,
+      bottomLeft: data.corners.bottom_left,
+    },
+    confidence: data.confidence,
+  };
+}
+
+export async function detectPieceRegion(
+  frameBlob: Blob,
+  signal?: AbortSignal
+): Promise<PieceRegion> {
+  const formData = new FormData();
+  formData.append('file', frameBlob, 'frame.jpg');
+
+  const res = await fetch(`${API_BASE}/api/v1/piece/preview`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: formData,
+    signal,
+  });
+
+  if (res.status === 401) {
+    throw new ApiError('Authentication required. Please sign in.', res.status);
+  }
+
+  if (!res.ok) {
+    throw new ApiError('Failed to detect piece region', res.status);
+  }
+
+  return res.json() as Promise<PieceRegion>;
 }
 
 interface PieceApiResponse {

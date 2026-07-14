@@ -21,6 +21,7 @@ from app.config import settings
 from app.models.model import FastBackboneModel
 from app.models.puzzle_model import PieceResponse, Position
 from app.services.background_remover import get_background_remover
+from app.services.piece_detector import crop_to_alpha_region
 
 # Path to checkpoint (3x3 grid model with 82% cell accuracy, 95% rotation accuracy)
 DEFAULT_CHECKPOINT_PATH = str(
@@ -72,12 +73,19 @@ class ImageProcessor:
         else:
             return torch.device("cpu")
 
-    def _load_model(self) -> FastBackboneModel:
+    def _load_model(self) -> Optional[FastBackboneModel]:
         """Load the trained model from checkpoint.
 
         Returns:
-            The loaded model in evaluation mode.
+            The loaded model in evaluation mode, or None when no checkpoint is
+            available. Without a model, ``process_piece`` returns a neutral
+            fallback prediction so the app still runs (e.g. in CI, where the
+            checkpoint is not committed).
         """
+        if not os.path.exists(CHECKPOINT_PATH):
+            print(f"Model checkpoint not found at {CHECKPOINT_PATH}; predictions will use a neutral fallback")
+            return None
+
         # Initialize model with same config as training
         model = FastBackboneModel(
             pretrained=False,  # We'll load weights from checkpoint
@@ -164,6 +172,11 @@ class ImageProcessor:
                 # Get RGBA image with transparent background for frontend display
                 rgba_image = remover.remove_background(contents)
 
+                # Crop to the segmented subject so the piece fills the frame for the
+                # model (training pieces fill the image) instead of floating in a
+                # large mostly-white canvas
+                rgba_image = crop_to_alpha_region(rgba_image)
+
                 # Encode as base64 PNG for frontend
                 buffer = io.BytesIO()
                 rgba_image.save(buffer, format="PNG")
@@ -177,6 +190,17 @@ class ImageProcessor:
                     piece_img.paste(rgba_image)
             else:
                 piece_img = Image.open(io.BytesIO(contents)).convert("RGB")
+
+            # No model available (e.g. checkpoint not present): return a neutral
+            # prediction but still hand back the cleaned cutout for display.
+            if self.model is None:
+                return PieceResponse(
+                    position=Position(x=0.5, y=0.5),
+                    position_confidence=0.0,
+                    rotation=0,
+                    rotation_confidence=0.0,
+                    cleaned_image=cleaned_image_b64,
+                )
 
             piece_tensor = cast(Tensor, self.piece_transform(piece_img)).unsqueeze(0)
             piece_tensor = piece_tensor.to(self.device)
