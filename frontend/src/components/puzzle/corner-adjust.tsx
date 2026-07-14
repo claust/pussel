@@ -99,9 +99,8 @@ export function CornerAdjust({
             <div
               key={name}
               data-testid={`corner-handle-${name}`}
-              role="slider"
-              aria-label={CORNER_LABELS[name]}
-              aria-valuetext={`${Math.round(corners[name].x * 100)}%, ${Math.round(corners[name].y * 100)}%`}
+              role="button"
+              aria-label={`${CORNER_LABELS[name]} at ${Math.round(corners[name].x * 100)}%, ${Math.round(corners[name].y * 100)}%`}
               className={cn(
                 'absolute h-8 w-8 -translate-x-1/2 -translate-y-1/2 cursor-grab rounded-full border-4 border-blue-500 bg-white/80 shadow-lg',
                 dragging === name && 'cursor-grabbing border-blue-600 bg-blue-100',

@@ -290,6 +290,17 @@ def test_piece_preview_invalid_image_bytes() -> None:
     assert response.status_code == 400
 
 
+def test_piece_preview_rejects_oversized_file() -> None:
+    """Piece preview returns 413 when the frame exceeds the upload size limit."""
+    oversized = b"\x00" * (settings.MAX_UPLOAD_SIZE + 1)
+    response = client.post(
+        "/api/v1/piece/preview",
+        files=photo_files(oversized),
+        headers=get_auth_header(),
+    )
+    assert response.status_code == 413
+
+
 def test_piece_preview_returns_region() -> None:
     """Piece preview maps a detected region to polygon and bbox."""
     detector = MagicMock()

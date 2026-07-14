@@ -54,7 +54,11 @@ export function CameraView({
         const video = videoRef.current;
         if (video && video.videoWidth > 0) {
           try {
-            const scale = DETECT_FRAME_MAX_DIM / Math.max(video.videoWidth, video.videoHeight);
+            // Only ever downscale; never enlarge a stream smaller than the target
+            const scale = Math.min(
+              1,
+              DETECT_FRAME_MAX_DIM / Math.max(video.videoWidth, video.videoHeight)
+            );
             canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
             canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
             canvas.getContext('2d')?.drawImage(video, 0, 0, canvas.width, canvas.height);

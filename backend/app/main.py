@@ -253,7 +253,15 @@ async def preview_piece(
     if file is None:
         raise HTTPException(status_code=400, detail="No file provided")
 
+    # This endpoint is polled in a loop from the client, so guard against oversized
+    # frames. Preview frames are downscaled client-side, so a tight limit is expected.
+    if file.size and file.size > settings.MAX_UPLOAD_SIZE:
+        raise HTTPException(status_code=413, detail="File too large")
+
     contents = await file.read()
+    if len(contents) > settings.MAX_UPLOAD_SIZE:
+        raise HTTPException(status_code=413, detail="File too large")
+
     try:
         image = Image.open(io.BytesIO(contents))
         image.load()
