@@ -131,9 +131,13 @@ export class PieceTracker {
       return { events, snapshotRequested, activeTrackId: this.track.id };
     }
 
-    // Identity check against the active track
+    // Identity check against the active track. The signature only contributes
+    // once the track has actually learned one; comparing against an empty
+    // running signature would always yield distance 0 and silently disable
+    // appearance-based swap detection.
     const iou = bboxIoU(this.track.lastBBox, obs.bbox);
-    const sigDist = obs.signature ? signatureDistance(this.track.signature, obs.signature) : 0;
+    const hasSignatures = this.track.signature.length > 0 && Boolean(obs.signature?.length);
+    const sigDist = hasSignatures ? signatureDistance(this.track.signature, obs.signature!) : 0;
     const isBreak =
       iou < this.config.iouBreakThreshold || sigDist > this.config.signatureBreakThreshold;
 
@@ -157,12 +161,14 @@ export class PieceTracker {
     this.track.frames += 1;
     this.track.lastSeenAt = obs.timestamp;
     this.track.lastBBox = obs.bbox;
-    if (obs.signature) {
-      this.track.signature = blendSignature(
-        this.track.signature,
-        obs.signature,
-        this.config.signatureAlpha
-      );
+    if (obs.signature?.length) {
+      // Adopt the first available signature outright; a track that started
+      // before any signature was computed would otherwise stay empty forever
+      // (blending into an empty array keeps it empty).
+      this.track.signature =
+        this.track.signature.length === 0
+          ? [...obs.signature]
+          : blendSignature(this.track.signature, obs.signature, this.config.signatureAlpha);
     }
     const score = frameScore(obs);
     if (score > this.track.bestScore) {

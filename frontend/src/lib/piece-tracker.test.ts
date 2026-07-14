@@ -108,6 +108,24 @@ describe('PieceTracker', () => {
     expect(recovered.activeTrackId).toBe('track-1');
   });
 
+  it('learns a signature that only becomes available after the track starts', () => {
+    // A track whose first frames carried no signature must adopt the first one
+    // it sees, so appearance-based swap detection works for the rest of it.
+    const tracker = makeTracker();
+    tracker.update(obs({ timestamp: 0, signature: undefined }));
+    tracker.update(obs({ timestamp: 400, signature: SIG_A })); // signature learned here
+    tracker.update(obs({ timestamp: 800, signature: SIG_A }));
+
+    // A sustained swap to a different piece must now be detected
+    tracker.update(obs({ timestamp: 1200, signature: SIG_B }));
+    const swap = tracker.update(obs({ timestamp: 1600, signature: SIG_B }));
+    expect(swap.events).toEqual([
+      { type: 'committed', trackId: 'track-1', frames: 3, bestScore: expect.any(Number) },
+      { type: 'started', trackId: 'track-2' },
+    ]);
+    expect(swap.activeTrackId).toBe('track-2');
+  });
+
   it('cuts to a new track when the bbox jumps without overlap', () => {
     const tracker = makeTracker();
     tracker.update(obs({ timestamp: 0 }));

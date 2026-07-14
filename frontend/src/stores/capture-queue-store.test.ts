@@ -1,21 +1,27 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useCaptureQueueStore } from './capture-queue-store';
 
 describe('CaptureQueueStore', () => {
-  // jsdom doesn't implement the Blob URL APIs; stub them so revoke calls in
-  // the store can be observed without throwing. Kept as standalone spies
-  // (rather than reading them off `URL` in assertions) to avoid unbound-method
-  // lint warnings.
-  const revokeObjectURL = vi.fn();
+  // jsdom doesn't implement the Blob URL APIs; spy on them (rather than
+  // replacing the global URL constructor wholesale) so revoke calls in the
+  // store can be observed without leaking a stubbed URL into other tests.
+  if (typeof URL.createObjectURL !== 'function') {
+    (URL as unknown as Record<string, unknown>).createObjectURL = () => '';
+  }
+  if (typeof URL.revokeObjectURL !== 'function') {
+    (URL as unknown as Record<string, unknown>).revokeObjectURL = () => {};
+  }
+
+  let revokeObjectURL: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    revokeObjectURL.mockClear();
-    vi.stubGlobal('URL', {
-      ...URL,
-      createObjectURL: vi.fn(() => 'blob:mock-url'),
-      revokeObjectURL,
-    });
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock-url');
+    revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
     useCaptureQueueStore.setState({ entries: [], isProcessing: false });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   const makeBlob = () => new Blob(['data'], { type: 'image/png' });
