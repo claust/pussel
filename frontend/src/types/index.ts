@@ -68,6 +68,7 @@ export interface PieceRegion {
   found: boolean;
   polygon: Corner[]; // outline of the detected piece, normalized 0-1
   bbox?: { x: number; y: number; width: number; height: number } | null;
+  confidence: number; // 0-1; how piece-like the detected region is
 }
 
 export type PieceSelectionMode = 'grid' | 'realistic';

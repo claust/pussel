@@ -5,6 +5,7 @@ import { Camera, Loader2, AlertCircle, Upload } from 'lucide-react';
 import { useCamera } from '@/hooks/use-camera';
 import { Button } from '@/components/ui/button';
 import { ApiError, detectPieceRegion } from '@/lib/api';
+import { isConfidentPiece } from '@/lib/piece-detection';
 import { cn } from '@/lib/utils';
 import type { PieceRegion } from '@/types';
 import { FileUpload } from './file-upload';
@@ -33,6 +34,7 @@ export function CameraView({
 }: CameraViewProps) {
   const { videoRef, isReady, isLoading, error, dimensions, start, stop, capture } = useCamera();
   const [pieceRegion, setPieceRegion] = useState<PieceRegion | null>(null);
+  const pieceDetected = isConfidentPiece(pieceRegion);
 
   useEffect(() => {
     void start();
@@ -155,7 +157,7 @@ export function CameraView({
         {/* Live piece detection outline; slice mirrors the video's object-cover mapping */}
         {livePieceDetection && isReady && dimensions && (
           <>
-            {pieceRegion?.found && pieceRegion.polygon.length >= 3 && (
+            {pieceDetected && pieceRegion && pieceRegion.polygon.length >= 3 && (
               <svg
                 className="pointer-events-none absolute inset-0 h-full w-full"
                 viewBox={`0 0 ${dimensions.width} ${dimensions.height}`}
@@ -176,10 +178,10 @@ export function CameraView({
               <span
                 className={cn(
                   'rounded-full px-3 py-1 text-xs font-medium text-white',
-                  pieceRegion?.found ? 'bg-green-600/80' : 'bg-black/50'
+                  pieceDetected ? 'bg-green-600/80' : 'bg-black/50'
                 )}
               >
-                {pieceRegion?.found ? 'Piece detected' : 'Looking for piece…'}
+                {pieceDetected ? 'Piece detected' : 'Looking for piece…'}
               </span>
             </div>
           </>
