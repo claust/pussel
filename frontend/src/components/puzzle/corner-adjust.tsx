@@ -39,7 +39,7 @@ export function CornerAdjust({
   const [corners, setCorners] = useState<QuadCorners>(initialCorners);
   const [dragging, setDragging] = useState<CornerName | null>(null);
 
-  const updateCorner = (name: CornerName, e: PointerEvent<HTMLDivElement>) => {
+  const updateCorner = (name: CornerName, e: PointerEvent<HTMLButtonElement>) => {
     if (!containerRef.current) return;
 
     const rect = containerRef.current.getBoundingClientRect();
@@ -50,19 +50,21 @@ export function CornerAdjust({
     setCorners((prev) => ({ ...prev, [name]: corner }));
   };
 
-  const handlePointerDown = (name: CornerName) => (e: PointerEvent<HTMLDivElement>) => {
+  const handlePointerDown = (name: CornerName) => (e: PointerEvent<HTMLButtonElement>) => {
     if (isLoading) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     setDragging(name);
     updateCorner(name, e);
   };
 
-  const handlePointerMove = (name: CornerName) => (e: PointerEvent<HTMLDivElement>) => {
+  const handlePointerMove = (name: CornerName) => (e: PointerEvent<HTMLButtonElement>) => {
     if (dragging !== name) return;
     updateCorner(name, e);
   };
 
-  const handlePointerUp = () => setDragging(null);
+  // Reset on up, cancel, or lost capture so `dragging` can never get stuck
+  // (e.g. an OS gesture cancels the pointer or the window loses focus).
+  const handlePointerEnd = () => setDragging(null);
 
   const polygonPoints = CORNER_NAMES.map(
     (name) => `${corners[name].x * 100},${corners[name].y * 100}`
@@ -96,10 +98,11 @@ export function CornerAdjust({
 
           {/* Draggable corner handles */}
           {CORNER_NAMES.map((name) => (
-            <div
+            <button
               key={name}
+              type="button"
+              disabled={isLoading}
               data-testid={`corner-handle-${name}`}
-              role="button"
               aria-label={`${CORNER_LABELS[name]} at ${Math.round(corners[name].x * 100)}%, ${Math.round(corners[name].y * 100)}%`}
               className={cn(
                 'absolute h-8 w-8 -translate-x-1/2 -translate-y-1/2 cursor-grab rounded-full border-4 border-blue-500 bg-white/80 shadow-lg',
@@ -112,7 +115,9 @@ export function CornerAdjust({
               }}
               onPointerDown={handlePointerDown(name)}
               onPointerMove={handlePointerMove(name)}
-              onPointerUp={handlePointerUp}
+              onPointerUp={handlePointerEnd}
+              onPointerCancel={handlePointerEnd}
+              onLostPointerCapture={handlePointerEnd}
             />
           ))}
         </div>
