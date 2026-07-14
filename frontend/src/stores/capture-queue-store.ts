@@ -3,6 +3,17 @@ import type { Piece } from '@/types';
 
 export type CaptureStatus = 'queued' | 'predicting' | 'done' | 'error';
 
+/**
+ * Revoke a URL only if it is a blob: object URL this store created. Once an
+ * entry is predicted its imageUrl becomes a data: URL (the cleaned image),
+ * which URL.revokeObjectURL is not meant for.
+ */
+function revokeIfObjectUrl(url: string): void {
+  if (url.startsWith('blob:')) {
+    URL.revokeObjectURL(url);
+  }
+}
+
 export interface CaptureEntry {
   id: string;
   /** Object URL of the best raw camera crop; swapped for the cleaned image once done */
@@ -53,7 +64,7 @@ export const useCaptureQueueStore = create<CaptureQueueState>((set, get) => ({
         // the raw capture, so release the raw object URL and blob — otherwise
         // hundreds of captures would pin their blobs in memory for the session.
         if (piece.imageData) {
-          URL.revokeObjectURL(e.imageUrl);
+          revokeIfObjectUrl(e.imageUrl);
           return {
             ...e,
             status: 'done' as const,
@@ -88,7 +99,7 @@ export const useCaptureQueueStore = create<CaptureQueueState>((set, get) => ({
     // Release the removed entry's object URL before dropping it
     const entry = get().entries.find((e) => e.id === id);
     if (entry) {
-      URL.revokeObjectURL(entry.imageUrl);
+      revokeIfObjectUrl(entry.imageUrl);
     }
     set((state) => ({ entries: state.entries.filter((e) => e.id !== id) }));
   },
@@ -98,7 +109,7 @@ export const useCaptureQueueStore = create<CaptureQueueState>((set, get) => ({
   clear: () => {
     // Release the object URLs owned by the queue before dropping the entries
     for (const entry of get().entries) {
-      URL.revokeObjectURL(entry.imageUrl);
+      revokeIfObjectUrl(entry.imageUrl);
     }
     set({ entries: [], isProcessing: false });
   },
