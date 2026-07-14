@@ -175,7 +175,9 @@ def evaluate(
             total_mse += F.mse_loss(preds, targets_dev, reduction="sum").item()
             n_samples += targets.size(0)
 
-            pred_cells = model.predict_cell(pieces, puzzles, grid_size=grid_size)
+            # Derive cells from the positions already computed above
+            # (model.predict_cell would run a second forward pass).
+            pred_cells = model.positions_to_cells(preds, grid_size=grid_size)
             pred_rotations = rotation_logits.argmax(dim=1)
 
             cell_correct = pred_cells == cells_dev

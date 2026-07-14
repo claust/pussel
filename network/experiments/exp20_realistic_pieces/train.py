@@ -58,6 +58,7 @@ def main(
     output_dir: Path | str = DEFAULT_OUTPUT_DIR,
     num_workers: int = 0,
     eval_test: bool = False,
+    allow_missing: bool = False,
 ) -> dict[str, Any]:
     """Train on the frozen split with val-based checkpoint selection.
 
@@ -76,6 +77,8 @@ def main(
         num_workers: Data loader workers.
         eval_test: Evaluate the test set ONCE on the best-val checkpoint
             after training. Leave off while iterating.
+        allow_missing: Tolerate puzzle dirs missing from the dataset root
+            (smoke tests only; results are NOT comparable to the benchmark).
 
     Returns:
         Dictionary with results (also written to results.json).
@@ -100,7 +103,11 @@ def main(
         print(f"GPU: {torch.cuda.get_device_name(0)}")
 
     # Datasets from the frozen split
-    dataset_kwargs: dict[str, Any] = {"piece_size": piece_size, "puzzle_size": puzzle_size}
+    dataset_kwargs: dict[str, Any] = {
+        "piece_size": piece_size,
+        "puzzle_size": puzzle_size,
+        "allow_missing": allow_missing,
+    }
     if dataset_root is not None:
         dataset_kwargs["dataset_root"] = dataset_root
     if puzzle_root is not None:
@@ -239,6 +246,11 @@ if __name__ == "__main__":
         action="store_true",
         help="Evaluate the test set ONCE on the best-val checkpoint after training",
     )
+    parser.add_argument(
+        "--allow-missing-puzzles",
+        action="store_true",
+        help="Tolerate missing puzzle dirs (smoke tests only; results NOT comparable)",
+    )
     args = parser.parse_args()
 
     main(
@@ -255,4 +267,5 @@ if __name__ == "__main__":
         output_dir=args.output_dir,
         num_workers=args.num_workers,
         eval_test=args.eval_test,
+        allow_missing=args.allow_missing_puzzles,
     )

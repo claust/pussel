@@ -123,11 +123,16 @@ exp20_realistic_pieces/
 ├── visualize.py          # Visualization utilities
 ├── regenerate_test_split.py   # Reproduce the original test pieces (July 2026 re-eval)
 ├── reevaluate_checkpoint.py   # Re-evaluate a checkpoint with fixed labels
-└── outputs/              # Results (created during training)
+└── outputs/              # Results
     ├── methodology_v2/   # Default output dir for new (v2) training runs
-    ├── checkpoint_best.pt
-    ├── checkpoint_last.pt
+    │   ├── checkpoint_best.pt   # Selected on val both-correct accuracy
+    │   ├── checkpoint_last.pt
+    │   ├── results.json
+    │   ├── test_predictions.png # Only written with --eval-test
+    │   └── training_curves.png
+    ├── checkpoint_best.pt       # Historical December 2025 run (legacy layout)
     ├── results.json
+    ├── reeval_fixed_labels.json
     ├── test_predictions.png
     └── training_curves.png
 ```

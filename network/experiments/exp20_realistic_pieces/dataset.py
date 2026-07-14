@@ -433,6 +433,7 @@ def create_datasets_from_split(
     puzzle_root: Path | str = DEFAULT_PUZZLE_ROOT,
     piece_size: int = 128,
     puzzle_size: int = 256,
+    allow_missing: bool = False,
 ) -> dict[str, RealisticPieceDataset | RealisticPieceTestDataset]:
     """Create datasets from the frozen train/val/test split.
 
@@ -452,12 +453,17 @@ def create_datasets_from_split(
         puzzle_root: Root directory containing original puzzle images.
         piece_size: Size of piece images.
         puzzle_size: Size of puzzle images.
+        allow_missing: If True, tolerate puzzle dirs from the split that are
+            missing on disk (warn and proceed with a partial dataset). Only
+            for smoke tests — results from partial datasets are NOT
+            comparable to the frozen benchmark.
 
     Returns:
         Mapping of split name to dataset.
 
     Raises:
-        ValueError: If any split resolves to zero samples on disk.
+        ValueError: If puzzle dirs from the split are missing on disk (unless
+            ``allow_missing``), or if any split resolves to zero samples.
     """
     from .splits import DEFAULT_SPLIT_PATH, load_split
 
@@ -470,7 +476,13 @@ def create_datasets_from_split(
     for name, ids in split.items():
         missing = [pid for pid in ids if not (root / pid).exists()]
         if missing:
-            print(f"WARNING: {name}: {len(missing)}/{len(ids)} puzzle dirs missing under {root}")
+            message = f"{name}: {len(missing)}/{len(ids)} puzzle dirs missing under {root}"
+            if not allow_missing:
+                raise ValueError(
+                    f"{message}. Generate the pieces first (generate_dataset.py), or pass "
+                    "allow_missing=True for a smoke test (results will NOT be comparable)."
+                )
+            print(f"WARNING: {message} (allow_missing=True; results NOT comparable)")
         if name == "train":
             datasets[name] = RealisticPieceDataset(
                 puzzle_ids=ids,
