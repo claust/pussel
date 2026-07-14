@@ -244,7 +244,8 @@ async def preview_piece(
         file: A downscaled camera frame.
 
     Returns:
-        PiecePreviewResponse with the detected region outline, or found=False.
+        PiecePreviewResponse with the detected region outline and a confidence
+        expressing how piece-like the region is, or found=False.
 
     Raises:
         HTTPException: If no/invalid file is provided.
@@ -272,11 +273,12 @@ async def preview_piece(
     if region is None:
         return PiecePreviewResponse(found=False)
 
-    polygon, (x, y, w, h) = region
+    polygon, (x, y, w, h), confidence = region
     return PiecePreviewResponse(
         found=True,
         polygon=[Corner(x=px, y=py) for px, py in polygon],
         bbox=BoundingBox(x=x, y=y, width=w, height=h),
+        confidence=confidence,
     )
 
 
