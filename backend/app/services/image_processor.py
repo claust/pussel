@@ -9,6 +9,7 @@ import io
 import os
 from pathlib import Path
 from typing import Optional, cast
+from uuid import UUID
 
 import torch
 import torch.nn.functional as F
@@ -117,6 +118,12 @@ class ImageProcessor:
             FileNotFoundError: If the puzzle image doesn't exist.
         """
         if puzzle_id not in self._puzzle_cache:
+            try:
+                if str(UUID(puzzle_id)) != puzzle_id:
+                    raise ValueError
+            except ValueError as exc:
+                raise FileNotFoundError(f"Puzzle image not found: {puzzle_id}") from exc
+
             puzzle_path = os.path.join(settings.UPLOAD_DIR, f"{puzzle_id}.jpg")
             # Normalize and ensure the puzzle path stays within the upload directory
             base_dir = os.path.realpath(settings.UPLOAD_DIR)
