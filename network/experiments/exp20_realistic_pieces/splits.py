@@ -67,6 +67,16 @@ def freeze_split(source_dir: Path) -> dict[str, object]:
     if not all_ids:
         raise ValueError(f"No puzzle_*.jpg files found in {source_dir}")
 
+    # Fail fast if there aren't enough source puzzles to carve
+    # test + val + train_eval (plus at least one pure-train puzzle);
+    # otherwise the min()-clamped slicing below silently goes negative.
+    min_required = N_TEST_PUZZLES_REQUESTED + N_VAL_PUZZLES + N_TRAIN_EVAL_PUZZLES
+    if len(all_ids) <= min_required:
+        raise ValueError(
+            f"Need more than {min_required} source puzzles to form test+val+train_eval, "
+            f"found {len(all_ids)} in {source_dir}"
+        )
+
     rng = random.Random(SPLIT_SEED)
     shuffled = all_ids.copy()
     rng.shuffle(shuffled)
@@ -79,8 +89,6 @@ def freeze_split(source_dir: Path) -> dict[str, object]:
     # Carve val from the END of the original train portion; train_eval is
     # the START of the remaining train portion (shuffle order is random,
     # so both are random samples).
-    if n_train_orig <= N_VAL_PUZZLES + N_TRAIN_EVAL_PUZZLES:
-        raise ValueError(f"Train portion too small ({n_train_orig}) to carve val/train_eval")
     val_ids = shuffled[n_train_orig - N_VAL_PUZZLES : n_train_orig]
     train_ids = shuffled[: n_train_orig - N_VAL_PUZZLES]
     train_eval_ids = train_ids[:N_TRAIN_EVAL_PUZZLES]
@@ -133,6 +141,8 @@ def load_split(split_path: Path | str = DEFAULT_SPLIT_PATH) -> dict[str, list[st
 
     split: dict[str, list[str]] = {}
     for key in SPLIT_KEYS:
+        if key not in data:
+            raise ValueError(f"Invalid split at {split_path}: missing required key '{key}'")
         ids = data[key]
         if not isinstance(ids, list) or not all(isinstance(pid, str) for pid in ids):
             raise ValueError(f"Invalid split: '{key}' must be a list of puzzle ID strings")
