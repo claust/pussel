@@ -221,7 +221,10 @@ class PieceDetector:
         if classifier.available:
             score = classifier.score(rgba)
             if score is not None:
-                return max(round(score, 3), MIN_REPORTED_CONFIDENCE)
+                # Report the full probability (no rounding: it could flip values
+                # across the client's 0.5 gate), floored so found=True always
+                # carries a confidence in (0, 1].
+                return max(score, MIN_REPORTED_CONFIDENCE)
 
         # Heuristic fallback: the skin gate is what rejects faces and hands
         # when no trained classifier is around to do it better.
