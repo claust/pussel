@@ -12,6 +12,7 @@ interface CameraModalProps {
   mode: CameraMode;
   onCapture: (blob: Blob) => void;
   puzzleImageUrl?: string | null;
+  livePieceDetection?: boolean;
 }
 
 export function CameraModal({
@@ -20,6 +21,7 @@ export function CameraModal({
   mode,
   onCapture,
   puzzleImageUrl,
+  livePieceDetection = false,
 }: CameraModalProps) {
   const title = mode === 'puzzle' ? 'Capture Puzzle' : 'Capture Piece';
   const [isLandscape, setIsLandscape] = useState(false);
@@ -51,6 +53,7 @@ export function CameraModal({
           onCancel={() => onOpenChange(false)}
           onOrientationChange={handleOrientationChange}
           overlayImage={mode === 'piece' ? puzzleImageUrl : null}
+          livePieceDetection={mode === 'piece' && livePieceDetection}
           className="flex-1"
         />
       </DialogContent>
