@@ -6,10 +6,10 @@ from datetime import datetime, timedelta, timezone
 from typing import Generator
 from unittest.mock import patch
 
+import jwt
 import pytest
 from fastapi.testclient import TestClient
 from google.auth import exceptions as google_exceptions
-from jose import jwt
 
 from app.config import settings
 from app.main import app
