@@ -175,3 +175,37 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Auto-capture pipeline animations (real mode) */
+@keyframes capture-flash {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes queue-pop {
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@layer utilities {
+  .animate-capture-flash {
+    animation: capture-flash 1.2s ease-out forwards;
+  }
+  .animate-queue-pop {
+    animation: queue-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+}

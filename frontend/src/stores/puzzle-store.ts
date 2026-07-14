@@ -11,6 +11,7 @@ interface PuzzleState {
 
   setPuzzle: (puzzle: Puzzle, imageUrl: string) => void;
   addPiece: (piece: Piece) => void;
+  removePiece: (piece: Piece) => void;
   setGridSize: (gridSize: GridSize) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
@@ -27,6 +28,7 @@ export const usePuzzleStore = create<PuzzleState>((set) => ({
 
   setPuzzle: (puzzle, imageUrl) => set({ puzzle, puzzleImage: imageUrl, pieces: [], error: null }),
   addPiece: (piece) => set((state) => ({ pieces: [...state.pieces, piece] })),
+  removePiece: (piece) => set((state) => ({ pieces: state.pieces.filter((p) => p !== piece) })),
   setGridSize: (gridSize) => set({ gridSize }),
   setLoading: (isLoading) => set({ isLoading }),
   setError: (error) => set({ error }),
