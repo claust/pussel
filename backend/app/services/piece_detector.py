@@ -4,6 +4,7 @@ import io
 from datetime import datetime
 from pathlib import Path
 from typing import List, NamedTuple, Optional, Tuple, cast
+from uuid import uuid4
 
 import cv2
 import numpy as np
@@ -183,8 +184,9 @@ def save_preview_crop(rgba: Image.Image, confidence: float) -> None:
             return
         crops_dir = Path(settings.UPLOAD_DIR) / "preview_crops"
         crops_dir.mkdir(parents=True, exist_ok=True)
+        # uuid suffix: timestamps alone can collide under rapid preview polling
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-        crop.save(crops_dir / f"{timestamp}_c{confidence:.3f}.png", "PNG")
+        crop.save(crops_dir / f"{timestamp}_{uuid4().hex[:8]}_c{confidence:.3f}.png", "PNG")
     except Exception as exc:
         # Dev-only feature: log so failures are diagnosable, but never break
         # the preview loop over a disk hiccup.
