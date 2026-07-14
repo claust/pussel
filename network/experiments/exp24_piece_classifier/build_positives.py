@@ -13,9 +13,9 @@ Two sources:
 
 Usage (from network/):
     uv run python -m experiments.exp24_piece_classifier.build_positives \
-        --synthetic-root ../datasets/piece_classifier/synthetic_raw \
+        --synthetic-root datasets/piece_classifier/synthetic_raw \
         --real-root ~/Pictures/puzzles \
-        --output-root ../datasets/piece_classifier
+        --output-root datasets/piece_classifier
 """
 
 import argparse

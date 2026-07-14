@@ -34,8 +34,8 @@ Shared between training and the backend
 
 ## Data
 
-All crops live in `datasets/piece_classifier/` (gitignored; build in the main
-checkout so worktrees can share it by absolute path).
+All crops live in `network/datasets/piece_classifier/` (gitignored; build in
+the main checkout so worktrees can share it by absolute path).
 
 **Positives**
 - `positives/synthetic/` — exp20 realistic-piece generator (Bezier tab/blank
@@ -69,17 +69,18 @@ Real-world false positives can be harvested via the backend's dev-only
 ## Usage
 
 ```bash
-# from network/ — build data (downloads Caltech-101 ~137 MB + COCO128 ~7 MB)
+# from network/ — build data (downloads Caltech-101 ~137 MB + COCO128 ~7 MB);
+# paths are relative to network/ (pass an absolute --output-root from a worktree)
 uv run python -m experiments.exp24_piece_classifier.build_positives \
-    --synthetic-root ../datasets/piece_classifier/synthetic_raw \
+    --synthetic-root datasets/piece_classifier/synthetic_raw \
     --real-root ~/Pictures/puzzles \
-    --output-root ../datasets/piece_classifier
+    --output-root datasets/piece_classifier
 uv run python -m experiments.exp24_piece_classifier.build_negatives \
-    --output-root ../datasets/piece_classifier
+    --output-root datasets/piece_classifier
 
-# train (checkpoint selection on val balanced accuracy; test evaluated once)
-uv run python -m experiments.exp24_piece_classifier.train --epochs 12 \
-    --data-root ../datasets/piece_classifier
+# train (checkpoint selection on val balanced accuracy; test evaluated once);
+# --data-root defaults to network/datasets/piece_classifier
+uv run python -m experiments.exp24_piece_classifier.train --epochs 12
 ```
 
 Outputs land in `outputs/` (`checkpoint_best.pt`, `results.json`). The backend

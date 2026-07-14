@@ -5,9 +5,9 @@ once at the end on the best-val checkpoint, with a confusion matrix and a
 per-category breakdown (faces and household objects are the false-positive
 cases the classifier exists to kill).
 
-Run from the network/ directory:
-    uv run python -m experiments.exp24_piece_classifier.train --epochs 12 \
-        --data-root ../datasets/piece_classifier
+Run from the network/ directory (the default --data-root is
+network/datasets/piece_classifier):
+    uv run python -m experiments.exp24_piece_classifier.train --epochs 12
 """
 
 import argparse

@@ -185,8 +185,10 @@ def save_preview_crop(rgba: Image.Image, confidence: float) -> None:
         crops_dir.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         crop.save(crops_dir / f"{timestamp}_c{confidence:.3f}.png", "PNG")
-    except Exception:
-        pass
+    except Exception as exc:
+        # Dev-only feature: log so failures are diagnosable, but never break
+        # the preview loop over a disk hiccup.
+        print(f"Failed to save preview crop: {exc}")
 
 
 class PieceDetector:
