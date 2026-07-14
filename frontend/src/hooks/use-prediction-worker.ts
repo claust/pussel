@@ -25,12 +25,15 @@ export function usePredictionWorker(puzzleId: string | undefined): void {
     const store = useCaptureQueueStore.getState();
     if (store.isProcessing) return;
     const next = store.entries.find((e) => e.status === 'queued');
-    if (!next) return;
+    // A queued entry always carries its blob; the guard also narrows the
+    // optional type for processPiece below.
+    if (!next || !next.blob) return;
+    const blob = next.blob;
 
     store.setProcessing(true);
     store.setStatus(next.id, 'predicting');
 
-    void processPiece(puzzleId, next.blob)
+    void processPiece(puzzleId, blob)
       .then((piece) => {
         // The queue may have been cleared (new puzzle / page left) meanwhile;
         // in that case the result belongs to nothing and is dropped.
