@@ -42,6 +42,7 @@ Usage (from ``network/``)::
 import argparse
 import csv
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -716,6 +717,10 @@ def main() -> int:
     ap.add_argument("--max-side", type=int, default=1024)
     ap.add_argument("--quality", type=int, default=85)
     opts = ap.parse_args()
+
+    if shutil.which("sips") is None:  # ingest shells out to sips for HEIC conversion
+        print("this ingest requires macOS `sips` (HEIC conversion); it is not available here", file=sys.stderr)
+        return 1
 
     byno = source_numbers(opts.source)
     if not byno:
