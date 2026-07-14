@@ -373,6 +373,22 @@ class FastBackboneModel(nn.Module):
 
         return position, rotation_logits, attention_map
 
+    @staticmethod
+    def positions_to_cells(position: torch.Tensor, grid_size: int = 4) -> torch.Tensor:
+        """Convert predicted (cx, cy) positions to grid cell indices.
+
+        Args:
+            position: Tensor of shape (batch, 2) with normalized (cx, cy).
+            grid_size: Size of the grid (4 for 4x4 grid).
+
+        Returns:
+            Cell indices (0 to grid_size*grid_size - 1).
+        """
+        cx, cy = position[:, 0], position[:, 1]
+        col_idx = torch.clamp((cx * grid_size).long(), 0, grid_size - 1)
+        row_idx = torch.clamp((cy * grid_size).long(), 0, grid_size - 1)
+        return row_idx * grid_size + col_idx
+
     def predict_cell(self, piece: torch.Tensor, puzzle: torch.Tensor, grid_size: int = 4) -> torch.Tensor:
         """Predict which cell the piece belongs to in a grid.
 
@@ -385,11 +401,7 @@ class FastBackboneModel(nn.Module):
             Cell indices (0 to grid_size*grid_size - 1).
         """
         position, _, _ = self.forward(piece, puzzle)
-        cx, cy = position[:, 0], position[:, 1]
-        col_idx = torch.clamp((cx * grid_size).long(), 0, grid_size - 1)
-        row_idx = torch.clamp((cy * grid_size).long(), 0, grid_size - 1)
-        cell = row_idx * grid_size + col_idx
-        return cell
+        return self.positions_to_cells(position, grid_size)
 
     def get_parameter_groups(
         self,

@@ -18,18 +18,23 @@ from .dataset import (
     RealisticPieceDataset,
     RealisticPieceTestDataset,
     create_datasets,
+    create_datasets_from_split,
     get_puzzle_ids,
 )
 from .model import FastBackboneModel, count_parameters
+from .splits import DEFAULT_SPLIT_PATH, load_split
 
 __all__ = [
     "GRID_SIZE",
     "NUM_CELLS",
     "CELL_CENTERS",
+    "DEFAULT_SPLIT_PATH",
     "RealisticPieceDataset",
     "RealisticPieceTestDataset",
     "create_datasets",
+    "create_datasets_from_split",
     "get_puzzle_ids",
+    "load_split",
     "FastBackboneModel",
     "count_parameters",
 ]
