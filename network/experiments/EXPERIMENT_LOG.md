@@ -505,6 +505,41 @@ a validation set at all.
 
 ---
 
+## Exp 24: Piece / Not-a-Piece Classifier (preview gating)
+
+**Date:** July 2026 **Status:** SUCCESS (99.1% balanced accuracy, faces at 0.000 mean probability)
+
+Binary classifier replacing the heuristic confidence (area/aspect/skin-tone
+bands) of the live piece-preview endpoint, which passed false positives — a
+face in profile showed "Piece detected" — and whose skin gate cannot cover the
+mobile case (cups, keys, phones on a table). A single **MobileNetV3-Small**
+backbone with a small binary head (**1,000,993 params**, 128px input, ~25 ms
+single-image CPU inference) scores the rembg-segmented crop: largest opaque
+component composited on black, bbox-cropped with 8% margin, padded square.
+Training data: 6,341 synthetic positives (exp20 Bezier-edge generator, 400
+puzzles, seed 2024), 944 real positives (north-star piece photos through the
+exact preview rembg pipeline), 1,090 negatives (Caltech-101 faces + 14
+household/table-object categories and COCO128 scenes, all through the same
+downscale-to-320 + rembg pipeline). Group-level 70/15/15 splits (positives by
+puzzle, negatives by 10-file chunks per category); augmentation: full-circle
+rotation, flips, color jitter, random downscale (simulates 320px preview
+crops). Selected on val balanced accuracy (best epoch 9/12).
+
+**Test (one-shot on val-selected checkpoint): 99.0% accuracy / 99.1%
+balanced accuracy / AUC 0.9996** — confusion matrix tn=156 fp=1 fn=12
+tp=1092. The targeted false-positive cases are dead: faces score **0.000**
+mean piece-probability (40/40 rejected), household objects ≤0.02 except
+scissors (0.109 mean, the one false positive), COCO scenes 0.010. Real photo
+pieces: 97.9% accuracy, 0.981 mean probability. The backend
+(`app/services/piece_classifier.py`) loads `outputs/checkpoint_best.pt` and
+uses the probability as the preview confidence (cheap area/aspect gates stay
+as pre-filters); without a checkpoint it falls back to the old heuristic
+including the skin gate. Dev setting `SAVE_PREVIEW_CROPS=true` harvests
+accepted preview crops as future hard negatives. Known gap: no dedicated
+bare-hand negatives yet.
+
+---
+
 ## Summary Table
 
 | Exp | Focus                       | Test Result            | Key Finding                                    |
@@ -532,6 +567,7 @@ a validation set at all.
 | 21  | Masked rotation correlation | 74% cell / 25% rot     | INVALID — capped by test-label bug             |
 | 22  | RoMa V2 dense matching      | 64% cell / 58% rot     | Loses to CNN on both metrics (after label fix) |
 | 23  | Classical baselines         | **83% cell / 90% rot** | SIFT→NCC hybrid beats the CNN with no training |
+| 24  | Piece/not-piece classifier  | **99.1% bal. acc**     | Kills preview false positives (faces at 0.000) |
 
 ---
 
