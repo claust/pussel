@@ -625,8 +625,8 @@ def ingest_puzzle(
                 if n in overrides:
                     ks[pos], sources[pos], flags[pos] = overrides[n], "manual", False
             crops: list[np.ndarray] = []
-            for det, n, k, src_name, flag in zip(group, numbers, ks, sources, flags):
-                bgname = BACKGROUNDS[numbers.index(n)]
+            for pos, (det, n, k, src_name, flag) in enumerate(zip(group, numbers, ks, sources, flags)):
+                bgname = BACKGROUNDS[pos]  # shots follow the fixed background cycle
                 rel = f"{puzzle_id}/pieces/piece_r{r:02d}_c{c:02d}_{bgname}.jpg"
                 img = Image.open(det.tmp_jpg)
                 if k:
@@ -638,6 +638,9 @@ def ingest_puzzle(
                     x1, y1, x2, y2 = bbox_full
                     bgr = cv2.cvtColor(np.asarray(img), cv2.COLOR_RGB2BGR)
                     crops.append(bgr[max(0, y1) : y2 + 1, max(0, x1) : x2 + 1])
+                else:
+                    # placeholder tile so sheet columns stay aligned with the background cycle
+                    crops.append(np.full((96, 96, 3), 60, np.uint8))
                 if flag:
                     warnings.append(f"{puzzle_id} r{r}c{c} IMG_{n}: orientation uncertain ({src_name})")
                 if bbox_full is None:
