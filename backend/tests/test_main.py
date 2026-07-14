@@ -343,4 +343,5 @@ def test_piece_preview_not_found() -> None:
     result = response.json()
     assert result["found"] is False
     assert result["polygon"] == []
+    assert result["confidence"] == 0.0
     assert result["bbox"] is None
