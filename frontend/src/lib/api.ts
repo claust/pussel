@@ -164,7 +164,11 @@ interface PieceApiResponse {
   cleaned_image?: string; // Base64 PNG with background removed
 }
 
-export async function processPiece(puzzleId: string, pieceBlob: Blob): Promise<Piece> {
+export async function processPiece(
+  puzzleId: string,
+  pieceBlob: Blob,
+  signal?: AbortSignal
+): Promise<Piece> {
   const formData = new FormData();
   formData.append('file', pieceBlob, 'piece.jpg');
 
@@ -172,6 +176,7 @@ export async function processPiece(puzzleId: string, pieceBlob: Blob): Promise<P
     method: 'POST',
     headers: getAuthHeaders(),
     body: formData,
+    signal,
   });
 
   if (res.status === 401) {

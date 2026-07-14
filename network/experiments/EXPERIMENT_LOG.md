@@ -467,6 +467,44 @@ Conclusions:
 
 ---
 
+## Methodology Harness Fix: Frozen Split + Val Selection
+
+**Date:** July 2026 **Status:** INFRASTRUCTURE (no new model results)
+
+Fixed methodology issue #3 from the critical review for the realistic
+4x4 benchmark (`exp20_realistic_pieces/`):
+
+1. **Frozen train/val/test split**, checked in at
+   `exp20_realistic_pieces/splits/realistic_4x4_v1.json` and loaded by
+   all future runs (`splits.py`, `create_datasets_from_split`). The test
+   portion (1,200 puzzles) is byte-identical to the original exp20
+   seed-42 test split — verified against the regenerated test set's
+   `test_ids.txt` — so results stay comparable to the exp20
+   re-evaluation and exp23 baselines. A 600-puzzle **val** split is
+   carved from the end of the original train portion (shuffle indices
+   10198–10797), leaving 10,198 train puzzles; a frozen 600-puzzle
+   `train_eval` subset of train supports train-metric measurement.
+2. **Checkpoint selection on val, not test** (`harness.py`): the best
+   checkpoint is the highest *validation* both-correct accuracy; the
+   test set is never evaluated during training and is touched once per
+   experiment, on the val-selected checkpoint, only when `--eval-test`
+   is passed.
+3. **Train metrics in eval mode**: the optimization pass records losses
+   only; per-epoch train accuracies are measured with `model.eval()` on
+   the frozen `train_eval` subset using the same deterministic
+   all-4-rotations protocol as val/test, making the train/val gap
+   apples-to-apples.
+
+`train.py` and `train_cuda.py` were merged into a single entry point
+(AMP enabled automatically on CUDA); the RunPod packaging now ships the
+harness and the frozen split. Caveats: val metrics are only meaningful
+for models trained on this split (the December 2025 checkpoint saw the
+val puzzles during training), and new runs get 10,198 train puzzles vs
+the original 10,798 (~5.6% less) — a small, acceptable price for having
+a validation set at all.
+
+---
+
 ## Summary Table
 
 | Exp | Focus                       | Test Result            | Key Finding                                    |
@@ -543,9 +581,10 @@ benchmark must clear the 82% classical floor to count as progress.
    were driven by a metric that was capped at 25% by construction. A
    perfect-model sanity check on any new test path would have caught it.
 
-**Next Steps** (from the critical review; #1 and #2 are done):
-- Fix the methodology harness: frozen train/val/test split, checkpoint
-  selection on val (not test), train metrics in eval mode
+**Next Steps** (from the critical review; #1–#3 are done):
+- ~~Fix the methodology harness: frozen train/val/test split, checkpoint
+  selection on val (not test), train metrics in eval mode~~ — DONE July
+  2026, see "Methodology Harness Fix" entry above
 - Attack realism: photographed-piece "north star" test set (capture plan
   in [NORTH_STAR_GUIDE.md](NORTH_STAR_GUIDE.md)); independent
   photometric jitter / perspective / backgrounds in synthetic data —
