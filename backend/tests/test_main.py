@@ -11,9 +11,9 @@ from pathlib import Path
 from typing import Generator, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import jwt
 import pytest
 from fastapi.testclient import TestClient
-from jose import jwt
 from PIL import Image, ImageDraw
 from typing_extensions import TypeAlias
 
