@@ -22,9 +22,10 @@ Orientation is decided by two independent signals and cross-checked:
    so each shot's piece crop (masked gradient magnitude) is correlated against
    its siblings' upright crops over all four rotations.
 
-When both agree the shot is confident; on conflict the matcher wins (measured
-more reliable) and the shot is flagged; arrow-less shots (mostly wood, where
-the yellow paper matches the wood tones) use the matcher alone. Flagged rows
+When both agree the shot is confident; on conflict the arrow wins (the matcher
+drifts on low-texture crops) and the shot is flagged; arrow-less shots (mostly
+wood, where the yellow paper matches the wood tones) use the matcher alone.
+Piece bboxes are inclusive pixel coordinates in the final upright image. Flagged rows
 land in ``metadata.csv`` (``flagged=1``) and per-puzzle contact sheets are
 written to ``<output>/review/`` for visual verification.
 
@@ -396,6 +397,7 @@ def masked_ncc(a: np.ndarray, ma: np.ndarray, b: np.ndarray, mb: np.ndarray) -> 
 def analyze_shot(args: tuple[Path, Path, int, int]) -> ShotDetection:
     """Parallel phase: convert one HEIC and run detection on it (no rotation yet)."""
     src, tmp_jpg, max_side, quality = args
+    cv2.setRNGSeed(0)  # kmeans++ seeding is randomized; pin it so ingest runs are reproducible
     convert_heic(src, tmp_jpg, max_side, quality)
     exif = Image.open(tmp_jpg).getexif()
     img = Image.open(tmp_jpg)
@@ -432,7 +434,7 @@ def decide_rotations(group: list[ShotDetection]) -> tuple[list[int], list[str], 
     """Choose the upright rotation for each shot in a 4-shot piece group.
 
     Arrow reading and sibling matching are combined: agreement wins, the
-    matcher overrides a disagreeing arrow (and flags the shot), arrow-less
+    arrow overrides a disagreeing matcher (and flags the shot), arrow-less
     shots use the matcher alone.
     """
     refs = [(i, d) for i, d in enumerate(group) if d.arrow_k is not None and d.crop is not None]
@@ -451,8 +453,9 @@ def decide_rotations(group: list[ShotDetection]) -> tuple[list[int], list[str], 
                 vals = [x for x in vals if x > -1]
                 scores.append(float(np.mean(vals)) if vals else -1.0)
             order = np.argsort(scores)
-            match_k = int(order[-1])
-            margin = scores[order[-1]] - scores[order[-2]]
+            if scores[order[-1]] > -1.0:  # all -1 means no rotation had valid overlap: no signal
+                match_k = int(order[-1])
+                margin = scores[order[-1]] - scores[order[-2]]
 
         if det.arrow_k is not None and (match_k is None or match_k == det.arrow_k):
             ks.append(det.arrow_k)
@@ -634,7 +637,7 @@ def ingest_puzzle(
                 if bbox_full is not None:
                     x1, y1, x2, y2 = bbox_full
                     bgr = cv2.cvtColor(np.asarray(img), cv2.COLOR_RGB2BGR)
-                    crops.append(bgr[max(0, y1) : y2, max(0, x1) : x2])
+                    crops.append(bgr[max(0, y1) : y2 + 1, max(0, x1) : x2 + 1])
                 if flag:
                     warnings.append(f"{puzzle_id} r{r}c{c} IMG_{n}: orientation uncertain ({src_name})")
                 if bbox_full is None:
@@ -679,8 +682,8 @@ def mark_bbox_suspects(group_rows: list[dict[str, object]]) -> None:
     is never at the edge — the arrow and margins surround it).
     """
 
-    def box_area(gr: dict[str, object]) -> int:
-        return (int(gr["piece_x2"]) - int(gr["piece_x1"])) * (int(gr["piece_y2"]) - int(gr["piece_y1"]))
+    def box_area(gr: dict[str, object]) -> int:  # bbox coords are inclusive
+        return (int(gr["piece_x2"]) - int(gr["piece_x1"]) + 1) * (int(gr["piece_y2"]) - int(gr["piece_y1"]) + 1)
 
     areas = [box_area(gr) for gr in group_rows if gr["piece_x1"] != ""]
     median_area = float(np.median(areas)) if areas else 0.0
