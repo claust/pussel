@@ -3,10 +3,10 @@ import path from 'path';
 
 const TEST_PUZZLE_PATH = path.join(__dirname, '../public/test-puzzles/puzzle_001.jpg');
 // Frame detection may fall back to rembg segmentation, which is slow on the
-// first request after backend startup (model session warm-up)
-const API_TIMEOUT = 20000;
+// first request after backend startup (model download + session warm-up in CI)
+const API_TIMEOUT = 40000;
 // Piece prediction runs background removal + CNN inference and may download models on first run
-const PIECE_TIMEOUT = 30000;
+const PIECE_TIMEOUT = 60000;
 
 test.describe('Real Mode Page', () => {
   test.beforeEach(async ({ page }) => {
@@ -42,6 +42,11 @@ test.describe('Real Mode Page', () => {
 });
 
 test.describe('Real Mode Flow with Backend', () => {
+  // These flows hit rembg segmentation, which downloads its model on the first
+  // request in a fresh CI environment. Allow well beyond the default 30s per-test
+  // timeout so the assertion timeouts below (which include that download) can elapse.
+  test.describe.configure({ timeout: 120000 });
+
   // These tests require the backend to be running and TEST_AUTH_TOKEN to be set
   test.beforeAll(async () => {
     let response: Response;
