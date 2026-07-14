@@ -133,6 +133,26 @@ describe('CaptureQueueStore', () => {
     expect(entry.blob).toBeDefined();
   });
 
+  it('does not revoke the cleaned data URL when removing a predicted entry', () => {
+    useCaptureQueueStore
+      .getState()
+      .enqueue({ id: '1', blob: makeBlob(), imageUrl: 'blob:raw', capturedAt: 1 });
+    useCaptureQueueStore.getState().setResult('1', {
+      position: { x: 0.4, y: 0.6, normalized: true },
+      positionConfidence: 0.9,
+      rotation: 0,
+      rotationConfidence: 0.9,
+      imageData: 'data:image/png;base64,cleaned',
+    });
+    // setResult already revoked the raw blob URL
+    expect(revokeObjectURL).toHaveBeenCalledTimes(1);
+
+    // Removing now must NOT try to revoke the data: URL that replaced it
+    useCaptureQueueStore.getState().remove('1');
+    expect(revokeObjectURL).toHaveBeenCalledTimes(1);
+    expect(revokeObjectURL).not.toHaveBeenCalledWith('data:image/png;base64,cleaned');
+  });
+
   it('retry should only affect entries in the error status', () => {
     useCaptureQueueStore
       .getState()
