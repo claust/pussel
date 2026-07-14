@@ -427,6 +427,91 @@ def get_puzzle_ids(dataset_root: Path | str = DEFAULT_DATASET_ROOT) -> list[str]
     return puzzle_dirs
 
 
+def create_datasets_from_split(
+    split_path: Path | str | None = None,
+    dataset_root: Path | str = DEFAULT_DATASET_ROOT,
+    puzzle_root: Path | str = DEFAULT_PUZZLE_ROOT,
+    piece_size: int = 128,
+    puzzle_size: int = 256,
+    allow_missing: bool = False,
+) -> dict[str, RealisticPieceDataset | RealisticPieceTestDataset]:
+    """Create datasets from the frozen train/val/test split.
+
+    This is the methodology-correct entry point (see splits.py): the
+    split is loaded from the checked-in JSON, never re-derived. Returns
+    four datasets:
+
+    - "train": augmented training dataset (random rotation per access)
+    - "train_eval": deterministic dataset over the frozen train subset,
+      for measuring train metrics in eval mode
+    - "val": deterministic validation dataset (checkpoint selection)
+    - "test": deterministic test dataset (evaluate ONCE per experiment)
+
+    Args:
+        split_path: Path to the frozen split JSON (default: splits.DEFAULT_SPLIT_PATH).
+        dataset_root: Root directory containing realistic piece folders.
+        puzzle_root: Root directory containing original puzzle images.
+        piece_size: Size of piece images.
+        puzzle_size: Size of puzzle images.
+        allow_missing: If True, tolerate puzzle dirs from the split that are
+            missing on disk (warn and proceed with a partial dataset). Only
+            for smoke tests — results from partial datasets are NOT
+            comparable to the frozen benchmark.
+
+    Returns:
+        Mapping of split name to dataset.
+
+    Raises:
+        ValueError: If puzzle dirs from the split are missing on disk (unless
+            ``allow_missing``), or if any split resolves to zero samples.
+    """
+    from .splits import DEFAULT_SPLIT_PATH, load_split
+
+    split = load_split(split_path if split_path is not None else DEFAULT_SPLIT_PATH)
+    root = Path(dataset_root)
+
+    print("\nFrozen split: " + ", ".join(f"{name}={len(ids)} puzzles" for name, ids in split.items()))
+
+    datasets: dict[str, RealisticPieceDataset | RealisticPieceTestDataset] = {}
+    for name, ids in split.items():
+        missing = [pid for pid in ids if not (root / pid).exists()]
+        present_ids = ids
+        if missing:
+            message = f"{name}: {len(missing)}/{len(ids)} puzzle dirs missing under {root}"
+            if not allow_missing:
+                raise ValueError(
+                    f"{message}. Generate the pieces first (generate_dataset.py), or pass "
+                    "allow_missing=True (train.py: --allow-missing-puzzles) for a smoke test "
+                    "(results will NOT be comparable)."
+                )
+            # Drop missing IDs so the dataset log and split reflect what is
+            # actually loaded (smoke-test path only).
+            present_ids = [pid for pid in ids if (root / pid).exists()]
+            print(f"WARNING: {message} (allow_missing=True; results NOT comparable)")
+        if name == "train":
+            datasets[name] = RealisticPieceDataset(
+                puzzle_ids=present_ids,
+                dataset_root=dataset_root,
+                puzzle_root=puzzle_root,
+                piece_size=piece_size,
+                puzzle_size=puzzle_size,
+                augment=True,
+                random_rotation=True,
+            )
+        else:
+            datasets[name] = RealisticPieceTestDataset(
+                puzzle_ids=present_ids,
+                dataset_root=dataset_root,
+                puzzle_root=puzzle_root,
+                piece_size=piece_size,
+                puzzle_size=puzzle_size,
+            )
+        if len(datasets[name]) == 0:
+            raise ValueError(f"Split '{name}' has no samples under {root}; generate the pieces first")
+
+    return datasets
+
+
 def create_datasets(
     dataset_root: Path | str = DEFAULT_DATASET_ROOT,
     puzzle_root: Path | str = DEFAULT_PUZZLE_ROOT,
@@ -436,7 +521,11 @@ def create_datasets(
     puzzle_size: int = 256,
     seed: int = 42,
 ) -> tuple[RealisticPieceDataset, RealisticPieceTestDataset]:
-    """Create train and test datasets.
+    """Create train and test datasets (LEGACY — no validation set).
+
+    Superseded by create_datasets_from_split, which uses the frozen
+    train/val/test split; kept only to document how the original exp20
+    run partitioned the data.
 
     Training: Random rotation per sample for augmentation.
     Testing: All rotations (64 samples per puzzle) for complete evaluation.
