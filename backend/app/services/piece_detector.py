@@ -1,6 +1,8 @@
 """Service for detecting a puzzle piece region in a live camera frame."""
 
 import io
+from datetime import datetime
+from pathlib import Path
 from typing import List, NamedTuple, Optional, Tuple, cast
 
 import cv2
@@ -9,6 +11,7 @@ from PIL import Image
 
 from app.config import settings
 from app.services.background_remover import get_background_remover
+from app.services.piece_classifier import get_piece_classifier, prepare_classifier_input
 
 Point = Tuple[float, float]
 BBoxNorm = Tuple[float, float, float, float]  # x, y, width, height normalized to [0, 1]
@@ -162,17 +165,86 @@ def _band_score(value: float, hard_low: float, full_low: float, full_high: float
     return 1.0
 
 
+def save_preview_crop(rgba: Image.Image, confidence: float) -> None:
+    """Persist the classifier-input crop of an accepted preview region.
+
+    Dev-only (gated by ``SAVE_PREVIEW_CROPS``): the saved crops let real-world
+    false positives be harvested as hard negatives for classifier retraining.
+    Never raises — the preview loop must not break over a disk hiccup.
+
+    Args:
+        rgba: The rembg RGBA output for the frame.
+        confidence: The confidence reported for the region (encoded in the
+            filename so false positives are easy to spot).
+    """
+    try:
+        crop = prepare_classifier_input(rgba)
+        if crop is None:
+            return
+        crops_dir = Path(settings.UPLOAD_DIR) / "preview_crops"
+        crops_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        crop.save(crops_dir / f"{timestamp}_c{confidence:.3f}.png", "PNG")
+    except Exception:
+        pass
+
+
 class PieceDetector:
     """Detects the puzzle piece (most salient object) in a camera frame via rembg."""
+
+    def _region_confidence(
+        self,
+        rgba: Image.Image,
+        contour: "np.ndarray",
+        area_score: float,
+        aspect_score: float,
+    ) -> Optional[float]:
+        """Score how piece-like an accepted candidate region is.
+
+        When the trained piece classifier is available, its probability is the
+        confidence (the area/aspect gates have already filtered impossible
+        regions). Without a classifier checkpoint (e.g. in CI) the original
+        heuristic — area/aspect taper plus the skin-tone gate — is used.
+
+        Args:
+            rgba: The rembg RGBA output for the frame.
+            contour: The detected region's contour.
+            area_score: Area band score in [0, 1].
+            aspect_score: Aspect band score in [0, 1].
+
+        Returns:
+            Confidence in (0, 1], or None when the region is rejected.
+        """
+        classifier = get_piece_classifier()
+        if classifier.available:
+            score = classifier.score(rgba)
+            if score is not None:
+                return max(round(score, 3), MIN_REPORTED_CONFIDENCE)
+
+        # Heuristic fallback: the skin gate is what rejects faces and hands
+        # when no trained classifier is around to do it better.
+        skin_score = _band_score(skin_fraction(rgba, contour), 0.0, 0.0, FULL_CONFIDENCE_MAX_SKIN, MAX_SKIN_FRACTION)
+        if skin_score == 0.0:
+            return None
+
+        # Gate on the raw product so rounding never acts as an extra hard limit
+        # (a tiny-but-nonzero product must survive and report a low confidence).
+        raw_confidence = area_score * aspect_score * skin_score
+        if raw_confidence <= 0.0:
+            return None
+        # Floor the reported value so an accepted region keeps confidence in
+        # (0, 1] even when the raw score would round to 0.000.
+        return max(round(raw_confidence, 3), MIN_REPORTED_CONFIDENCE)
 
     def detect_region(self, image: Image.Image) -> Optional[DetectedRegion]:
         """Detect the piece region in a frame.
 
         The most salient region found by background removal is only accepted
         when it plausibly is a puzzle piece: it must occupy a piece-like
-        fraction of the frame, not be extremely elongated, and not be
-        dominated by skin tones (faces and hands are what rembg most often
-        latches onto when no piece is held up).
+        fraction of the frame and not be extremely elongated. The confidence
+        comes from the trained piece/not-piece classifier when available,
+        otherwise from the heuristic scores (including the skin-tone gate,
+        which rejects the faces and hands rembg most often latches onto).
 
         Args:
             image: The camera frame (any mode; converted to RGB).
@@ -213,18 +285,12 @@ class PieceDetector:
         if area_score == 0.0 or aspect_score == 0.0:
             return None
 
-        skin_score = _band_score(skin_fraction(rgba, contour), 0.0, 0.0, FULL_CONFIDENCE_MAX_SKIN, MAX_SKIN_FRACTION)
-        if skin_score == 0.0:
+        confidence = self._region_confidence(rgba, contour, area_score, aspect_score)
+        if confidence is None:
             return None
 
-        # Gate on the raw product so rounding never acts as an extra hard limit
-        # (a tiny-but-nonzero product must survive and report a low confidence).
-        raw_confidence = area_score * aspect_score * skin_score
-        if raw_confidence <= 0.0:
-            return None
-        # Floor the reported value so an accepted region keeps confidence in
-        # (0, 1] even when the raw score would round to 0.000.
-        confidence = max(round(raw_confidence, 3), MIN_REPORTED_CONFIDENCE)
+        if settings.SAVE_PREVIEW_CROPS:
+            save_preview_crop(rgba, confidence)
 
         perimeter = cv2.arcLength(contour, closed=True)
         polygon = cv2.approxPolyDP(contour, 0.005 * perimeter, closed=True).reshape(-1, 2)
