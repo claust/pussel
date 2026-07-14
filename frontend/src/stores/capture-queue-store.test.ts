@@ -91,6 +91,48 @@ describe('CaptureQueueStore', () => {
     expect(revokeObjectURL).not.toHaveBeenCalled();
   });
 
+  it('setResult releases the raw capture once a cleaned image is available', () => {
+    useCaptureQueueStore
+      .getState()
+      .enqueue({ id: '1', blob: makeBlob(), imageUrl: 'blob:raw', capturedAt: 1 });
+
+    useCaptureQueueStore.getState().setResult('1', {
+      position: { x: 0.4, y: 0.6, normalized: true },
+      positionConfidence: 0.9,
+      rotation: 0,
+      rotationConfidence: 0.9,
+      imageData: 'data:image/png;base64,cleaned',
+    });
+
+    const entry = useCaptureQueueStore.getState().entries[0];
+    expect(entry.status).toBe('done');
+    // Raw object URL revoked and blob dropped so it can be garbage-collected
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:raw');
+    expect(entry.blob).toBeUndefined();
+    // The entry now points at the cleaned image for rendering
+    expect(entry.imageUrl).toBe('data:image/png;base64,cleaned');
+  });
+
+  it('setResult keeps the raw capture when no cleaned image is returned', () => {
+    useCaptureQueueStore
+      .getState()
+      .enqueue({ id: '1', blob: makeBlob(), imageUrl: 'blob:raw', capturedAt: 1 });
+
+    useCaptureQueueStore.getState().setResult('1', {
+      position: { x: 0.4, y: 0.6, normalized: true },
+      positionConfidence: 0.9,
+      rotation: 0,
+      rotationConfidence: 0.9,
+      // no imageData
+    });
+
+    const entry = useCaptureQueueStore.getState().entries[0];
+    expect(entry.status).toBe('done');
+    expect(revokeObjectURL).not.toHaveBeenCalled();
+    expect(entry.imageUrl).toBe('blob:raw');
+    expect(entry.blob).toBeDefined();
+  });
+
   it('retry should only affect entries in the error status', () => {
     useCaptureQueueStore
       .getState()

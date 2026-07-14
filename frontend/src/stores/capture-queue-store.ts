@@ -5,9 +5,10 @@ export type CaptureStatus = 'queued' | 'predicting' | 'done' | 'error';
 
 export interface CaptureEntry {
   id: string;
-  /** Object URL of the best raw camera crop for this piece */
+  /** Object URL of the best raw camera crop; swapped for the cleaned image once done */
   imageUrl: string;
-  blob: Blob;
+  /** Raw capture blob, needed until prediction runs; released once done */
+  blob?: Blob;
   status: CaptureStatus;
   capturedAt: number;
   /** Prediction result (includes the background-removed image) once done */
@@ -46,9 +47,25 @@ export const useCaptureQueueStore = create<CaptureQueueState>((set, get) => ({
 
   setResult: (id, piece) =>
     set((state) => ({
-      entries: state.entries.map((e) =>
-        e.id === id ? { ...e, status: 'done' as const, piece, error: undefined } : e
-      ),
+      entries: state.entries.map((e) => {
+        if (e.id !== id) return e;
+        // Once the cleaned image is available the UI renders that instead of
+        // the raw capture, so release the raw object URL and blob — otherwise
+        // hundreds of captures would pin their blobs in memory for the session.
+        if (piece.imageData) {
+          URL.revokeObjectURL(e.imageUrl);
+          return {
+            ...e,
+            status: 'done' as const,
+            piece,
+            error: undefined,
+            imageUrl: piece.imageData,
+            blob: undefined,
+          };
+        }
+        // No cleaned image came back; keep the raw capture so the UI can show it.
+        return { ...e, status: 'done' as const, piece, error: undefined };
+      }),
     })),
 
   setError: (id, error) =>
