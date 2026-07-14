@@ -114,7 +114,7 @@ test.describe('Real Mode Flow with Backend', () => {
     });
   });
 
-  test('accepts trim and captures a piece', async ({ page }) => {
+  test('accepts trim and runs a piece through the capture queue', async ({ page }) => {
     await page.goto('/real');
 
     // Photograph the puzzle
@@ -125,20 +125,32 @@ test.describe('Real Mode Flow with Backend', () => {
       timeout: API_TIMEOUT,
     });
 
-    // Accept the trimmed image (uploads it as the puzzle)
+    // Accept the trimmed image (uploads it as the puzzle); the pipeline view
+    // appears: live capture area (or its no-camera fallback) plus empty queue
     await page.getByRole('button', { name: 'Use This' }).click();
-    await expect(page.getByRole('button', { name: 'Capture Piece' })).toBeVisible({
-      timeout: API_TIMEOUT,
-    });
+    await expect(
+      page.getByTestId('live-capture').or(page.getByTestId('live-capture-fallback'))
+    ).toBeVisible({ timeout: API_TIMEOUT });
     await expect(page.getByText('0 pieces captured')).toBeVisible();
+    await expect(page.getByTestId('piece-queue-empty')).toBeVisible();
 
-    // Capture a piece (any image works; the backend predicts regardless)
-    await page.getByRole('button', { name: 'Capture Piece' }).click();
-    await expect(page.getByRole('dialog')).toBeVisible();
+    // Add a piece via upload (any image works; the backend predicts regardless).
+    // With no camera in the test environment this exercises the fallback path;
+    // either way the upload is committed straight into the capture queue.
     await page.locator('input[type="file"]').setInputFiles(TEST_PUZZLE_PATH);
 
-    // The prediction is added to the overlay and the counter updates
-    await expect(page.getByText('1 piece captured')).toBeVisible({ timeout: PIECE_TIMEOUT });
-    await expect(page.getByText('Position:')).toBeVisible();
+    // The capture is committed to the queue immediately...
+    await expect(page.getByText('1 piece captured')).toBeVisible();
+    await expect(page.getByTestId('piece-queue')).toBeVisible();
+
+    // ...and the worker drains it through prediction to done
+    await expect(page.locator('[data-testid="queue-entry"][data-status="done"]').first()).toBeVisible({
+      timeout: PIECE_TIMEOUT,
+    });
+
+    // Deleting the piece removes it from the queue entirely
+    await page.getByTestId('queue-entry-delete-0').click();
+    await expect(page.getByTestId('piece-queue-empty')).toBeVisible();
+    await expect(page.getByText('0 pieces captured')).toBeVisible();
   });
 });
