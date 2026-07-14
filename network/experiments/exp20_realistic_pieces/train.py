@@ -83,6 +83,9 @@ def main(
     Returns:
         Dictionary with results (also written to results.json).
     """
+    if epochs < 1:
+        raise ValueError(f"epochs must be >= 1, got {epochs}")
+
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 

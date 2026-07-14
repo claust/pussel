@@ -34,9 +34,15 @@ cp "$EXP_DIR/splits/"*.json "$OUTPUT_DIR/splits/"
 cp "$SCRIPT_DIR/setup_and_train.sh" "$OUTPUT_DIR/"
 chmod +x "$OUTPUT_DIR/setup_and_train.sh"
 
-# Copy puzzle shapes library
+# Copy puzzle shapes library (the importable package lives in the shared
+# workspace member, not in the experiment dir).
 echo "Copying puzzle shapes library..."
-cp -r "$EXP_DIR/puzzle_shapes" "$OUTPUT_DIR/"
+PUZZLE_SHAPES_SRC="$NETWORK_DIR/../shared/puzzle_shapes/puzzle_shapes"
+if [ ! -d "$PUZZLE_SHAPES_SRC" ]; then
+    echo "ERROR: puzzle_shapes package not found at $PUZZLE_SHAPES_SRC"
+    exit 1
+fi
+cp -r "$PUZZLE_SHAPES_SRC" "$OUTPUT_DIR/"
 
 # Check for generated dataset
 DATASET_DIR="$EXP_DIR/datasets/realistic_4x4_20k"
