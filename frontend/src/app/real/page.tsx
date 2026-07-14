@@ -135,11 +135,11 @@ export default function RealModePage() {
     <div className="flex min-h-screen flex-col">
       {/* Header */}
       <header className="flex items-center justify-between border-b p-4">
-        <Link href="/">
-          <Button variant="ghost" size="icon">
+        <Button asChild variant="ghost" size="icon">
+          <Link href="/">
             <ArrowLeft className="h-5 w-5" />
-          </Button>
-        </Link>
+          </Link>
+        </Button>
         <div className="text-center">
           <h1 className="text-lg font-semibold">Solve Real Puzzle</h1>
           <p className="text-muted-foreground text-sm">
