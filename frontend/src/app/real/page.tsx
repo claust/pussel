@@ -86,13 +86,12 @@ export default function RealModePage() {
       const result = await uploadPuzzle(trimmedBlob);
       setPuzzle(result, detection.trimmedImageUrl);
       setPhase('solving');
-      // Persist for reuse so this puzzle need not be re-photographed next time.
-      // A storage failure must not block solving, so swallow it.
-      try {
-        await saveSavedPuzzle(trimmedBlob, `Puzzle ${savedPuzzles.length + 1}`);
-      } catch {
+      // Persist for reuse (fire-and-forget): the save must never block or fail
+      // solving, so we don't await it — isLoading clears immediately below —
+      // and any storage error is swallowed.
+      void saveSavedPuzzle(trimmedBlob, `Puzzle ${savedPuzzles.length + 1}`).catch(() => {
         // Ignore — the current session still works without a saved copy.
-      }
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to upload puzzle');
     } finally {
