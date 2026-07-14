@@ -50,7 +50,12 @@ def get_device() -> torch.device:
 
 
 @torch.no_grad()
-def predict(model: PieceClassifier, dataset: PieceClassifierDataset, device: torch.device, batch_size: int) -> tuple:
+def predict(
+    model: PieceClassifier,
+    dataset: PieceClassifierDataset,
+    device: torch.device,
+    batch_size: int,
+) -> tuple["np.ndarray", "np.ndarray"]:
     """Compute probabilities and labels over a dataset in order.
 
     Args:
@@ -73,7 +78,7 @@ def predict(model: PieceClassifier, dataset: PieceClassifierDataset, device: tor
     return np.concatenate(probs), np.concatenate(labels)
 
 
-def compute_metrics(probs: "np.ndarray", labels: "np.ndarray", threshold: float = 0.5) -> dict[str, float]:
+def compute_metrics(probs: "np.ndarray", labels: "np.ndarray", threshold: float = 0.5) -> dict[str, float | int]:
     """Compute binary classification metrics.
 
     Args:
