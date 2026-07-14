@@ -399,13 +399,17 @@ def analyze_shot(args: tuple[Path, Path, int, int]) -> ShotDetection:
     src, tmp_jpg, max_side, quality = args
     cv2.setRNGSeed(0)  # kmeans++ seeding is randomized; pin it so ingest runs are reproducible
     convert_heic(src, tmp_jpg, max_side, quality)
-    exif = Image.open(tmp_jpg).getexif()
-    img = Image.open(tmp_jpg)
+    with Image.open(tmp_jpg) as img:  # close the handle: hundreds of shots run through parallel workers
+        exif = img.getexif()
+        captured_at = str(exif.get(306, ""))
+        device = str(exif.get(272, "")).strip()
+        img_w, img_h = img.width, img.height
     # detection runs on a plain (non-colour-matched) conversion at DETECT_WIDTH —
     # the exact data the detector's thresholds were tuned and validated on
     detect_jpg = Path(tmp_jpg).with_suffix(".detect.jpg")
     convert_heic(src, detect_jpg, DETECT_WIDTH, 85, match_srgb=False)
-    small = cv2.cvtColor(np.asarray(Image.open(detect_jpg).convert("RGB")), cv2.COLOR_RGB2BGR)
+    with Image.open(detect_jpg) as det_img:
+        small = cv2.cvtColor(np.asarray(det_img.convert("RGB")), cv2.COLOR_RGB2BGR)
     detect_jpg.unlink()
     bbox, piece_mask, _arrow_mask, direction = detect_objects(small)
     if bbox is not None:  # a plausible piece fills at least ~2.5% of the frame
@@ -415,14 +419,14 @@ def analyze_shot(args: tuple[Path, Path, int, int]) -> ShotDetection:
     crop = crop_mask = None
     if bbox is not None and piece_mask is not None:
         crop, crop_mask = gradient_crop(small, bbox, piece_mask)
-        scale = img.width / small.shape[1]  # scale bbox to full-resolution (unrotated) coords
+        scale = img_w / small.shape[1]  # scale bbox to full-resolution (unrotated) coords
         bbox = tuple(round(v * scale) for v in bbox)
     return ShotDetection(
         tmp_jpg=str(tmp_jpg),
-        captured_at=str(exif.get(306, "")),
-        device=str(exif.get(272, "")).strip(),
-        width=img.width,
-        height=img.height,
+        captured_at=captured_at,
+        device=device,
+        width=img_w,
+        height=img_h,
         bbox=bbox,
         arrow_k=K_FOR_DIRECTION[direction] if direction else None,
         crop=crop,
@@ -455,7 +459,8 @@ def decide_rotations(group: list[ShotDetection]) -> tuple[list[int], list[str], 
             order = np.argsort(scores)
             if scores[order[-1]] > -1.0:  # all -1 means no rotation had valid overlap: no signal
                 match_k = int(order[-1])
-                margin = scores[order[-1]] - scores[order[-2]]
+                if scores[order[-2]] > -1.0:  # a valid runner-up gives a real margin; else leave 0.0 (flagged)
+                    margin = scores[order[-1]] - scores[order[-2]]
 
         if det.arrow_k is not None and (match_k is None or match_k == det.arrow_k):
             ks.append(det.arrow_k)
@@ -628,9 +633,8 @@ def ingest_puzzle(
             for pos, (det, n, k, src_name, flag) in enumerate(zip(group, numbers, ks, sources, flags)):
                 bgname = BACKGROUNDS[pos]  # shots follow the fixed background cycle
                 rel = f"{puzzle_id}/pieces/piece_r{r:02d}_c{c:02d}_{bgname}.jpg"
-                img = Image.open(det.tmp_jpg)
-                if k:
-                    img = img.transpose(PIL_TRANSPOSE[k])
+                with Image.open(det.tmp_jpg) as src_img:  # copy out so the file handle closes each iteration
+                    img = src_img.transpose(PIL_TRANSPOSE[k]) if k else src_img.copy()
                 img.save(opts.output / rel, quality=opts.quality)
 
                 bbox_full = resolve_bbox(det, n, k, bbox_overrides)
