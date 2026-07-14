@@ -28,7 +28,7 @@ function AuthSync() {
 
       try {
         // Token refresh failed server-side: the session can never authenticate again,
-        // so clear it to make the sign-in flow reachable (middleware redirects
+        // so clear it to make the sign-in flow reachable (proxy redirects
         // authenticated sessions away from /login).
         const sessionError = (session as { error?: string }).error;
         if (sessionError === 'RefreshTokenError') {
