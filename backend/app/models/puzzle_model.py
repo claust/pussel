@@ -90,6 +90,9 @@ class PiecePreviewResponse(BaseModel):
     found: bool = Field(..., description="Whether a piece-like region was detected")
     polygon: List[Corner] = Field(default_factory=list, description="Outline of the detected region, normalized 0-1")
     bbox: Optional[BoundingBox] = Field(default=None, description="Bounding box of the detected region")
+    confidence: float = Field(
+        default=0.0, ge=0.0, le=1.0, description="How piece-like the detected region is; 0.0 when found is False"
+    )
 
 
 class DetectFrameResponse(BaseModel):
