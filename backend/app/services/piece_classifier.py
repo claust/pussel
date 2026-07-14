@@ -97,7 +97,9 @@ class PieceClassifierService:
             print(f"Piece classifier checkpoint not found at {CHECKPOINT_PATH}; using heuristic confidence")
             return None
         try:
-            checkpoint = torch.load(CHECKPOINT_PATH, map_location=self.device, weights_only=False)
+            # weights_only=True: the checkpoint is a plain state_dict container,
+            # so the restricted loader suffices and avoids arbitrary pickle code.
+            checkpoint = torch.load(CHECKPOINT_PATH, map_location=self.device, weights_only=True)
             model = PieceClassifier(pretrained=False)
             model.load_state_dict(checkpoint["model_state_dict"])
             model.to(self.device)
