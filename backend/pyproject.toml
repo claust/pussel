@@ -28,6 +28,7 @@ dependencies = [
     "pytorch-lightning>=2.6.1",
     "timm>=0.9.12",
     "rembg[cpu]>=2.0.76",
+    "opencv-python-headless>=4.10.0",
     # Force newer numba for Python 3.12 compatibility (rembg->pymatting->numba)
     "numba>=0.60.0",
     # Shared library (local path dependency)

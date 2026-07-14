@@ -43,6 +43,32 @@ export const GRID_DIMENSIONS: Record<GridSize, { dimension: number; totalCells: 
 
 export type CameraMode = 'puzzle' | 'piece';
 
+// Real mode types for photographing a physical puzzle
+
+export interface Corner {
+  x: number; // 0-1 normalized
+  y: number; // 0-1 normalized
+}
+
+export interface QuadCorners {
+  topLeft: Corner;
+  topRight: Corner;
+  bottomRight: Corner;
+  bottomLeft: Corner;
+}
+
+export interface DetectFrameResult {
+  trimmedImageUrl: string; // data URL of the perspective-corrected crop
+  corners: QuadCorners;
+  confidence: number; // 0-1; 1.0 when corners were manually supplied
+}
+
+export interface PieceRegion {
+  found: boolean;
+  polygon: Corner[]; // outline of the detected piece, normalized 0-1
+  bbox?: { x: number; y: number; width: number; height: number } | null;
+}
+
 export type PieceSelectionMode = 'grid' | 'realistic';
 
 export interface GeneratedPiece {
