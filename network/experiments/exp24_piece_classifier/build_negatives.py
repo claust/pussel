@@ -17,7 +17,7 @@ Sources (downloaded automatically when missing, both modest in size):
 
 Usage (from network/):
     uv run python -m experiments.exp24_piece_classifier.build_negatives \
-        --output-root ../datasets/piece_classifier
+        --output-root datasets/piece_classifier
 """
 
 import argparse
@@ -88,6 +88,25 @@ def download(url: str, dest: Path) -> None:
     print(f"\nDownloaded {dest.name} ({dest.stat().st_size / 1e6:.0f} MB)")
 
 
+def safe_extract_zip(archive_path: Path, dest: Path) -> None:
+    """Extract a zip archive, refusing entries that escape the destination (Zip Slip).
+
+    Args:
+        archive_path: The zip file to extract.
+        dest: Destination directory.
+
+    Raises:
+        ValueError: When an archive entry would land outside dest.
+    """
+    dest_resolved = dest.resolve()
+    with zipfile.ZipFile(archive_path) as zf:
+        for member in zf.namelist():
+            target = (dest_resolved / member).resolve()
+            if not target.is_relative_to(dest_resolved):
+                raise ValueError(f"Unsafe zip entry: {member}")
+        zf.extractall(dest_resolved)
+
+
 def ensure_caltech(raw_dir: Path) -> Path:
     """Download and extract Caltech-101, returning the categories directory.
 
@@ -102,8 +121,7 @@ def ensure_caltech(raw_dir: Path) -> Path:
         return categories_dir
     archive = raw_dir / "caltech-101.zip"
     download(CALTECH_URL, archive)
-    with zipfile.ZipFile(archive) as zf:
-        zf.extractall(raw_dir)
+    safe_extract_zip(archive, raw_dir)
     inner = raw_dir / "caltech-101" / "101_ObjectCategories.tar.gz"
     with tarfile.open(inner) as tf:
         tf.extractall(raw_dir, filter="data")
@@ -124,8 +142,7 @@ def ensure_coco128(raw_dir: Path) -> Path:
         return images_dir
     archive = raw_dir / "coco128.zip"
     download(COCO128_URL, archive)
-    with zipfile.ZipFile(archive) as zf:
-        zf.extractall(raw_dir)
+    safe_extract_zip(archive, raw_dir)
     return images_dir
 
 
