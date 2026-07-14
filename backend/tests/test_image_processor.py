@@ -4,6 +4,8 @@ import asyncio
 import io
 from unittest.mock import patch
 
+import pytest
+
 from fastapi import UploadFile
 from PIL import Image
 
@@ -43,3 +45,12 @@ def test_missing_checkpoint_returns_neutral_fallback() -> None:
     assert result.position_confidence == 0.0
     assert result.rotation == 0
     assert result.rotation_confidence == 0.0
+
+
+def test_load_puzzle_tensor_rejects_non_uuid_puzzle_id() -> None:
+    """_load_puzzle_tensor rejects path-like puzzle IDs before building a file path."""
+    with patch.object(ip_module, "CHECKPOINT_PATH", "/nonexistent/checkpoint.pt"):
+        processor = ImageProcessor()
+
+    with pytest.raises(FileNotFoundError):
+        processor._load_puzzle_tensor("../etc/passwd")
