@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     ENABLE_BACKGROUND_REMOVAL: bool = True
     REMBG_MODEL: str = "u2net"  # u2net, u2netp, isnet-general-use
 
+    # Dev-only: save accepted piece-preview crops under UPLOAD_DIR/preview_crops
+    # so real-world false positives can be harvested as classifier hard negatives
+    SAVE_PREVIEW_CROPS: bool = False
+
     # Environment setting (used for validation)
     ENVIRONMENT: str = "development"  # development, test, or production
 
