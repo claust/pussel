@@ -13,6 +13,9 @@ import { FileUpload } from './file-upload';
 const DETECT_FRAME_MAX_DIM = 320;
 // Minimum time between detection requests (the loop is also serialized on the response)
 const DETECT_INTERVAL_MS = 400;
+// Regions below this backend confidence are treated as "no piece" (e.g. a face
+// or background object that slipped past the detector's hard gates)
+const PIECE_CONFIDENCE_THRESHOLD = 0.5;
 
 interface CameraViewProps {
   onCapture: (blob: Blob) => void;
@@ -33,6 +36,8 @@ export function CameraView({
 }: CameraViewProps) {
   const { videoRef, isReady, isLoading, error, dimensions, start, stop, capture } = useCamera();
   const [pieceRegion, setPieceRegion] = useState<PieceRegion | null>(null);
+  const pieceDetected =
+    (pieceRegion?.found && pieceRegion.confidence >= PIECE_CONFIDENCE_THRESHOLD) ?? false;
 
   useEffect(() => {
     void start();
@@ -155,7 +160,7 @@ export function CameraView({
         {/* Live piece detection outline; slice mirrors the video's object-cover mapping */}
         {livePieceDetection && isReady && dimensions && (
           <>
-            {pieceRegion?.found && pieceRegion.polygon.length >= 3 && (
+            {pieceDetected && pieceRegion && pieceRegion.polygon.length >= 3 && (
               <svg
                 className="pointer-events-none absolute inset-0 h-full w-full"
                 viewBox={`0 0 ${dimensions.width} ${dimensions.height}`}
@@ -176,10 +181,10 @@ export function CameraView({
               <span
                 className={cn(
                   'rounded-full px-3 py-1 text-xs font-medium text-white',
-                  pieceRegion?.found ? 'bg-green-600/80' : 'bg-black/50'
+                  pieceDetected ? 'bg-green-600/80' : 'bg-black/50'
                 )}
               >
-                {pieceRegion?.found ? 'Piece detected' : 'Looking for piece…'}
+                {pieceDetected ? 'Piece detected' : 'Looking for piece…'}
               </span>
             </div>
           </>

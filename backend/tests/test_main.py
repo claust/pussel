@@ -307,6 +307,7 @@ def test_piece_preview_returns_region() -> None:
     detector.detect_region.return_value = (
         [(0.1, 0.2), (0.8, 0.2), (0.8, 0.9), (0.1, 0.9)],
         (0.1, 0.2, 0.7, 0.7),
+        0.87,
     )
 
     with patch("app.main.get_piece_detector", return_value=detector):
@@ -322,6 +323,7 @@ def test_piece_preview_returns_region() -> None:
     assert len(result["polygon"]) == 4
     assert result["polygon"][0] == {"x": 0.1, "y": 0.2}
     assert result["bbox"] == {"x": 0.1, "y": 0.2, "width": 0.7, "height": 0.7}
+    assert result["confidence"] == 0.87
 
 
 def test_piece_preview_not_found() -> None:
