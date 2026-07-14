@@ -48,7 +48,9 @@ export function SavedPuzzleGallery({
             onClick={() => onDelete(puzzle.id)}
             disabled={disabled}
             aria-label={`Delete ${puzzle.name}`}
-            className="absolute top-1.5 right-1.5 h-7 w-7 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+            // Visible by default so touch devices (no hover) can delete;
+            // fades to hover-reveal only on larger, pointer-capable screens.
+            className="absolute top-1.5 right-1.5 h-7 w-7 opacity-100 transition-opacity focus-visible:opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
           >
             <Trash2 className="h-3.5 w-3.5" />
           </Button>

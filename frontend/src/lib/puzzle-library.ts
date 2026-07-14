@@ -34,6 +34,17 @@ interface ImageRecord {
   blob: Blob;
 }
 
+/**
+ * Generate a unique id, falling back when `crypto.randomUUID` is unavailable
+ * (older browsers or insecure/non-HTTPS contexts) so saving never throws.
+ */
+function generateId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `puzzle-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
@@ -77,7 +88,7 @@ export async function savePuzzle(blob: Blob, name: string): Promise<SavedPuzzleM
   const thumbnailBlob = await compressImage(blob, THUMBNAIL_MAX_WIDTH, THUMBNAIL_QUALITY);
   const thumbnail = await blobToDataUrl(thumbnailBlob);
   const meta: SavedPuzzleMeta = {
-    id: crypto.randomUUID(),
+    id: generateId(),
     name,
     thumbnail,
     createdAt: Date.now(),
