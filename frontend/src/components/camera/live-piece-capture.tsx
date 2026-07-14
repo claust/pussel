@@ -82,7 +82,10 @@ export function LivePieceCapture({ className }: LivePieceCaptureProps) {
 
   const commitBlob = (blob: Blob) => {
     enqueue({
-      id: typeof crypto !== 'undefined' ? crypto.randomUUID() : `capture-${Date.now()}`,
+      id:
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `capture-${Date.now()}`,
       blob,
       imageUrl: URL.createObjectURL(blob),
       capturedAt: Date.now(),

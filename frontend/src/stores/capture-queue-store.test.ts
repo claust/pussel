@@ -1,16 +1,32 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useCaptureQueueStore } from './capture-queue-store';
 
 describe('CaptureQueueStore', () => {
   // jsdom doesn't implement the Blob URL APIs; spy on them (rather than
   // replacing the global URL constructor wholesale) so revoke calls in the
   // store can be observed without leaking a stubbed URL into other tests.
-  if (typeof URL.createObjectURL !== 'function') {
-    (URL as unknown as Record<string, unknown>).createObjectURL = () => '';
-  }
-  if (typeof URL.revokeObjectURL !== 'function') {
-    (URL as unknown as Record<string, unknown>).revokeObjectURL = () => {};
-  }
+  const urlRecord = URL as unknown as Record<string, unknown>;
+  const polyfilled: string[] = [];
+
+  beforeAll(() => {
+    // Add the missing methods so vi.spyOn has something to wrap, remembering
+    // which ones we added so they can be removed again in afterAll.
+    if (typeof URL.createObjectURL !== 'function') {
+      urlRecord.createObjectURL = () => '';
+      polyfilled.push('createObjectURL');
+    }
+    if (typeof URL.revokeObjectURL !== 'function') {
+      urlRecord.revokeObjectURL = () => {};
+      polyfilled.push('revokeObjectURL');
+    }
+  });
+
+  afterAll(() => {
+    // Drop any methods we polyfilled so they don't leak into other test files
+    for (const name of polyfilled) {
+      delete urlRecord[name];
+    }
+  });
 
   let revokeObjectURL: ReturnType<typeof vi.spyOn>;
 
