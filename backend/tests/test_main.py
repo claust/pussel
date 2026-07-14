@@ -19,6 +19,7 @@ from typing_extensions import TypeAlias
 
 from app.main import app, settings
 from app.models.puzzle_model import PieceResponse, Position
+from app.services.piece_detector import DetectedRegion
 
 # Add the backend directory to the Python path
 backend_dir = Path(__file__).parent.parent
@@ -304,10 +305,10 @@ def test_piece_preview_rejects_oversized_file() -> None:
 def test_piece_preview_returns_region() -> None:
     """Piece preview maps a detected region to polygon and bbox."""
     detector = MagicMock()
-    detector.detect_region.return_value = (
-        [(0.1, 0.2), (0.8, 0.2), (0.8, 0.9), (0.1, 0.9)],
-        (0.1, 0.2, 0.7, 0.7),
-        0.87,
+    detector.detect_region.return_value = DetectedRegion(
+        polygon=[(0.1, 0.2), (0.8, 0.2), (0.8, 0.9), (0.1, 0.9)],
+        bbox=(0.1, 0.2, 0.7, 0.7),
+        confidence=0.87,
     )
 
     with patch("app.main.get_piece_detector", return_value=detector):

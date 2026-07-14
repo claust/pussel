@@ -5,6 +5,7 @@ import { Camera, Loader2, AlertCircle, Upload } from 'lucide-react';
 import { useCamera } from '@/hooks/use-camera';
 import { Button } from '@/components/ui/button';
 import { ApiError, detectPieceRegion } from '@/lib/api';
+import { isConfidentPiece } from '@/lib/piece-detection';
 import { cn } from '@/lib/utils';
 import type { PieceRegion } from '@/types';
 import { FileUpload } from './file-upload';
@@ -13,9 +14,6 @@ import { FileUpload } from './file-upload';
 const DETECT_FRAME_MAX_DIM = 320;
 // Minimum time between detection requests (the loop is also serialized on the response)
 const DETECT_INTERVAL_MS = 400;
-// Regions below this backend confidence are treated as "no piece" (e.g. a face
-// or background object that slipped past the detector's hard gates)
-const PIECE_CONFIDENCE_THRESHOLD = 0.5;
 
 interface CameraViewProps {
   onCapture: (blob: Blob) => void;
@@ -36,8 +34,7 @@ export function CameraView({
 }: CameraViewProps) {
   const { videoRef, isReady, isLoading, error, dimensions, start, stop, capture } = useCamera();
   const [pieceRegion, setPieceRegion] = useState<PieceRegion | null>(null);
-  const pieceDetected =
-    (pieceRegion?.found && pieceRegion.confidence >= PIECE_CONFIDENCE_THRESHOLD) ?? false;
+  const pieceDetected = isConfidentPiece(pieceRegion);
 
   useEffect(() => {
     void start();

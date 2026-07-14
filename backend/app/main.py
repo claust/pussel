@@ -273,12 +273,12 @@ async def preview_piece(
     if region is None:
         return PiecePreviewResponse(found=False)
 
-    polygon, (x, y, w, h), confidence = region
+    x, y, w, h = region.bbox
     return PiecePreviewResponse(
         found=True,
-        polygon=[Corner(x=px, y=py) for px, py in polygon],
+        polygon=[Corner(x=px, y=py) for px, py in region.polygon],
         bbox=BoundingBox(x=x, y=y, width=w, height=h),
-        confidence=confidence,
+        confidence=region.confidence,
     )
 
 
