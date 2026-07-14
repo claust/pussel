@@ -7,6 +7,7 @@ import { useCamera } from '@/hooks/use-camera';
 import { ApiError, detectPieceRegion } from '@/lib/api';
 import { playCommitSound } from '@/lib/capture-sound';
 import { computeSharpness, computeSignature } from '@/lib/frame-quality';
+import { isConfidentPiece } from '@/lib/piece-detection';
 import { PieceTracker, type NormalizedBBox } from '@/lib/piece-tracker';
 import { useCaptureQueueStore } from '@/stores/capture-queue-store';
 import { cn } from '@/lib/utils';
@@ -163,11 +164,14 @@ export function LivePieceCapture({ className }: LivePieceCaptureProps) {
               if (cancelled) return;
               setPieceRegion(region);
 
-              // Measure the detected crop for quality + appearance
+              // Measure the detected crop for quality + appearance. Only a
+              // confident detection feeds the tracker; a low-confidence region
+              // (a face or table object) is treated as "no piece" so it never
+              // starts a track or reaches the capture queue.
               let bbox: NormalizedBBox | undefined;
               let sharpness: number | undefined;
               let signature: number[] | undefined;
-              if (region.found && region.bbox) {
+              if (isConfidentPiece(region) && region.bbox) {
                 bbox = region.bbox;
                 const crop = bboxToCrop(bbox, frameCanvas.width, frameCanvas.height);
                 const aScale = Math.min(1, ANALYSIS_MAX_DIM / Math.max(crop.sw, crop.sh));
@@ -308,7 +312,7 @@ export function LivePieceCapture({ className }: LivePieceCaptureProps) {
         {/* Live piece detection outline; slice mirrors the video's object-cover mapping */}
         {isReady && dimensions && (
           <>
-            {pieceRegion?.found && pieceRegion.polygon.length >= 3 && (
+            {pieceRegion && isConfidentPiece(pieceRegion) && pieceRegion.polygon.length >= 3 && (
               <svg
                 className="pointer-events-none absolute inset-0 h-full w-full"
                 viewBox={`0 0 ${dimensions.width} ${dimensions.height}`}

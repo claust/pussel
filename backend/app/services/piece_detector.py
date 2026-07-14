@@ -1,7 +1,7 @@
 """Service for detecting a puzzle piece region in a live camera frame."""
 
 import io
-from typing import List, Optional, Tuple, cast
+from typing import List, NamedTuple, Optional, Tuple, cast
 
 import cv2
 import numpy as np
@@ -19,8 +19,40 @@ PREVIEW_MAX_DIM = 320
 # The detected region must cover at least this fraction of the frame
 MIN_PIECE_AREA_RATIO = 0.005
 
+# ... and at most this fraction. A hand-held piece at capture distance covers a
+# small part of the frame; a face or torso at webcam distance covers far more.
+MAX_PIECE_AREA_RATIO = 0.35
+
+# Area band (fraction of frame) that gets full confidence; outside it the
+# confidence tapers linearly toward the hard limits above.
+FULL_CONFIDENCE_AREA_RANGE = (0.01, 0.15)
+
+# Bounding-box aspect ratio (long side / short side) limits. Pieces are roughly
+# square-ish; long thin regions are arms, table edges, cables, etc.
+MAX_ASPECT_RATIO = 3.5
+FULL_CONFIDENCE_MAX_ASPECT = 2.0
+
+# Fraction of skin-tone pixels inside the region above which it is rejected.
+# The threshold is generous because fingers holding a piece legitimately add
+# some skin pixels to the segmented region.
+MAX_SKIN_FRACTION = 0.6
+FULL_CONFIDENCE_MAX_SKIN = 0.15
+
 # Cap on polygon outline points returned to the client
 MAX_POLYGON_POINTS = 60
+
+# Floor for the confidence reported on an accepted region, so a detection
+# (found=True) always carries a strictly positive confidence in (0, 1] even
+# when the raw score rounds to 0.000.
+MIN_REPORTED_CONFIDENCE = 0.001
+
+
+class DetectedRegion(NamedTuple):
+    """A detected piece candidate with normalized coordinates and confidence."""
+
+    polygon: List[Point]
+    bbox: BBoxNorm
+    confidence: float
 
 
 def largest_alpha_component(rgba: Image.Image, alpha_threshold: int = 128) -> Optional["np.ndarray"]:
@@ -74,19 +106,82 @@ def crop_to_alpha_region(rgba: Image.Image, margin: float = 0.08) -> Image.Image
     return rgba.crop((left, top, right, bottom))
 
 
+def skin_fraction(rgba: Image.Image, contour: Optional["np.ndarray"] = None, alpha_threshold: int = 128) -> float:
+    """Estimate the fraction of skin-tone pixels in an RGBA image's opaque region.
+
+    Uses the classic YCrCb skin-tone box (Cr in [133, 173], Cb in [77, 127]),
+    which is intentionally broad: it matters far more that faces score high
+    than that every piece scores exactly zero.
+
+    Args:
+        rgba: RGBA image, e.g. rembg output.
+        contour: Optional contour restricting the measurement to one region;
+            when omitted, all opaque pixels are measured.
+        alpha_threshold: Alpha value above which a pixel counts as opaque.
+
+    Returns:
+        Skin-tone pixel fraction in [0, 1]; 0.0 when there are no opaque pixels.
+    """
+    arr = np.asarray(rgba.convert("RGBA"))
+    mask = arr[..., 3] > alpha_threshold
+    if contour is not None:
+        region = np.zeros(mask.shape, dtype=np.uint8)
+        cv2.drawContours(region, [contour], -1, 255, thickness=cv2.FILLED)
+        mask = mask & (region > 0)
+    total = np.count_nonzero(mask)
+    if total == 0:
+        return 0.0
+    ycrcb = cv2.cvtColor(arr[..., :3], cv2.COLOR_RGB2YCrCb)
+    cr, cb = ycrcb[..., 1], ycrcb[..., 2]
+    skin = (cr >= 133) & (cr <= 173) & (cb >= 77) & (cb <= 127)
+    return float(np.count_nonzero(skin & mask) / total)
+
+
+def _band_score(value: float, hard_low: float, full_low: float, full_high: float, hard_high: float) -> float:
+    """Score a value against a confidence band.
+
+    Args:
+        value: The measured value.
+        hard_low: Below this the score is 0.0.
+        full_low: Lower edge of the full-confidence band.
+        full_high: Upper edge of the full-confidence band.
+        hard_high: Above this the score is 0.0.
+
+    Returns:
+        1.0 inside [full_low, full_high], tapering linearly to 0.0 at the hard
+        limits.
+    """
+    if value < full_low:
+        if value <= hard_low:
+            return 0.0
+        return (value - hard_low) / (full_low - hard_low)
+    if value > full_high:
+        if value >= hard_high:
+            return 0.0
+        return (hard_high - value) / (hard_high - full_high)
+    return 1.0
+
+
 class PieceDetector:
     """Detects the puzzle piece (most salient object) in a camera frame via rembg."""
 
-    def detect_region(self, image: Image.Image) -> Optional[Tuple[List[Point], BBoxNorm]]:
+    def detect_region(self, image: Image.Image) -> Optional[DetectedRegion]:
         """Detect the piece region in a frame.
+
+        The most salient region found by background removal is only accepted
+        when it plausibly is a puzzle piece: it must occupy a piece-like
+        fraction of the frame, not be extremely elongated, and not be
+        dominated by skin tones (faces and hands are what rembg most often
+        latches onto when no piece is held up).
 
         Args:
             image: The camera frame (any mode; converted to RGB).
 
         Returns:
-            A (polygon, bbox) tuple with coordinates normalized to [0, 1], or
-            None when background removal is disabled, segmentation fails, or
-            the detected region is too small.
+            A DetectedRegion with coordinates normalized to [0, 1] and a
+            confidence in (0, 1], or None when background removal is disabled,
+            segmentation fails, or the detected region does not look like a
+            puzzle piece.
         """
         if not settings.ENABLE_BACKGROUND_REMOVAL:
             return None
@@ -108,8 +203,28 @@ class PieceDetector:
         contour = largest_alpha_component(rgba)
         if contour is None:
             return None
-        if cv2.contourArea(contour) / (work_w * work_h) < MIN_PIECE_AREA_RATIO:
+
+        area_ratio = cv2.contourArea(contour) / (work_w * work_h)
+        bx, by, bw, bh = cast(Tuple[int, int, int, int], cv2.boundingRect(contour))
+        aspect = max(bw, bh) / max(1, min(bw, bh))
+
+        area_score = _band_score(area_ratio, MIN_PIECE_AREA_RATIO, *FULL_CONFIDENCE_AREA_RANGE, MAX_PIECE_AREA_RATIO)
+        aspect_score = _band_score(aspect, 0.0, 1.0, FULL_CONFIDENCE_MAX_ASPECT, MAX_ASPECT_RATIO)
+        if area_score == 0.0 or aspect_score == 0.0:
             return None
+
+        skin_score = _band_score(skin_fraction(rgba, contour), 0.0, 0.0, FULL_CONFIDENCE_MAX_SKIN, MAX_SKIN_FRACTION)
+        if skin_score == 0.0:
+            return None
+
+        # Gate on the raw product so rounding never acts as an extra hard limit
+        # (a tiny-but-nonzero product must survive and report a low confidence).
+        raw_confidence = area_score * aspect_score * skin_score
+        if raw_confidence <= 0.0:
+            return None
+        # Floor the reported value so an accepted region keeps confidence in
+        # (0, 1] even when the raw score would round to 0.000.
+        confidence = max(round(raw_confidence, 3), MIN_REPORTED_CONFIDENCE)
 
         perimeter = cv2.arcLength(contour, closed=True)
         polygon = cv2.approxPolyDP(contour, 0.005 * perimeter, closed=True).reshape(-1, 2)
@@ -120,14 +235,13 @@ class PieceDetector:
         points: List[Point] = [
             (float(np.clip(x / work_w, 0.0, 1.0)), float(np.clip(y / work_h, 0.0, 1.0))) for x, y in polygon
         ]
-        x, y, w, h = cast(Tuple[int, int, int, int], cv2.boundingRect(contour))
         bbox: BBoxNorm = (
-            float(np.clip(x / work_w, 0.0, 1.0)),
-            float(np.clip(y / work_h, 0.0, 1.0)),
-            float(np.clip(w / work_w, 0.0, 1.0)),
-            float(np.clip(h / work_h, 0.0, 1.0)),
+            float(np.clip(bx / work_w, 0.0, 1.0)),
+            float(np.clip(by / work_h, 0.0, 1.0)),
+            float(np.clip(bw / work_w, 0.0, 1.0)),
+            float(np.clip(bh / work_h, 0.0, 1.0)),
         )
-        return points, bbox
+        return DetectedRegion(polygon=points, bbox=bbox, confidence=confidence)
 
 
 # Singleton instance
