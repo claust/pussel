@@ -212,9 +212,12 @@ class PieceDetector:
         if skin_score == 0.0:
             return None
 
-        confidence = round(area_score * aspect_score * skin_score, 3)
-        if confidence <= 0.0:
+        # Gate on the raw product so rounding never acts as an extra hard limit
+        # (a tiny-but-nonzero product must survive and report a low confidence).
+        raw_confidence = area_score * aspect_score * skin_score
+        if raw_confidence <= 0.0:
             return None
+        confidence = round(raw_confidence, 3)
 
         perimeter = cv2.arcLength(contour, closed=True)
         polygon = cv2.approxPolyDP(contour, 0.005 * perimeter, closed=True).reshape(-1, 2)
