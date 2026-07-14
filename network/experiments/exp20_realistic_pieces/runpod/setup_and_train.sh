@@ -53,24 +53,25 @@ if [ "$SOURCE_COUNT" -eq 0 ]; then
     exit 1
 fi
 
-# Start training
+# Start training (frozen split: 10198 train / 600 val / 1200 test puzzles;
+# checkpoint selected on val, test evaluated once at the end via --eval-test)
 echo ""
 echo "========================================"
 echo "Starting Training"
 echo "========================================"
 echo "Epochs: 50"
-echo "Training puzzles: 10800"
-echo "Test puzzles: 1200"
+echo "Split: frozen (splits/realistic_4x4_v1.json)"
 echo "Batch size: 128"
 echo ""
 
-python train_cuda.py \
+python train.py \
     --dataset-root /workspace/realistic_4x4_20k \
+    --puzzle-root /datasets/puzzles \
+    --output-dir /workspace/outputs \
     --epochs 50 \
     --batch-size 128 \
-    --n-train 10800 \
-    --n-test 1200 \
-    --num-workers 8
+    --num-workers 8 \
+    --eval-test
 
 echo ""
 echo "========================================"
