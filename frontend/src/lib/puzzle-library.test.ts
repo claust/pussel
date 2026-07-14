@@ -5,7 +5,7 @@ import { IDBFactory } from 'fake-indexeddb';
 // savePuzzle generates a thumbnail via canvas/createImageBitmap, which jsdom
 // does not implement. Stub the image helpers so the tests exercise the real
 // IndexedDB logic (the point of this module) rather than canvas rendering.
-vi.mock('./image-utils', () => ({
+vi.mock('@/lib/image-utils', () => ({
   compressImage: (blob: Blob) => Promise.resolve(blob),
   blobToDataUrl: () => Promise.resolve('data:image/jpeg;base64,dGh1bWI='),
 }));
