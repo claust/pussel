@@ -475,6 +475,7 @@ def create_datasets_from_split(
     datasets: dict[str, RealisticPieceDataset | RealisticPieceTestDataset] = {}
     for name, ids in split.items():
         missing = [pid for pid in ids if not (root / pid).exists()]
+        present_ids = ids
         if missing:
             message = f"{name}: {len(missing)}/{len(ids)} puzzle dirs missing under {root}"
             if not allow_missing:
@@ -482,10 +483,13 @@ def create_datasets_from_split(
                     f"{message}. Generate the pieces first (generate_dataset.py), or pass "
                     "allow_missing=True for a smoke test (results will NOT be comparable)."
                 )
+            # Drop missing IDs so the dataset log and split reflect what is
+            # actually loaded (smoke-test path only).
+            present_ids = [pid for pid in ids if (root / pid).exists()]
             print(f"WARNING: {message} (allow_missing=True; results NOT comparable)")
         if name == "train":
             datasets[name] = RealisticPieceDataset(
-                puzzle_ids=ids,
+                puzzle_ids=present_ids,
                 dataset_root=dataset_root,
                 puzzle_root=puzzle_root,
                 piece_size=piece_size,
@@ -495,7 +499,7 @@ def create_datasets_from_split(
             )
         else:
             datasets[name] = RealisticPieceTestDataset(
-                puzzle_ids=ids,
+                puzzle_ids=present_ids,
                 dataset_root=dataset_root,
                 puzzle_root=puzzle_root,
                 piece_size=piece_size,

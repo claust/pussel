@@ -118,8 +118,8 @@ def load_split(split_path: Path | str = DEFAULT_SPLIT_PATH) -> dict[str, list[st
 
     Raises:
         FileNotFoundError: If the split file does not exist.
-        ValueError: If the splits overlap or train_eval is not a subset
-            of train.
+        ValueError: If a split entry is not a list of strings, the splits
+            overlap, or train_eval is not a subset of train.
     """
     split_path = Path(split_path)
     if not split_path.exists():
@@ -131,7 +131,14 @@ def load_split(split_path: Path | str = DEFAULT_SPLIT_PATH) -> dict[str, list[st
     with open(split_path) as f:
         data = json.load(f)
 
-    split = {key: list(data[key]) for key in SPLIT_KEYS}
+    split: dict[str, list[str]] = {}
+    for key in SPLIT_KEYS:
+        ids = data[key]
+        if not isinstance(ids, list) or not all(isinstance(pid, str) for pid in ids):
+            raise ValueError(f"Invalid split: '{key}' must be a list of puzzle ID strings")
+        # Sort so the returned order is deterministic regardless of how the
+        # JSON was written (honours this function's documented contract).
+        split[key] = sorted(ids)
 
     train, train_eval, val, test = (set(split[key]) for key in SPLIT_KEYS)
     if not train_eval <= train:
