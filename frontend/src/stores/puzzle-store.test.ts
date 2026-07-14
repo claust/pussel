@@ -52,6 +52,46 @@ describe('PuzzleStore', () => {
     expect(usePuzzleStore.getState().pieces[1]).toEqual(piece2);
   });
 
+  it('should remove a piece by reference identity', () => {
+    const piece1 = {
+      position: { x: 0.5, y: 0.5, normalized: true },
+      positionConfidence: 0.9,
+      rotation: 0 as const,
+      rotationConfidence: 0.95,
+    };
+    const piece2 = {
+      position: { x: 0.3, y: 0.7, normalized: true },
+      positionConfidence: 0.85,
+      rotation: 90 as const,
+      rotationConfidence: 0.92,
+    };
+
+    usePuzzleStore.getState().addPiece(piece1);
+    usePuzzleStore.getState().addPiece(piece2);
+    expect(usePuzzleStore.getState().pieces).toHaveLength(2);
+
+    usePuzzleStore.getState().removePiece(piece1);
+
+    const { pieces } = usePuzzleStore.getState();
+    expect(pieces).toHaveLength(1);
+    expect(pieces[0]).toBe(piece2);
+  });
+
+  it('should not remove anything for a piece not in the store (identity mismatch)', () => {
+    const piece1 = {
+      position: { x: 0.5, y: 0.5, normalized: true },
+      positionConfidence: 0.9,
+      rotation: 0 as const,
+      rotationConfidence: 0.95,
+    };
+    const lookalike = { ...piece1 };
+
+    usePuzzleStore.getState().addPiece(piece1);
+    usePuzzleStore.getState().removePiece(lookalike);
+
+    expect(usePuzzleStore.getState().pieces).toHaveLength(1);
+  });
+
   it('should set grid size', () => {
     usePuzzleStore.getState().setGridSize('2x2');
     expect(usePuzzleStore.getState().gridSize).toBe('2x2');

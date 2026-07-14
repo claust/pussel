@@ -2,14 +2,17 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Camera, Loader2, Plus, RotateCcw, ScanLine } from 'lucide-react';
+import { ArrowLeft, Camera, Loader2, RotateCcw, ScanLine } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { CameraModal } from '@/components/camera';
-import { CornerAdjust, PieceCard, PuzzleDetail } from '@/components/puzzle';
+import { CameraModal, LivePieceCapture } from '@/components/camera';
+import { CornerAdjust, PieceQueue, PuzzleDetail } from '@/components/puzzle';
 import { usePuzzleStore } from '@/stores/puzzle-store';
-import { detectFrame, uploadPuzzle, processPiece } from '@/lib/api';
+import { useCaptureQueueStore } from '@/stores/capture-queue-store';
+import { usePredictionWorker } from '@/hooks/use-prediction-worker';
+import { detectFrame, uploadPuzzle } from '@/lib/api';
 import { blobToDataUrl, dataUrlToBlob } from '@/lib/image-utils';
+import { cn } from '@/lib/utils';
 import type { DetectFrameResult } from '@/types';
 
 type RealModePhase = 'capture-puzzle' | 'confirm-trim' | 'adjust-corners' | 'solving';
@@ -23,28 +26,27 @@ const LOW_CONFIDENCE_THRESHOLD = 0.4;
 export default function RealModePage() {
   const [phase, setPhase] = useState<RealModePhase>('capture-puzzle');
   const [puzzleCameraOpen, setPuzzleCameraOpen] = useState(false);
-  const [pieceCameraOpen, setPieceCameraOpen] = useState(false);
   const [rawPhotoBlob, setRawPhotoBlob] = useState<Blob | null>(null);
   const [rawPhotoUrl, setRawPhotoUrl] = useState<string | null>(null);
   const [detection, setDetection] = useState<DetectFrameResult | null>(null);
 
-  const {
-    puzzle,
-    puzzleImage,
-    pieces,
-    isLoading,
-    error,
-    setPuzzle,
-    addPiece,
-    setLoading,
-    setError,
-    reset,
-  } = usePuzzleStore();
+  const { puzzle, puzzleImage, pieces, isLoading, error, setPuzzle, setLoading, setError, reset } =
+    usePuzzleStore();
+  const removePiece = usePuzzleStore((s) => s.removePiece);
+
+  const queueEntries = useCaptureQueueStore((s) => s.entries);
+  const retryEntry = useCaptureQueueStore((s) => s.retry);
+  const removeQueueEntry = useCaptureQueueStore((s) => s.remove);
+  const clearQueue = useCaptureQueueStore((s) => s.clear);
+
+  // Drain captured pieces through prediction while a puzzle is active
+  usePredictionWorker(phase === 'solving' ? puzzle?.puzzleId : undefined);
 
   // Clean up shared store state when leaving the page
   useEffect(() => {
     return () => {
       reset();
+      useCaptureQueueStore.getState().clear();
     };
   }, [reset]);
 
@@ -99,21 +101,6 @@ export default function RealModePage() {
     }
   };
 
-  const handlePieceCapture = async (blob: Blob) => {
-    if (!puzzle) return;
-
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await processPiece(puzzle.puzzleId, blob);
-      addPiece(result);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to process piece');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleRetake = () => {
     setDetection(null);
     setRawPhotoBlob(null);
@@ -123,8 +110,18 @@ export default function RealModePage() {
     setPuzzleCameraOpen(true);
   };
 
+  const handleDeleteEntry = (id: string) => {
+    // Read before removing: once removed the entry is gone from the store
+    const entry = useCaptureQueueStore.getState().entries.find((e) => e.id === id);
+    removeQueueEntry(id);
+    if (entry?.piece) {
+      removePiece(entry.piece);
+    }
+  };
+
   const handleNewPuzzle = () => {
     reset();
+    clearQueue();
     setDetection(null);
     setRawPhotoBlob(null);
     setRawPhotoUrl(null);
@@ -144,7 +141,10 @@ export default function RealModePage() {
           <h1 className="text-lg font-semibold">Solve Real Puzzle</h1>
           <p className="text-muted-foreground text-sm">
             {phase === 'solving'
-              ? `${pieces.length} ${pieces.length === 1 ? 'piece' : 'pieces'} captured`
+              ? `${queueEntries.length} ${queueEntries.length === 1 ? 'piece' : 'pieces'} captured` +
+                (queueEntries.length > pieces.length
+                  ? ` · ${queueEntries.length - pieces.length} in queue`
+                  : '')
               : 'Photograph your puzzle to get started'}
           </p>
         </div>
@@ -152,7 +152,9 @@ export default function RealModePage() {
       </header>
 
       {/* Content */}
-      <main className="mx-auto w-full max-w-2xl flex-1 p-4">
+      <main
+        className={cn('mx-auto w-full flex-1 p-4', phase === 'solving' ? 'max-w-6xl' : 'max-w-2xl')}
+      >
         {error && (
           <div className="bg-destructive/10 text-destructive mb-4 rounded-lg p-3 text-sm">
             {error}
@@ -258,33 +260,18 @@ export default function RealModePage() {
 
         {phase === 'solving' && puzzle && puzzleImage && (
           <div className="space-y-4">
-            <PuzzleDetail
-              puzzleImage={puzzleImage}
-              pieces={pieces}
-              pieceSizeRatio={PIECE_SIZE_RATIO}
-            />
+            {/* Pipeline view: puzzle with predictions beside the live camera */}
+            <div className="grid gap-4 lg:grid-cols-2">
+              <PuzzleDetail
+                puzzleImage={puzzleImage}
+                pieces={pieces}
+                pieceSizeRatio={PIECE_SIZE_RATIO}
+              />
+              <LivePieceCapture className="min-h-[320px]" />
+            </div>
 
-            <Button
-              className="w-full gap-2"
-              size="lg"
-              onClick={() => setPieceCameraOpen(true)}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Plus className="h-4 w-4" />
-              )}
-              {isLoading ? 'Predicting position...' : 'Capture Piece'}
-            </Button>
-
-            {pieces.length > 0 && (
-              <div className="grid grid-cols-2 gap-3">
-                {pieces.map((piece, index) => (
-                  <PieceCard key={index} piece={piece} index={index} />
-                ))}
-              </div>
-            )}
+            {/* Capture queue: best frame per piece, flowing through prediction */}
+            <PieceQueue entries={queueEntries} onRetry={retryEntry} onDelete={handleDeleteEntry} />
 
             <Button
               variant="outline"
@@ -304,15 +291,6 @@ export default function RealModePage() {
         onOpenChange={setPuzzleCameraOpen}
         mode="puzzle"
         onCapture={(blob) => void handlePuzzlePhoto(blob)}
-      />
-
-      {/* Piece capture camera with live piece-detection overlay */}
-      <CameraModal
-        open={pieceCameraOpen}
-        onOpenChange={setPieceCameraOpen}
-        mode="piece"
-        onCapture={(blob) => void handlePieceCapture(blob)}
-        livePieceDetection
       />
     </div>
   );
