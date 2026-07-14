@@ -67,7 +67,8 @@ Key mechanics (details in the `ingest.py` docstring):
   all four rotations. Conflicts prefer the arrow and set `flagged=1` (the
   matcher drifts on low-texture crops).
 - **Arrow exclusion**: the arrow is a capture aid, not part of the sample.
-  `metadata.csv` carries the piece bbox (`piece_x1..y2`); evaluation must crop
+  `metadata.csv` carries the piece bbox (`piece_x1..y2`, inclusive pixel
+  coordinates in the final upright image); evaluation must crop
   to it so no method ever sees the arrow.
 - `rotation_overrides.csv` / `bbox_overrides.csv` (next to the script) pin the
   rotation (CCW 90° steps) or piece bbox (final-image pixel coords) for shots
