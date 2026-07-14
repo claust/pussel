@@ -21,6 +21,7 @@ from app.config import settings
 from app.models.model import FastBackboneModel
 from app.models.puzzle_model import PieceResponse, Position
 from app.services.background_remover import get_background_remover
+from app.services.piece_detector import crop_to_alpha_region
 
 # Path to checkpoint (3x3 grid model with 82% cell accuracy, 95% rotation accuracy)
 DEFAULT_CHECKPOINT_PATH = str(
@@ -163,6 +164,11 @@ class ImageProcessor:
 
                 # Get RGBA image with transparent background for frontend display
                 rgba_image = remover.remove_background(contents)
+
+                # Crop to the segmented subject so the piece fills the frame for the
+                # model (training pieces fill the image) instead of floating in a
+                # large mostly-white canvas
+                rgba_image = crop_to_alpha_region(rgba_image)
 
                 # Encode as base64 PNG for frontend
                 buffer = io.BytesIO()

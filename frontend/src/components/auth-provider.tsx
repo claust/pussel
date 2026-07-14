@@ -1,6 +1,6 @@
 'use client';
 
-import { SessionProvider, useSession } from 'next-auth/react';
+import { SessionProvider, signOut, useSession } from 'next-auth/react';
 import { useEffect, type ReactNode } from 'react';
 import { useAuthStore } from '@/stores/auth-store';
 
@@ -27,6 +27,16 @@ function AuthSync() {
       setError(null);
 
       try {
+        // Token refresh failed server-side: the session can never authenticate again,
+        // so clear it to make the sign-in flow reachable (middleware redirects
+        // authenticated sessions away from /login).
+        const sessionError = (session as { error?: string }).error;
+        if (sessionError === 'RefreshTokenError') {
+          reset();
+          await signOut({ redirect: false });
+          return;
+        }
+
         // Exchange Google ID token for backend JWT
         const idToken = (session as { idToken?: string }).idToken;
         if (!idToken) {
@@ -40,6 +50,14 @@ function AuthSync() {
           },
           body: JSON.stringify({ id_token: idToken }),
         });
+
+        if (response.status === 401) {
+          // Stale or rejected Google token: drop the NextAuth session so the
+          // user can sign in fresh instead of being stuck in a redirect loop.
+          reset();
+          await signOut({ redirect: false });
+          return;
+        }
 
         if (!response.ok) {
           let message = 'Failed to authenticate with backend';

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Camera, FlaskConical, Info, LogIn, User } from 'lucide-react';
+import { Camera, FlaskConical, Info, LogIn, ScanLine, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -54,6 +54,13 @@ export default function HomePage() {
             <Button className="w-full gap-2" size="lg">
               <Camera className="h-5 w-5" />
               New Puzzle
+            </Button>
+          </Link>
+
+          <Link href="/real" className="w-full">
+            <Button variant="secondary" className="w-full gap-2" size="lg">
+              <ScanLine className="h-5 w-5" />
+              Solve Real Puzzle
             </Button>
           </Link>
 

@@ -6,25 +6,33 @@ import os
 import uuid
 from typing import Annotated, Dict, Optional
 
-from fastapi import Depends, FastAPI, HTTPException, Query, UploadFile
+from fastapi import Depends, FastAPI, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from PIL import Image
+from PIL import Image, ImageOps, UnidentifiedImageError
+from pydantic import ValidationError
 
 from app.auth.dependencies import get_current_user
 from app.auth.service import AuthService, get_auth_service
 from app.config import settings
 from app.models.puzzle_model import (
+    BoundingBox,
+    Corner,
     CutPuzzleRequest,
     CutPuzzleResponse,
+    DetectFrameResponse,
     GeneratePieceRequest,
     GeneratePieceResponse,
+    PiecePreviewResponse,
     PieceResponse,
     PuzzleResponse,
+    QuadCorners,
 )
 from app.models.user_model import GoogleAuthRequest, TokenResponse, User
 from app.services.image_processor import get_image_processor
+from app.services.piece_detector import get_piece_detector
 from app.services.piece_shape import PieceShapeGenerator
 from app.services.puzzle_cutter import get_puzzle_cutter
+from app.services.puzzle_detector import get_puzzle_detector
 
 # Initialize FastAPI app
 app = FastAPI(title=settings.PROJECT_NAME)
@@ -149,6 +157,119 @@ async def upload_puzzle(
 
     puzzle_images[puzzle_id] = file_path
     return PuzzleResponse(puzzle_id=puzzle_id)
+
+
+@app.post("/api/v1/puzzle/detect-frame", response_model=DetectFrameResponse)
+async def detect_frame(
+    current_user: Annotated[User, Depends(get_current_user)],
+    file: Optional[UploadFile] = None,
+    corners: Annotated[Optional[str], Form(description="Manually adjusted corners as JSON QuadCorners")] = None,
+) -> DetectFrameResponse:
+    """Detect the puzzle picture in a photo and return a perspective-corrected crop.
+
+    This endpoint is stateless: nothing is persisted. The frontend previews the
+    trimmed image and, once accepted, uploads it via the regular upload endpoint.
+    When ``corners`` is provided (manual adjustment), detection is skipped and
+    the supplied corners are used for the warp with confidence 1.0.
+
+    Args:
+        current_user: The authenticated user.
+        file: The raw photo of the puzzle.
+        corners: Optional JSON-encoded QuadCorners overriding auto-detection.
+
+    Returns:
+        DetectFrameResponse with the trimmed image (base64 data URL), the
+        corners used, and a detection confidence.
+
+    Raises:
+        HTTPException: If no/invalid file is provided, the file is too large,
+            or the corners payload is malformed.
+    """
+    _ = current_user  # Acknowledge the parameter is intentionally unused for now
+    if file is None:
+        raise HTTPException(status_code=400, detail="No file provided")
+
+    if file.size and file.size > settings.MAX_UPLOAD_SIZE:
+        raise HTTPException(status_code=413, detail="File too large")
+
+    contents = await file.read()
+    if len(contents) > settings.MAX_UPLOAD_SIZE:
+        raise HTTPException(status_code=413, detail="File too large")
+
+    try:
+        image = Image.open(io.BytesIO(contents))
+        # Phone photos carry EXIF orientation; correct it so corners match what the user sees
+        image = ImageOps.exif_transpose(image).convert("RGB")
+    except (UnidentifiedImageError, OSError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail="Invalid image file") from exc
+
+    detector = get_puzzle_detector()
+    if corners is not None:
+        try:
+            quad = QuadCorners.model_validate_json(corners)
+        except ValidationError as exc:
+            raise HTTPException(status_code=400, detail="Invalid corners payload") from exc
+        used_corners = quad
+        confidence = 1.0
+        trimmed = detector.warp(image, quad.as_points())
+    else:
+        points, confidence = detector.detect_corners(image)
+        used_corners = QuadCorners.from_points(points)
+        trimmed = detector.warp(image, points)
+
+    buffer = io.BytesIO()
+    trimmed.save(buffer, format="JPEG", quality=90)
+    trimmed_base64 = base64.b64encode(buffer.getvalue()).decode()
+
+    return DetectFrameResponse(
+        trimmed_image=f"data:image/jpeg;base64,{trimmed_base64}",
+        corners=used_corners,
+        confidence=confidence,
+    )
+
+
+@app.post("/api/v1/piece/preview", response_model=PiecePreviewResponse)
+async def preview_piece(
+    current_user: Annotated[User, Depends(get_current_user)],
+    file: Optional[UploadFile] = None,
+) -> PiecePreviewResponse:
+    """Detect the puzzle piece region in a live camera frame.
+
+    Stateless and lightweight: the frontend streams downscaled frames here
+    while the piece camera is open and overlays the returned outline on the
+    preview, so the user can see what will be captured.
+
+    Args:
+        current_user: The authenticated user.
+        file: A downscaled camera frame.
+
+    Returns:
+        PiecePreviewResponse with the detected region outline, or found=False.
+
+    Raises:
+        HTTPException: If no/invalid file is provided.
+    """
+    _ = current_user  # Acknowledge the parameter is intentionally unused for now
+    if file is None:
+        raise HTTPException(status_code=400, detail="No file provided")
+
+    contents = await file.read()
+    try:
+        image = Image.open(io.BytesIO(contents))
+        image.load()
+    except (UnidentifiedImageError, OSError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail="Invalid image file") from exc
+
+    region = get_piece_detector().detect_region(image)
+    if region is None:
+        return PiecePreviewResponse(found=False)
+
+    polygon, (x, y, w, h) = region
+    return PiecePreviewResponse(
+        found=True,
+        polygon=[Corner(x=px, y=py) for px, py in polygon],
+        bbox=BoundingBox(x=x, y=y, width=w, height=h),
+    )
 
 
 @app.post("/api/v1/puzzle/{puzzle_id}/piece", response_model=PieceResponse)
