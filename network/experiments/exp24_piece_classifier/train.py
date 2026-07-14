@@ -12,6 +12,7 @@ network/datasets/piece_classifier):
 
 import argparse
 import json
+import random
 import time
 from pathlib import Path
 from typing import Any
@@ -181,7 +182,11 @@ def main(
     Returns:
         Results dict (also written to results.json).
     """
+    # Seed every RNG in play: torch (model init, torchvision transforms),
+    # random (RandomDownscale, split shuffling) and numpy.
     torch.manual_seed(seed)
+    random.seed(seed)
+    np.random.seed(seed)
     output_dir.mkdir(parents=True, exist_ok=True)
     device = get_device()
 
