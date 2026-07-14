@@ -6,9 +6,10 @@ checkpoints are not committed) the service reports itself unavailable and
 the piece detector falls back to its heuristic confidence.
 
 The input protocol mirrors ``network/experiments/exp24_piece_classifier/
-data_prep.py`` exactly: largest opaque component of the rembg RGBA output,
-composited on black, cropped to its bounding box with a small margin,
-padded to a square and resized to 128x128. Change both places together.
+data_prep.py`` exactly: ``prepare_classifier_input`` takes the largest opaque
+component of the rembg RGBA output, composites it on black, crops it to its
+bounding box with a small margin and pads it to a square; ``score`` then
+resizes to 128x128 for inference. Change both places together.
 """
 
 import os
