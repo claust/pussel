@@ -11,6 +11,7 @@ interface PuzzleState {
 
   setPuzzle: (puzzle: Puzzle, imageUrl: string) => void;
   addPiece: (piece: Piece) => void;
+  removePiece: (id: string) => void;
   setGridSize: (gridSize: GridSize) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
@@ -27,6 +28,9 @@ export const usePuzzleStore = create<PuzzleState>((set) => ({
 
   setPuzzle: (puzzle, imageUrl) => set({ puzzle, puzzleImage: imageUrl, pieces: [], error: null }),
   addPiece: (piece) => set((state) => ({ pieces: [...state.pieces, piece] })),
+  // Remove by stable id (pieces from the capture queue carry the entry id),
+  // rather than object identity which would silently no-op on any clone.
+  removePiece: (id) => set((state) => ({ pieces: state.pieces.filter((p) => p.id !== id) })),
   setGridSize: (gridSize) => set({ gridSize }),
   setLoading: (isLoading) => set({ isLoading }),
   setError: (error) => set({ error }),

@@ -17,27 +17,32 @@ echo "========================================"
 # Create output directory
 mkdir -p "$OUTPUT_DIR"
 
-# Copy Python files (fixing relative imports)
+# Copy Python files (fixing relative imports for flat execution)
 echo "Copying Python files..."
-for file in dataset.py model.py visualize.py; do
+for file in dataset.py model.py visualize.py splits.py harness.py train.py; do
     cp "$EXP_DIR/$file" "$OUTPUT_DIR/"
-    # Convert relative imports to absolute
-    sed -i '' 's/from \.dataset/from dataset/g' "$OUTPUT_DIR/$file" 2>/dev/null || \
-    sed -i 's/from \.dataset/from dataset/g' "$OUTPUT_DIR/$file"
-    sed -i '' 's/from \.model/from model/g' "$OUTPUT_DIR/$file" 2>/dev/null || \
-    sed -i 's/from \.model/from model/g' "$OUTPUT_DIR/$file"
+    # Convert package-relative imports (from .foo import ...) to flat ones
+    sed -i '' -E 's/from \.([a-z_]+) import/from \1 import/g' "$OUTPUT_DIR/$file" 2>/dev/null || \
+    sed -i -E 's/from \.([a-z_]+) import/from \1 import/g' "$OUTPUT_DIR/$file"
 done
 
-# Copy training script
-cp "$EXP_DIR/train_cuda.py" "$OUTPUT_DIR/"
+# Copy the frozen train/val/test split (required by train.py)
+mkdir -p "$OUTPUT_DIR/splits"
+cp "$EXP_DIR/splits/"*.json "$OUTPUT_DIR/splits/"
 
 # Copy setup script
 cp "$SCRIPT_DIR/setup_and_train.sh" "$OUTPUT_DIR/"
 chmod +x "$OUTPUT_DIR/setup_and_train.sh"
 
-# Copy puzzle shapes library
+# Copy puzzle shapes library (the importable package lives in the shared
+# workspace member, not in the experiment dir).
 echo "Copying puzzle shapes library..."
-cp -r "$EXP_DIR/puzzle_shapes" "$OUTPUT_DIR/"
+PUZZLE_SHAPES_SRC="$NETWORK_DIR/../shared/puzzle_shapes/puzzle_shapes"
+if [ ! -d "$PUZZLE_SHAPES_SRC" ]; then
+    echo "ERROR: puzzle_shapes package not found at $PUZZLE_SHAPES_SRC"
+    exit 1
+fi
+cp -r "$PUZZLE_SHAPES_SRC" "$OUTPUT_DIR/"
 
 # Check for generated dataset
 DATASET_DIR="$EXP_DIR/datasets/realistic_4x4_20k"
@@ -80,7 +85,10 @@ echo ""
 echo "Creating final package..."
 cd "$OUTPUT_DIR"
 tar -czf runpod_training.tar.gz \
-    train_cuda.py \
+    train.py \
+    harness.py \
+    splits.py \
+    splits \
     dataset.py \
     model.py \
     visualize.py \
@@ -89,7 +97,10 @@ tar -czf runpod_training.tar.gz \
     dataset.tar.gz \
     puzzles.tar.gz 2>/dev/null || \
 tar -czf runpod_training.tar.gz \
-    train_cuda.py \
+    train.py \
+    harness.py \
+    splits.py \
+    splits \
     dataset.py \
     model.py \
     visualize.py \

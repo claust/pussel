@@ -27,10 +27,15 @@ This directory contains everything needed to train on RunPod GPUs.
 
 - `prepare_package.sh` - Creates the training package locally
 - `setup_and_train.sh` - Setup script that runs on RunPod
-- `train_cuda.py` - CUDA-optimized training script with AMP
-- `dataset.py` - Dataset loading (standalone, no relative imports)
-- `model.py` - Model definition (standalone)
-- `visualize.py` - Visualization utilities (standalone)
+
+The package ships the experiment code with relative imports rewritten
+for flat execution: `train.py` (unified entry point, AMP enabled
+automatically on CUDA), `harness.py` (val-based checkpoint selection,
+eval-mode metrics), `splits.py` + `splits/realistic_4x4_v1.json` (frozen
+train/val/test split), `dataset.py`, `model.py`, `visualize.py`.
+
+Training selects the best checkpoint on the validation split and
+evaluates the test split exactly once at the end (`--eval-test`).
 
 ## SSH Key Setup
 
