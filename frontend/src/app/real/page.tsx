@@ -122,6 +122,14 @@ export default function RealModePage() {
     }
   };
 
+  const handleDeleteSaved = (id: string) => {
+    // Surface delete failures (quota, blocked DB) instead of dropping them on
+    // the floor as an unhandled rejection.
+    void removeSavedPuzzle(id).catch((err) => {
+      setError(err instanceof Error ? err.message : 'Failed to delete saved puzzle');
+    });
+  };
+
   const handleApplyCorners = async (corners: DetectFrameResult['corners']) => {
     if (!rawPhotoBlob) return;
 
@@ -239,7 +247,7 @@ export default function RealModePage() {
                   <SavedPuzzleGallery
                     puzzles={savedPuzzles}
                     onSelect={(id) => void handleSelectSaved(id)}
-                    onDelete={(id) => void removeSavedPuzzle(id)}
+                    onDelete={handleDeleteSaved}
                     disabled={isLoading}
                   />
                 </CardContent>

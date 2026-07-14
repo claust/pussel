@@ -32,7 +32,15 @@ export function useSavedPuzzles(): UseSavedPuzzles {
     let cancelled = false;
     listPuzzles()
       .then((list) => {
-        if (!cancelled) setPuzzles(list);
+        if (cancelled) return;
+        // Merge rather than overwrite: a save/remove/rename may have landed
+        // before this initial load resolved. Keep that newer state and append
+        // only the stored puzzles it doesn't already contain.
+        setPuzzles((prev) => {
+          if (prev.length === 0) return list;
+          const seen = new Set(prev.map((p) => p.id));
+          return [...prev, ...list.filter((p) => !seen.has(p.id))];
+        });
       })
       .catch(() => {
         // A blocked/unavailable IndexedDB simply yields an empty gallery.
