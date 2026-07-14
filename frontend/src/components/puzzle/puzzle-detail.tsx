@@ -9,6 +9,7 @@ interface PuzzleDetailProps {
   puzzleImage: string;
   pieces: Piece[];
   gridSize?: GridSize;
+  pieceSizeRatio?: number; // 0-1 fraction of the puzzle size; overrides gridSize-based sizing
   onClick?: () => void;
   className?: string;
 }
@@ -17,11 +18,15 @@ export function PuzzleDetail({
   puzzleImage,
   pieces,
   gridSize = '3x3',
+  pieceSizeRatio,
   onClick,
   className,
 }: PuzzleDetailProps) {
   const { dimension } = GRID_DIMENSIONS[gridSize];
-  const pieceSize = useMemo(() => 100 / dimension, [dimension]);
+  const pieceSize = useMemo(
+    () => (pieceSizeRatio !== undefined ? pieceSizeRatio * 100 : 100 / dimension),
+    [pieceSizeRatio, dimension]
+  );
 
   return (
     <div
