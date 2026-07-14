@@ -73,12 +73,19 @@ class ImageProcessor:
         else:
             return torch.device("cpu")
 
-    def _load_model(self) -> FastBackboneModel:
+    def _load_model(self) -> Optional[FastBackboneModel]:
         """Load the trained model from checkpoint.
 
         Returns:
-            The loaded model in evaluation mode.
+            The loaded model in evaluation mode, or None when no checkpoint is
+            available. Without a model, ``process_piece`` returns a neutral
+            fallback prediction so the app still runs (e.g. in CI, where the
+            checkpoint is not committed).
         """
+        if not os.path.exists(CHECKPOINT_PATH):
+            print(f"Model checkpoint not found at {CHECKPOINT_PATH}; predictions will use a neutral fallback")
+            return None
+
         # Initialize model with same config as training
         model = FastBackboneModel(
             pretrained=False,  # We'll load weights from checkpoint
@@ -183,6 +190,17 @@ class ImageProcessor:
                     piece_img.paste(rgba_image)
             else:
                 piece_img = Image.open(io.BytesIO(contents)).convert("RGB")
+
+            # No model available (e.g. checkpoint not present): return a neutral
+            # prediction but still hand back the cleaned cutout for display.
+            if self.model is None:
+                return PieceResponse(
+                    position=Position(x=0.5, y=0.5),
+                    position_confidence=0.0,
+                    rotation=0,
+                    rotation_confidence=0.0,
+                    cleaned_image=cleaned_image_b64,
+                )
 
             piece_tensor = cast(Tensor, self.piece_transform(piece_img)).unsqueeze(0)
             piece_tensor = piece_tensor.to(self.device)
