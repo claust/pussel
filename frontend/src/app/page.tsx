@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Camera, FlaskConical, Info, LogIn, User } from 'lucide-react';
+import { Camera, FlaskConical, Info, LogIn, ScanLine, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -50,26 +50,33 @@ export default function HomePage() {
           <CardDescription>AI-powered puzzle piece position detection</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <Link href="/play" className="w-full">
-            <Button className="w-full gap-2" size="lg">
+          <Button asChild className="w-full gap-2" size="lg">
+            <Link href="/play">
               <Camera className="h-5 w-5" />
               New Puzzle
-            </Button>
-          </Link>
+            </Link>
+          </Button>
 
-          <Link href="/test-mode" className="w-full">
-            <Button variant="secondary" className="w-full gap-2" size="lg">
+          <Button asChild variant="secondary" className="w-full gap-2" size="lg">
+            <Link href="/real">
+              <ScanLine className="h-5 w-5" />
+              Solve Real Puzzle
+            </Link>
+          </Button>
+
+          <Button asChild variant="secondary" className="w-full gap-2" size="lg">
+            <Link href="/test-mode">
               <FlaskConical className="h-5 w-5" />
               Test Mode
-            </Button>
-          </Link>
+            </Link>
+          </Button>
 
-          <Link href="/about" className="w-full">
-            <Button variant="outline" className="w-full gap-2" size="lg">
+          <Button asChild variant="outline" className="w-full gap-2" size="lg">
+            <Link href="/about">
               <Info className="h-5 w-5" />
               About
-            </Button>
-          </Link>
+            </Link>
+          </Button>
 
           <p className="text-muted-foreground mt-4 text-center text-sm">
             Capture your puzzle and pieces to find where each piece belongs.
