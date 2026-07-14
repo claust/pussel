@@ -114,8 +114,10 @@ export default function RealModePage() {
     // Read before removing: once removed the entry is gone from the store
     const entry = useCaptureQueueStore.getState().entries.find((e) => e.id === id);
     removeQueueEntry(id);
-    if (entry?.piece) {
-      removePiece(entry.piece);
+    // A predicted entry also has an overlay marker on the puzzle; drop it too.
+    // The piece carries the entry id, so remove by that id.
+    if (entry?.piece?.id) {
+      removePiece(entry.piece.id);
     }
   };
 

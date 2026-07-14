@@ -18,7 +18,7 @@ export interface CaptureEntry {
   id: string;
   /** Object URL of the best raw camera crop; swapped for the cleaned image once done */
   imageUrl: string;
-  /** Raw capture blob, needed until prediction runs; released once done */
+  /** Raw capture blob; released once a cleaned image replaces it, kept otherwise (e.g. for retries) */
   blob?: Blob;
   status: CaptureStatus;
   capturedAt: number;

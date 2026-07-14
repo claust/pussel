@@ -13,6 +13,7 @@ export interface Position {
 }
 
 export interface Piece {
+  id?: string; // stable identifier when the piece originates from the capture queue
   position: Position;
   positionConfidence: number; // 0-1
   rotation: 0 | 90 | 180 | 270;
