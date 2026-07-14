@@ -29,6 +29,77 @@ class PuzzleResponse(BaseModel):
     image_url: Optional[str] = None
 
 
+# Models for puzzle frame detection (real mode)
+
+
+class Corner(BaseModel):
+    """A single corner point, normalized to [0, 1] image coordinates."""
+
+    x: float = Field(..., ge=0.0, le=1.0)
+    y: float = Field(..., ge=0.0, le=1.0)
+
+
+class QuadCorners(BaseModel):
+    """Four corners of a quadrilateral in TL/TR/BR/BL order."""
+
+    top_left: Corner
+    top_right: Corner
+    bottom_right: Corner
+    bottom_left: Corner
+
+    def as_points(self) -> List[tuple[float, float]]:
+        """Return the corners as a list of (x, y) tuples in TL, TR, BR, BL order."""
+        return [
+            (self.top_left.x, self.top_left.y),
+            (self.top_right.x, self.top_right.y),
+            (self.bottom_right.x, self.bottom_right.y),
+            (self.bottom_left.x, self.bottom_left.y),
+        ]
+
+    @classmethod
+    def from_points(cls, points: List[tuple[float, float]]) -> "QuadCorners":
+        """Build a QuadCorners from a list of (x, y) tuples in TL, TR, BR, BL order.
+
+        Args:
+            points: Exactly four (x, y) tuples ordered TL, TR, BR, BL.
+
+        Returns:
+            The corresponding QuadCorners model.
+        """
+        tl, tr, br, bl = points
+        return cls(
+            top_left=Corner(x=tl[0], y=tl[1]),
+            top_right=Corner(x=tr[0], y=tr[1]),
+            bottom_right=Corner(x=br[0], y=br[1]),
+            bottom_left=Corner(x=bl[0], y=bl[1]),
+        )
+
+
+class BoundingBox(BaseModel):
+    """An axis-aligned bounding box, normalized to [0, 1] image coordinates."""
+
+    x: float = Field(..., ge=0.0, le=1.0)
+    y: float = Field(..., ge=0.0, le=1.0)
+    width: float = Field(..., ge=0.0, le=1.0)
+    height: float = Field(..., ge=0.0, le=1.0)
+
+
+class PiecePreviewResponse(BaseModel):
+    """Response model for live piece-region detection in a camera frame."""
+
+    found: bool = Field(..., description="Whether a piece-like region was detected")
+    polygon: List[Corner] = Field(default_factory=list, description="Outline of the detected region, normalized 0-1")
+    bbox: Optional[BoundingBox] = Field(default=None, description="Bounding box of the detected region")
+
+
+class DetectFrameResponse(BaseModel):
+    """Response model for puzzle frame detection."""
+
+    trimmed_image: str = Field(..., description="Base64 data URL (JPEG) of the perspective-corrected puzzle image")
+    corners: QuadCorners = Field(..., description="Corners used, normalized 0-1 relative to the EXIF-corrected photo")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="Detection confidence; 1.0 for manual corners")
+
+
 class GeneratePieceRequest(BaseModel):
     """Request model for generating a realistic puzzle piece."""
 
