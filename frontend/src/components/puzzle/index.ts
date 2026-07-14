@@ -4,3 +4,4 @@ export { GridOverlay } from './grid-overlay';
 export { RotationSelector } from './rotation-selector';
 export { ClickPieceSelector } from './click-piece-selector';
 export { PieceModeToggle } from './piece-mode-toggle';
+export { CornerAdjust } from './corner-adjust';
