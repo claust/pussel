@@ -183,7 +183,15 @@ def save_training_curves(
         linewidth=2,
     )
 
-    if "test_cell_acc" in history and history["test_cell_acc"]:
+    if history.get("val_cell_acc"):
+        ax3.plot(
+            epochs,
+            [a * 100 for a in history["val_cell_acc"]],
+            "r-",
+            label="Val",
+            linewidth=2,
+        )
+    elif history.get("test_cell_acc"):  # legacy histories (pre-frozen-split)
         ax3.plot(
             epochs,
             [a * 100 for a in history["test_cell_acc"]],
@@ -219,7 +227,15 @@ def save_training_curves(
         linewidth=2,
     )
 
-    if "test_rot_acc" in history and history["test_rot_acc"]:
+    if history.get("val_rot_acc"):
+        ax4.plot(
+            epochs,
+            [a * 100 for a in history["val_rot_acc"]],
+            "r-",
+            label="Val",
+            linewidth=2,
+        )
+    elif history.get("test_rot_acc"):  # legacy histories (pre-frozen-split)
         ax4.plot(
             epochs,
             [a * 100 for a in history["test_rot_acc"]],
