@@ -1,5 +1,6 @@
 """Tests for the piece detector service."""
 
+from typing import Optional
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -7,6 +8,7 @@ import pytest
 from PIL import Image
 
 from app.services.piece_detector import (
+    DetectedRegion,
     PieceDetector,
     _band_score,
     crop_to_alpha_region,
@@ -150,7 +152,7 @@ class TestPieceDetector:
         """A camera frame; content is irrelevant since rembg is mocked."""
         return Image.new("RGB", (640, 480), (50, 60, 70))
 
-    def detect(self, frame: Image.Image, rgba: Image.Image):
+    def detect(self, frame: Image.Image, rgba: Image.Image) -> Optional[DetectedRegion]:
         """Run detect_region with the background remover mocked to return rgba."""
         remover = MagicMock()
         remover.remove_background.return_value = rgba
