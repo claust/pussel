@@ -44,7 +44,8 @@ export function PieceQueue({ entries, onRetry, onDelete, className }: PieceQueue
               entry.status === 'error' && 'border-destructive',
               (entry.status === 'queued' || entry.status === 'predicting') && 'border-border'
             )}
-            data-testid={`queue-entry-${entry.status}`}
+            data-testid="queue-entry"
+            data-status={entry.status}
           >
             <img
               src={entry.piece?.imageData ?? entry.imageUrl}
@@ -89,6 +90,7 @@ export function PieceQueue({ entries, onRetry, onDelete, className }: PieceQueue
                   title="Retry prediction"
                 >
                   <RotateCcw className="h-3 w-3" />
+                  <span className="sr-only">Retry prediction</span>
                 </Button>
               )}
               <Button
@@ -97,9 +99,10 @@ export function PieceQueue({ entries, onRetry, onDelete, className }: PieceQueue
                 className="h-6 w-6"
                 onClick={() => onDelete(entry.id)}
                 title="Remove piece"
-                data-testid="queue-entry-delete"
+                data-testid={`queue-entry-delete-${index}`}
               >
                 <X className="h-3 w-3" />
+                <span className="sr-only">Remove piece</span>
               </Button>
             </div>
           </div>

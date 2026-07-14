@@ -144,10 +144,12 @@ test.describe('Real Mode Flow with Backend', () => {
     await expect(page.getByTestId('piece-queue')).toBeVisible();
 
     // ...and the worker drains it through prediction to done
-    await expect(page.getByTestId('queue-entry-done')).toBeVisible({ timeout: PIECE_TIMEOUT });
+    await expect(page.locator('[data-testid="queue-entry"][data-status="done"]').first()).toBeVisible({
+      timeout: PIECE_TIMEOUT,
+    });
 
     // Deleting the piece removes it from the queue entirely
-    await page.getByTestId('queue-entry-delete').click();
+    await page.getByTestId('queue-entry-delete-0').click();
     await expect(page.getByTestId('piece-queue-empty')).toBeVisible();
     await expect(page.getByText('0 pieces captured')).toBeVisible();
   });

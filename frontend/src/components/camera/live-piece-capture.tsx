@@ -363,10 +363,12 @@ export function LivePieceCapture({ className }: LivePieceCaptureProps) {
           title="Capture manually"
         >
           <Camera className="h-5 w-5" />
+          <span className="sr-only">Capture piece manually</span>
         </Button>
         <FileUpload onFileSelect={commitBlob}>
           <Button variant="outline" size="icon" className="h-10 w-10" title="Upload piece image">
             <Upload className="h-4 w-4" />
+            <span className="sr-only">Upload piece image</span>
           </Button>
         </FileUpload>
       </div>
