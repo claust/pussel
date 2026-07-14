@@ -6,11 +6,13 @@ import { ArrowLeft, Camera, Loader2, RotateCcw, ScanLine } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { CameraModal, LivePieceCapture } from '@/components/camera';
-import { CornerAdjust, PieceQueue, PuzzleDetail } from '@/components/puzzle';
+import { CornerAdjust, PieceQueue, PuzzleDetail, SavedPuzzleGallery } from '@/components/puzzle';
 import { usePuzzleStore } from '@/stores/puzzle-store';
 import { useCaptureQueueStore } from '@/stores/capture-queue-store';
 import { usePredictionWorker } from '@/hooks/use-prediction-worker';
+import { useSavedPuzzles } from '@/hooks/use-saved-puzzles';
 import { detectFrame, uploadPuzzle } from '@/lib/api';
+import { getPuzzleBlob } from '@/lib/puzzle-library';
 import { blobToDataUrl, dataUrlToBlob } from '@/lib/image-utils';
 import { cn } from '@/lib/utils';
 import type { DetectFrameResult } from '@/types';
@@ -33,6 +35,12 @@ export default function RealModePage() {
   const { puzzle, puzzleImage, pieces, isLoading, error, setPuzzle, setLoading, setError, reset } =
     usePuzzleStore();
   const removePiece = usePuzzleStore((s) => s.removePiece);
+
+  const {
+    puzzles: savedPuzzles,
+    save: saveSavedPuzzle,
+    remove: removeSavedPuzzle,
+  } = useSavedPuzzles();
 
   const queueEntries = useCaptureQueueStore((s) => s.entries);
   const retryEntry = useCaptureQueueStore((s) => s.retry);
@@ -78,8 +86,37 @@ export default function RealModePage() {
       const result = await uploadPuzzle(trimmedBlob);
       setPuzzle(result, detection.trimmedImageUrl);
       setPhase('solving');
+      // Persist for reuse so this puzzle need not be re-photographed next time.
+      // A storage failure must not block solving, so swallow it.
+      try {
+        await saveSavedPuzzle(trimmedBlob, `Puzzle ${savedPuzzles.length + 1}`);
+      } catch {
+        // Ignore — the current session still works without a saved copy.
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to upload puzzle');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSelectSaved = async (id: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const blob = await getPuzzleBlob(id);
+      if (!blob) {
+        setError('That saved puzzle could not be found. It may have been removed.');
+        return;
+      }
+      // Re-upload to get a fresh puzzle_id (backend storage is not durable),
+      // then skip straight to solving — no re-photographing or trimming.
+      const dataUrl = await blobToDataUrl(blob);
+      const result = await uploadPuzzle(blob);
+      setPuzzle(result, dataUrl);
+      setPhase('solving');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load saved puzzle');
     } finally {
       setLoading(false);
     }
@@ -164,30 +201,51 @@ export default function RealModePage() {
         )}
 
         {phase === 'capture-puzzle' && (
-          <Card>
-            <CardHeader className="text-center">
-              <CardTitle>Capture Your Puzzle</CardTitle>
-              <CardDescription>
-                Take a photo of the complete puzzle picture — the box lid or the finished puzzle. It
-                will be automatically trimmed to just the picture.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button
-                className="w-full gap-2"
-                size="lg"
-                onClick={() => setPuzzleCameraOpen(true)}
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  <Camera className="h-5 w-5" />
-                )}
-                {isLoading ? 'Detecting puzzle...' : 'Take Puzzle Photo'}
-              </Button>
-            </CardContent>
-          </Card>
+          <div className="space-y-4">
+            <Card>
+              <CardHeader className="text-center">
+                <CardTitle>Capture Your Puzzle</CardTitle>
+                <CardDescription>
+                  Take a photo of the complete puzzle picture — the box lid or the finished puzzle.
+                  It will be automatically trimmed to just the picture.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button
+                  className="w-full gap-2"
+                  size="lg"
+                  onClick={() => setPuzzleCameraOpen(true)}
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <Camera className="h-5 w-5" />
+                  )}
+                  {isLoading ? 'Detecting puzzle...' : 'Take Puzzle Photo'}
+                </Button>
+              </CardContent>
+            </Card>
+
+            {savedPuzzles.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Or reuse a saved puzzle</CardTitle>
+                  <CardDescription>
+                    Puzzles you have photographed before, stored on this device.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <SavedPuzzleGallery
+                    puzzles={savedPuzzles}
+                    onSelect={(id) => void handleSelectSaved(id)}
+                    onDelete={(id) => void removeSavedPuzzle(id)}
+                    disabled={isLoading}
+                  />
+                </CardContent>
+              </Card>
+            )}
+          </div>
         )}
 
         {phase === 'confirm-trim' && detection && (
