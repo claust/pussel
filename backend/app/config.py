@@ -2,8 +2,9 @@
 
 import os
 from functools import lru_cache
+from typing import Literal
 
-from pydantic import model_validator
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -38,6 +39,13 @@ class Settings(BaseSettings):
     # Dev-only: save accepted piece-preview crops under UPLOAD_DIR/preview_crops
     # so real-world false positives can be harvested as classifier hard negatives
     SAVE_PREVIEW_CROPS: bool = False
+
+    # Piece matcher backend: "classical" (SIFT->NCC hybrid, exp25) or "cnn"
+    MATCHER: Literal["classical", "cnn"] = "classical"
+    # Grid size used only for the NCC fallback's nominal cell-size estimate
+    # (matches the north-star evaluation puzzles).
+    CLASSICAL_GRID_ROWS: int = Field(default=4, ge=1)
+    CLASSICAL_GRID_COLS: int = Field(default=4, ge=1)
 
     # Environment setting (used for validation)
     ENVIRONMENT: str = "development"  # development, test, or production
