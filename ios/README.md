@@ -65,7 +65,7 @@ first):
 ```bash
 make ios-run       # build → install → launch on the Simulator
 make ios-test      # run the unit tests on the Simulator
-make ios-deploy    # build → install → launch on a connected iPhone
+make ios-deploy    # build → install → launch on a connected device (iPhone/iPad)
 ```
 
 Override the simulator or target device on the command line:
