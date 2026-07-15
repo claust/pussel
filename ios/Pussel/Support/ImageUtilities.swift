@@ -87,11 +87,13 @@ enum ImageUtilities {
     }
 
     /// Rotates JPEG `data` clockwise by `quarterTurns` × 90° and re-encodes it
-    /// with the rotation baked into the pixels. Returns the original data when
-    /// there is nothing to rotate or it cannot be decoded.
+    /// with the rotation baked into the pixels. Returns the original data
+    /// unchanged when no rotation is requested, or `nil` when a requested
+    /// rotation cannot be applied — so a caller never uploads an unrotated image
+    /// believing it was rotated.
     static func rotatedJPEG(from data: Data, quarterTurns: Int) -> Data? {
         guard ((quarterTurns % 4) + 4) % 4 != 0 else { return data }
-        guard let image = UIImage(data: data) else { return data }
+        guard let image = UIImage(data: data) else { return nil }
         return normalizedJPEG(from: rotated(image, quarterTurns: quarterTurns))
     }
 
