@@ -2,6 +2,17 @@
 
 This directory contains everything needed to train on RunPod GPUs.
 
+> **⚠️ Cost note:** RunPod is a **third-party cloud service that rents GPUs by
+> the hour — you pay real money for it.** Nothing here runs automatically or is
+> wired into the app or CI; it only incurs charges if you manually create a pod
+> on runpod.io and run training on it. Remember to **stop/terminate the pod**
+> when you're done, or it keeps billing.
+>
+> This path is **optional** and exists purely for speed (an RTX 4090 is ~10x
+> faster than an M4 Mac). For the free default, **train locally** — e.g. on the
+> Mac Mini — with `cd network && uv run python train.py`. Local training is
+> slower per epoch but costs nothing.
+
 ## Quick Start
 
 1. **Generate the package locally:**
