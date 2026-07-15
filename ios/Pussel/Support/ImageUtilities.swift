@@ -56,12 +56,13 @@ enum ImageUtilities {
         return encoded
     }
 
-    /// Returns `image` rotated clockwise by `quarterTurns` × 90°. Any existing
-    /// EXIF orientation is baked into the pixels first (so the quarter-turn is
-    /// correct even for a camera image that arrives rotated or mirrored), then
-    /// the turn is applied by reinterpreting orientation — cheap, no resampling.
-    /// `normalizedJPEG` bakes the turn into the pixels for upload (see
-    /// `rotatedJPEG`).
+    /// Returns `image` rotated clockwise by `quarterTurns` × 90°. When
+    /// `quarterTurns` normalizes to 0 the image is returned unchanged. For a
+    /// non-zero turn, any existing EXIF orientation is baked into the pixels
+    /// first (so the quarter-turn is correct even for a camera image that
+    /// arrives rotated or mirrored), then the turn is applied by reinterpreting
+    /// orientation — cheap, no resampling. `normalizedJPEG` bakes the turn into
+    /// the pixels for upload (see `rotatedJPEG`).
     static func rotated(_ image: UIImage, quarterTurns: Int) -> UIImage {
         let turns = ((quarterTurns % 4) + 4) % 4
         guard turns != 0 else { return image }
