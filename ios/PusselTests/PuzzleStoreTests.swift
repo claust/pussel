@@ -1,3 +1,4 @@
+import UIKit
 import XCTest
 
 @testable import Pussel
@@ -7,12 +8,21 @@ import XCTest
 /// Documents directory is left clean.
 @MainActor
 final class PuzzleStoreTests: XCTestCase {
+    /// A real (decodable) JPEG so thumbnail generation exercises ImageIO.
+    private func tinyJPEG() -> Data {
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 8, height: 8))
+        return renderer.image { context in
+            UIColor.systemBlue.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 8, height: 8))
+        }.jpegData(compressionQuality: 0.9)!
+    }
+
     private func makeSession(store: PuzzleStore, name: String = "Test") -> SolveSession {
         SolveSession(
             id: UUID(),
             name: name,
             puzzleId: "server-123",
-            trimmedJPEG: Data("trimmed-image-bytes".utf8),
+            trimmedJPEG: tinyJPEG(),
             store: store
         )
     }

@@ -81,6 +81,9 @@ final class PuzzleStore {
         if !fileManager.fileExists(atPath: trimmed.path) {
             try? session.trimmedJPEG.write(to: trimmed, options: .atomic)
         }
+        // The trimmed image is immutable, so its downsampled thumbnail is
+        // generated once and reused for the home-screen list.
+        let thumbnailData = loadOrCreateThumbnail(for: session.id, from: session.trimmedJPEG)
 
         var keep = Set<String>()
         for entry in session.entries {
@@ -134,7 +137,7 @@ final class PuzzleStore {
                 updatedAt: now,
                 pieceCount: session.entries.count,
                 placedCount: session.entries.filter { $0.result != nil }.count,
-                thumbnail: session.trimmedJPEG
+                thumbnail: thumbnailData
             )
         )
     }
@@ -147,6 +150,19 @@ final class PuzzleStore {
         puzzles.sort { $0.updatedAt > $1.updatedAt }
     }
 
+    /// Returns the cached thumbnail bytes for a puzzle, generating and caching
+    /// them from the trimmed image on first use. Falls back to nil (the row
+    /// then shows a placeholder) rather than the full-size image.
+    private func loadOrCreateThumbnail(for id: UUID, from trimmedJPEG: Data) -> Data? {
+        let url = thumbnailURL(id)
+        if let existing = try? Data(contentsOf: url) {
+            return existing
+        }
+        guard let generated = ImageUtilities.thumbnailJPEG(from: trimmedJPEG) else { return nil }
+        try? generated.write(to: url, options: .atomic)
+        return generated
+    }
+
     /// Rehydrates a full working session from disk, or nil if the folder is
     /// missing/corrupt. Pieces with a stored result come back `.done`; pieces
     /// captured but never predicted come back `.queued` so the solve view can
@@ -157,8 +173,11 @@ final class PuzzleStore {
               let trimmed = try? Data(contentsOf: trimmedURL(id)) else {
             return nil
         }
+        // The folder name is the canonical identity — use it (not manifest.id)
+        // so persist() always writes back to the directory we loaded from,
+        // even if the manifest was copied or moved.
         let session = SolveSession(
-            id: manifest.id,
+            id: id,
             name: manifest.name,
             puzzleId: manifest.serverPuzzleId,
             trimmedJPEG: trimmed,
@@ -206,6 +225,12 @@ final class PuzzleStore {
                   let manifest = try? decoder.decode(PuzzleManifest.self, from: data) else {
                 return nil
             }
+            // Prefer the small cached thumbnail; generate it lazily from the
+            // trimmed image if this puzzle predates thumbnail caching.
+            let thumbnail = (try? Data(contentsOf: thumbnailURL(manifest.id)))
+                ?? (try? Data(contentsOf: trimmedURL(manifest.id))).flatMap { trimmed in
+                    loadOrCreateThumbnail(for: manifest.id, from: trimmed)
+                }
             return PuzzleSummary(
                 id: manifest.id,
                 name: manifest.name,
@@ -213,7 +238,7 @@ final class PuzzleStore {
                 updatedAt: manifest.updatedAt,
                 pieceCount: manifest.pieces.count,
                 placedCount: manifest.pieces.filter { $0.result != nil }.count,
-                thumbnail: try? Data(contentsOf: dir.appendingPathComponent("trimmed.jpg"))
+                thumbnail: thumbnail
             )
         }
         .sorted { $0.updatedAt > $1.updatedAt }
@@ -236,6 +261,10 @@ final class PuzzleStore {
 
     private func trimmedURL(_ id: UUID) -> URL {
         puzzleDir(id).appendingPathComponent("trimmed.jpg")
+    }
+
+    private func thumbnailURL(_ id: UUID) -> URL {
+        puzzleDir(id).appendingPathComponent("thumb.jpg")
     }
 
     private func manifestURL(_ id: UUID) -> URL {
