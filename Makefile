@@ -134,6 +134,11 @@ IOS_DERIVED    = ios/.build
 # outside every worktree so a fresh worktree or a `git clean` never loses it;
 # ios-generate restores ios/Config/Secrets.xcconfig from here automatically.
 IOS_SECRETS_CANONICAL ?= $(HOME)/.config/pussel/Secrets.xcconfig
+# Make does not expand a leading ~/, and the path is used inside quotes below,
+# so a `make IOS_SECRETS_CANONICAL=~/path` override would be taken literally.
+# Rewrite a leading ~/ to $(HOME)/ so such overrides work. `override` is needed
+# because a plain assignment cannot rewrite a command-line-supplied value.
+override IOS_SECRETS_CANONICAL := $(patsubst ~/%,$(HOME)/%,$(IOS_SECRETS_CANONICAL))
 
 # Regenerate the (gitignored) Xcode project from project.yml. Requires
 # `brew install xcodegen`; needs Config/Secrets.xcconfig to exist first.
