@@ -53,9 +53,12 @@ def get_cell_center(row: int, col: int, grid_size: int = GRID_SIZE) -> tuple[flo
 def rotate_rgba(image: Image.Image, rotation: int) -> Image.Image:
     """Rotate an RGBA piece by a discrete angle, transparent fill.
 
-    Matches exp20's base-rotation convention (``expand=False``, clockwise)
-    so piece geometry is identical; only the fill differs (transparent
-    instead of black), which is lossless once the alpha is preserved.
+    Matches exp20's base-rotation convention (``expand=False``, clockwise,
+    bilinear) so piece geometry is identical. The fill differs (transparent
+    instead of black), so a later black-composite closely matches — but is
+    not guaranteed bitwise-identical to — exp20's pre-composited pieces:
+    bilinear interpolation at the piece boundary blends RGB with the fill
+    before the alpha is applied.
 
     Args:
         image: RGBA piece image.
@@ -86,7 +89,10 @@ def generate_pieces_for_puzzle(
     Args:
         puzzle_path: Path to the source puzzle image.
         output_dir: Root output directory (a per-puzzle subdir is created).
-        seed: Random seed for edge generation (None for random).
+        seed: Random seed for edge generation and base rotations (None for
+            random). A per-puzzle ``random.Random(seed)`` is used instead of
+            the process-global RNG so the dataset is deterministic even when
+            puzzles are generated in parallel worker processes.
         padding: Padding around pieces for tab protrusions.
         points_per_curve: Points sampled per Bezier curve.
 
@@ -94,10 +100,10 @@ def generate_pieces_for_puzzle(
         The number of pieces written.
     """
     puzzle_id = puzzle_path.stem
+    rng = random.Random(seed)
 
-    puzzle_img = Image.open(puzzle_path)
-    if puzzle_img.mode not in ("RGB", "RGBA"):
-        puzzle_img = puzzle_img.convert("RGB")
+    with Image.open(puzzle_path) as opened:
+        puzzle_img = opened.convert("RGB") if opened.mode not in ("RGB", "RGBA") else opened.copy()
     width, height = puzzle_img.size
 
     edge_grid = generate_edge_grid(GRID_SIZE, GRID_SIZE, seed=seed)
@@ -115,7 +121,7 @@ def generate_pieces_for_puzzle(
             if piece_rgba.mode != "RGBA":
                 piece_rgba = piece_rgba.convert("RGBA")
 
-            rotation = random.choice(ROTATION_ANGLES)
+            rotation = rng.choice(ROTATION_ANGLES)
             piece_rotated = rotate_rgba(piece_rgba, rotation)
 
             filename = f"{puzzle_id}_x{cx:.3f}_y{cy:.3f}_rot{rotation}.png"
@@ -175,8 +181,6 @@ def generate_dataset(
         skip_existing: Skip puzzles that already have all pieces on disk
             (lets an interrupted RunPod generation resume).
     """
-    random.seed(seed)
-
     puzzle_files = sorted(source_dir.glob("puzzle_*.jpg"))
     if not puzzle_files:
         print(f"Error: No puzzle images found in {source_dir}", file=sys.stderr)
