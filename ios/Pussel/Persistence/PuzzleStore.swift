@@ -86,13 +86,23 @@ final class PuzzleStore {
         // generated once and reused for the home-screen list.
         let thumbnailData = loadOrCreateThumbnail(for: session.id, from: session.trimmedJPEG)
 
+        // Only entries whose upload image is actually on disk go into the
+        // manifest, so a failed best-effort write can't leave the manifest
+        // referencing a missing file (which loadSession would then drop,
+        // diverging from the summary counts). A dropped entry is retried on the
+        // next persist(). keep set drives orphan pruning.
         var keep = Set<String>()
+        var persistedEntries: [CaptureEntry] = []
         for entry in session.entries {
-            keep.insert(entry.id.uuidString)
             let upload = uploadURL(session.id, entry.id)
             if !fileManager.fileExists(atPath: upload.path) {
                 try? entry.uploadJPEG.write(to: upload, options: .atomic)
             }
+            // Skip entries whose upload image didn't make it to disk; they'll be
+            // retried on the next persist() rather than left dangling.
+            guard fileManager.fileExists(atPath: upload.path) else { continue }
+            keep.insert(entry.id.uuidString)
+
             let display = displayURL(session.id, entry.id)
             // Only store a separate display file when the cleaned image actually
             // differs from the raw capture, otherwise the bytes are duplicated.
@@ -101,6 +111,7 @@ final class PuzzleStore {
             if entry.displayImage != entry.uploadJPEG, !fileManager.fileExists(atPath: display.path) {
                 try? entry.displayImage.write(to: display, options: .atomic)
             }
+            persistedEntries.append(entry)
         }
         pruneOrphanPieceFiles(in: pieces, keeping: keep)
 
@@ -111,7 +122,7 @@ final class PuzzleStore {
             name: session.name,
             createdAt: session.createdAt,
             updatedAt: now,
-            pieces: session.entries.map { entry in
+            pieces: persistedEntries.map { entry in
                 StoredPiece(
                     id: entry.id,
                     result: entry.result.map {
@@ -145,8 +156,9 @@ final class PuzzleStore {
                 name: session.name,
                 createdAt: session.createdAt,
                 updatedAt: now,
-                pieceCount: session.entries.count,
-                placedCount: session.entries.filter { $0.result != nil }.count,
+                // Counts reflect what was persisted, matching the manifest.
+                pieceCount: persistedEntries.count,
+                placedCount: persistedEntries.filter { $0.result != nil }.count,
                 thumbnail: thumbnailData
             )
         )

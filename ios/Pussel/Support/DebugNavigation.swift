@@ -57,7 +57,7 @@
             func value(_ name: String) -> String? {
                 items.first { $0.name == name }?.value
             }
-            Task {
+            Task { @MainActor in
                 switch url.host() {
                 case "reset":
                     flow.reset()

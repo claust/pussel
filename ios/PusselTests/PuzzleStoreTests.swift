@@ -129,6 +129,8 @@ final class PuzzleStoreTests: XCTestCase {
     func testDeleteRemovesPuzzle() throws {
         let store = PuzzleStore()
         let session = makeSession(store: store)
+        // Clean up even if an assertion fails before the delete below.
+        addTeardownBlock { @MainActor in store.delete(session.id) }
         session.persist()
         XCTAssertTrue(store.puzzles.contains { $0.id == session.id })
         XCTAssertTrue(FileManager.default.fileExists(atPath: puzzleDir(session.id).path))
