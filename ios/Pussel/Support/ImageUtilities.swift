@@ -56,20 +56,34 @@ enum ImageUtilities {
         return encoded
     }
 
-    /// Returns `image` rotated clockwise by `quarterTurns` × 90°. Implemented by
-    /// reinterpreting the EXIF orientation, so it is cheap (no resampling);
-    /// `normalizedJPEG` bakes the rotation into the pixels when the image is
-    /// redrawn upright for upload (see `rotatedJPEG`).
+    /// Returns `image` rotated clockwise by `quarterTurns` × 90°. Any existing
+    /// EXIF orientation is baked into the pixels first (so the quarter-turn is
+    /// correct even for a camera image that arrives rotated or mirrored), then
+    /// the turn is applied by reinterpreting orientation — cheap, no resampling.
+    /// `normalizedJPEG` bakes the turn into the pixels for upload (see
+    /// `rotatedJPEG`).
     static func rotated(_ image: UIImage, quarterTurns: Int) -> UIImage {
         let turns = ((quarterTurns % 4) + 4) % 4
-        guard turns != 0, let cgImage = image.cgImage else { return image }
+        guard turns != 0 else { return image }
+        let upright = image.imageOrientation == .up ? image : redrawnUpright(image)
+        guard let cgImage = upright.cgImage else { return image }
         let orientation: UIImage.Orientation
         switch turns {
         case 1: orientation = .right
         case 2: orientation = .down
         default: orientation = .left
         }
-        return UIImage(cgImage: cgImage, scale: image.scale, orientation: orientation)
+        return UIImage(cgImage: cgImage, scale: upright.scale, orientation: orientation)
+    }
+
+    /// Redraws `image` with its EXIF orientation baked into the pixels, yielding
+    /// an equivalent `.up`-oriented image.
+    private static func redrawnUpright(_ image: UIImage) -> UIImage {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = image.scale
+        return UIGraphicsImageRenderer(size: image.size, format: format).image { _ in
+            image.draw(in: CGRect(origin: .zero, size: image.size))
+        }
     }
 
     /// Rotates JPEG `data` clockwise by `quarterTurns` × 90° and re-encodes it
