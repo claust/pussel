@@ -191,6 +191,18 @@ class BlackCompositeTestDataset(RealisticPieceTestDataset):
         with Image.open(piece_path) as raw:
             return black_composite(raw.convert("RGBA"))
 
+    def _load_puzzle(self, puzzle_id: str) -> Image.Image:
+        """Load a puzzle image through a context-managed open.
+
+        Overrides the exp20 base implementation, which leaves the file
+        handle to refcounting/GC timing; decoding under ``with`` keeps FD
+        usage deterministic (persistent multi-worker loaders in exp26).
+        """
+        if puzzle_id not in self._puzzle_cache:
+            with Image.open(self.puzzle_root / f"{puzzle_id}.jpg") as img:
+                self._puzzle_cache[puzzle_id] = img.convert("RGB")
+        return self._puzzle_cache[puzzle_id]
+
 
 def create_datasets_from_split(
     augment_config: AugmentConfig,
