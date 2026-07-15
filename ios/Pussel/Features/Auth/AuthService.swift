@@ -44,7 +44,10 @@ final class AuthService {
             authStore.errorMessage = "Google Sign-In is not configured. Fill in ios/Config/Secrets.xcconfig."
             return
         }
-        guard let presenter = Self.topViewController() else { return }
+        guard let presenter = Self.topViewController() else {
+            authStore.errorMessage = "Could not find a screen to present Google Sign-In from. Please try again."
+            return
+        }
         authStore.isSigningIn = true
         authStore.errorMessage = nil
         defer { authStore.isSigningIn = false }
