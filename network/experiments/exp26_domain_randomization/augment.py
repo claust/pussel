@@ -186,7 +186,8 @@ class BackgroundSampler:
         """Load and cache a texture source image (RGB)."""
         cached = self._cache.get(path)
         if cached is None:
-            cached = Image.open(path).convert("RGB")
+            with Image.open(path) as img:
+                cached = img.convert("RGB")
             if len(self._cache) >= self.cache_size:
                 self._cache.pop(next(iter(self._cache)))
             self._cache[path] = cached
@@ -390,7 +391,8 @@ def _jpeg_recompress(img: Image.Image, quality: int) -> Image.Image:
     buffer = io.BytesIO()
     img.save(buffer, format="JPEG", quality=quality)
     buffer.seek(0)
-    return Image.open(buffer).convert("RGB")
+    with Image.open(buffer) as decoded:
+        return decoded.convert("RGB")
 
 
 def black_composite(piece_rgba: Image.Image) -> Image.Image:
