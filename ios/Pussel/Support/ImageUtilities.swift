@@ -1,8 +1,32 @@
+import ImageIO
 import UIKit
 
 enum ImageUtilities {
     /// Backend rejects uploads above 10 MB (413).
     static let maxUploadBytes = 10 * 1024 * 1024
+
+    /// Downsamples JPEG data to a small thumbnail (long side ~`maxPixel`) using
+    /// ImageIO, which decodes only what the thumbnail needs. Used for the
+    /// home-screen puzzle list so a full-size image isn't held in memory or
+    /// decoded just to draw a small card.
+    static func thumbnailJPEG(from data: Data, maxPixel: CGFloat = 240) -> Data? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixel,
+        ]
+        guard let thumbnail = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
+            return nil
+        }
+        let output = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(output, "public.jpeg" as CFString, 1, nil) else {
+            return nil
+        }
+        CGImageDestinationAddImage(destination, thumbnail, [kCGImageDestinationLossyCompressionQuality: 0.8] as CFDictionary)
+        guard CGImageDestinationFinalize(destination) else { return nil }
+        return output as Data
+    }
 
     /// Redraws the image upright (baking in EXIF orientation) and downscales it
     /// so the long side is at most `maxDimension`, then encodes JPEG. Reduces

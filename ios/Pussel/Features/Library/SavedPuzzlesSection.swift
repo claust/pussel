@@ -7,7 +7,9 @@ struct SavedPuzzlesSection: View {
     @State private var pendingDelete: PuzzleSummary?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        // Lazy so rows (and their thumbnail decoding) are built only as they
+        // scroll into view as the library grows.
+        LazyVStack(alignment: .leading, spacing: 12) {
             Text("Your puzzles")
                 .font(.headline)
                 .frame(maxWidth: .infinity, alignment: .leading)
