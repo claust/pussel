@@ -50,7 +50,7 @@ check-ios:
 		echo "Skipping swift-format lint (not found — needs macOS + Xcode)"; \
 	fi
 	@if command -v swiftlint >/dev/null 2>&1; then \
-		cd ios && swiftlint lint --quiet; \
+		cd ios && swiftlint lint --quiet --strict; \
 	else \
 		echo "Skipping SwiftLint (not found — install with: brew install swiftlint)"; \
 	fi

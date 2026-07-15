@@ -69,6 +69,9 @@ struct CameraPreview: UIViewRepresentable {
   let session: AVCaptureSession
 
   final class PreviewView: UIView {
+    // Overrides UIView's class property, so `static` isn't an option (it can't
+    // be combined with `override`); silence static_over_final_class.
+    // swiftlint:disable:next static_over_final_class
     override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
     // Safe by construction: layerClass above guarantees `layer` is an
     // AVCaptureVideoPreviewLayer, so this cast can never fail.
