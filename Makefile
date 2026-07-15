@@ -51,7 +51,9 @@ check-ios:
 	fi
 
 # Auto-format all code (Python + Next.js + iOS)
-format: format-backend format-network format-frontend format-ios
+# Mirrors the `check` aggregate, including format-shared (the shared library is
+# linted by check-shared, so it must be formatted here too).
+format: format-backend format-network format-shared format-frontend format-ios
 
 # Auto-format backend (uses uv to run tools from the backend venv)
 format-backend:
@@ -123,6 +125,10 @@ IOS_DERIVED    = ios/.build
 # Regenerate the (gitignored) Xcode project from project.yml. Requires
 # `brew install xcodegen`; needs Config/Secrets.xcconfig to exist first.
 ios-generate:
+	@command -v xcodegen >/dev/null 2>&1 || { \
+		echo "xcodegen not found. Install it with: brew install xcodegen"; exit 1; }
+	@test -f ios/Config/Secrets.xcconfig || \
+		echo "Warning: ios/Config/Secrets.xcconfig is missing — copy ios/Config/Secrets.example.xcconfig (device builds need DEVELOPMENT_TEAM)."
 	cd ios && xcodegen generate
 
 # Build, install, and launch on the iOS Simulator. Boots the target simulator
