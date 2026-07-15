@@ -65,7 +65,10 @@ enum ImageUtilities {
     static func rotated(_ image: UIImage, quarterTurns: Int) -> UIImage {
         let turns = ((quarterTurns % 4) + 4) % 4
         guard turns != 0 else { return image }
-        let upright = image.imageOrientation == .up ? image : redrawnUpright(image)
+        // Redraw when the orientation needs baking, or when there is no backing
+        // CGImage to reinterpret (a UIImage can be CIImage-only) — the redraw
+        // always yields an upright, CGImage-backed bitmap.
+        let upright = (image.imageOrientation == .up && image.cgImage != nil) ? image : redrawnUpright(image)
         guard let cgImage = upright.cgImage else { return image }
         let orientation: UIImage.Orientation
         switch turns {
