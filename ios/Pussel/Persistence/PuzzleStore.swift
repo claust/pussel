@@ -95,7 +95,9 @@ final class PuzzleStore {
             let display = displayURL(session.id, entry.id)
             // Only store a separate display file when the cleaned image actually
             // differs from the raw capture, otherwise the bytes are duplicated.
-            if entry.displayImage != entry.uploadJPEG {
+            // The cleaned image is immutable once predicted, so skip the rewrite
+            // if it already exists (avoids rewriting every piece on each persist).
+            if entry.displayImage != entry.uploadJPEG, !fileManager.fileExists(atPath: display.path) {
                 try? entry.displayImage.write(to: display, options: .atomic)
             }
         }

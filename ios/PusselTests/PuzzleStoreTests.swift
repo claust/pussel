@@ -17,6 +17,21 @@ final class PuzzleStoreTests: XCTestCase {
         }.jpegData(compressionQuality: 0.9)!
     }
 
+    // Mirrors PuzzleStore's on-disk layout so tests can assert against the
+    // actual files (the store's URL helpers are private).
+    private var puzzlesRoot: URL {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Puzzles", isDirectory: true)
+    }
+
+    private func puzzleDir(_ id: UUID) -> URL {
+        puzzlesRoot.appendingPathComponent(id.uuidString, isDirectory: true)
+    }
+
+    private func uploadFile(_ puzzle: UUID, _ piece: UUID) -> URL {
+        puzzleDir(puzzle).appendingPathComponent("pieces/\(piece.uuidString)-upload.jpg")
+    }
+
     private func makeSession(store: PuzzleStore, name: String = "Test") -> SolveSession {
         SolveSession(
             id: UUID(),
@@ -98,7 +113,14 @@ final class PuzzleStoreTests: XCTestCase {
         session.entries = [keep, drop]
         session.persist()
 
+        let fileManager = FileManager.default
+        XCTAssertTrue(fileManager.fileExists(atPath: uploadFile(session.id, drop.id).path))
+
         session.remove(id: drop.id)
+
+        // The dropped piece's image file is pruned; the kept one remains.
+        XCTAssertFalse(fileManager.fileExists(atPath: uploadFile(session.id, drop.id).path))
+        XCTAssertTrue(fileManager.fileExists(atPath: uploadFile(session.id, keep.id).path))
 
         let reloaded = try XCTUnwrap(PuzzleStore().loadSession(id: session.id))
         XCTAssertEqual(reloaded.entries.map(\.id), [keep.id])
@@ -109,9 +131,11 @@ final class PuzzleStoreTests: XCTestCase {
         let session = makeSession(store: store)
         session.persist()
         XCTAssertTrue(store.puzzles.contains { $0.id == session.id })
+        XCTAssertTrue(FileManager.default.fileExists(atPath: puzzleDir(session.id).path))
 
         store.delete(session.id)
         XCTAssertFalse(store.puzzles.contains { $0.id == session.id })
         XCTAssertNil(store.loadSession(id: session.id))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: puzzleDir(session.id).path))
     }
 }
