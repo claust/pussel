@@ -5,6 +5,7 @@ import SwiftUI
 final class AppModel {
     let auth: AuthStore
     let flow: AppFlowStore
+    let store: PuzzleStore
     @ObservationIgnored let api: APIClient
     @ObservationIgnored let authService: AuthService
 
@@ -13,6 +14,7 @@ final class AppModel {
         let api = APIClient(authStore: auth)
         self.auth = auth
         self.flow = AppFlowStore()
+        self.store = PuzzleStore()
         self.api = api
         self.authService = AuthService(authStore: auth, apiClient: api)
         authService.configure()
