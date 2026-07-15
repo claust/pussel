@@ -220,19 +220,23 @@ final class PuzzleStore {
             includingPropertiesForKeys: [.isDirectoryKey]
         )) ?? []
         puzzles = dirs.compactMap { dir -> PuzzleSummary? in
+            // The folder name is the canonical id (matching loadSession); use it
+            // for the summary and all file lookups rather than manifest.id, which
+            // could drift if a manifest was copied or moved.
             guard (try? dir.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true,
+                  let id = UUID(uuidString: dir.lastPathComponent),
                   let data = try? Data(contentsOf: dir.appendingPathComponent("manifest.json")),
                   let manifest = try? decoder.decode(PuzzleManifest.self, from: data) else {
                 return nil
             }
             // Prefer the small cached thumbnail; generate it lazily from the
             // trimmed image if this puzzle predates thumbnail caching.
-            let thumbnail = (try? Data(contentsOf: thumbnailURL(manifest.id)))
-                ?? (try? Data(contentsOf: trimmedURL(manifest.id))).flatMap { trimmed in
-                    loadOrCreateThumbnail(for: manifest.id, from: trimmed)
+            let thumbnail = (try? Data(contentsOf: thumbnailURL(id)))
+                ?? (try? Data(contentsOf: trimmedURL(id))).flatMap { trimmed in
+                    loadOrCreateThumbnail(for: id, from: trimmed)
                 }
             return PuzzleSummary(
-                id: manifest.id,
+                id: id,
                 name: manifest.name,
                 createdAt: manifest.createdAt,
                 updatedAt: manifest.updatedAt,

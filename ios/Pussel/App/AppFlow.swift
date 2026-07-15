@@ -9,10 +9,18 @@ enum AppPhase {
     case solving(SolveSession)
 }
 
+/// How the puzzle overview photo was supplied, so "Retake" can reopen the
+/// same picker instead of dropping back to the chooser screen.
+enum CaptureSource {
+    case camera
+    case library
+}
+
 /// A detect-frame result awaiting user confirmation.
 struct TrimCandidate {
     let rawJPEG: Data
     let detection: DetectFrameResponse
+    let source: CaptureSource
 
     var trimmedJPEG: Data? {
         ImageUtilities.decodeDataURL(detection.trimmedImage)
@@ -26,10 +34,15 @@ final class AppFlowStore {
     var isBusy = false
     var errorMessage: String?
 
+    /// Set when the user taps "Retake" so CapturePuzzleView reopens the same
+    /// picker on appear; cleared once consumed.
+    var pendingRetake: CaptureSource?
+
     func reset() {
         phase = .capturePuzzle
         isBusy = false
         errorMessage = nil
+        pendingRetake = nil
     }
 }
 
