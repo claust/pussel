@@ -4,46 +4,46 @@ import Observation
 /// The linear real-mode wizard, mirroring the web app's RealModePhase
 /// (frontend/src/app/real/page.tsx) minus the corner-adjust step.
 enum AppPhase {
-    case capturePuzzle
-    case confirmTrim(TrimCandidate)
-    case solving(SolveSession)
+  case capturePuzzle
+  case confirmTrim(TrimCandidate)
+  case solving(SolveSession)
 }
 
 /// How the puzzle overview photo was supplied, so "Retake" can reopen the
 /// same picker instead of dropping back to the chooser screen.
 enum CaptureSource {
-    case camera
-    case library
+  case camera
+  case library
 }
 
 /// A detect-frame result awaiting user confirmation.
 struct TrimCandidate {
-    let rawJPEG: Data
-    let detection: DetectFrameResponse
-    let source: CaptureSource
+  let rawJPEG: Data
+  let detection: DetectFrameResponse
+  let source: CaptureSource
 
-    var trimmedJPEG: Data? {
-        ImageUtilities.decodeDataURL(detection.trimmedImage)
-    }
+  var trimmedJPEG: Data? {
+    ImageUtilities.decodeDataURL(detection.trimmedImage)
+  }
 }
 
 @Observable
 @MainActor
 final class AppFlowStore {
-    var phase: AppPhase = .capturePuzzle
-    var isBusy = false
-    var errorMessage: String?
+  var phase: AppPhase = .capturePuzzle
+  var isBusy = false
+  var errorMessage: String?
 
-    /// Set when the user taps "Retake" so CapturePuzzleView reopens the same
-    /// picker on appear; cleared once consumed.
-    var pendingRetake: CaptureSource?
+  /// Set when the user taps "Retake" so CapturePuzzleView reopens the same
+  /// picker on appear; cleared once consumed.
+  var pendingRetake: CaptureSource?
 
-    func reset() {
-        phase = .capturePuzzle
-        isBusy = false
-        errorMessage = nil
-        pendingRetake = nil
-    }
+  func reset() {
+    phase = .capturePuzzle
+    isBusy = false
+    errorMessage = nil
+    pendingRetake = nil
+  }
 }
 
 /// State for one solving session. The trimmed image is kept so the puzzle can
@@ -54,120 +54,122 @@ final class AppFlowStore {
 @Observable
 @MainActor
 final class SolveSession {
-    /// Stable local identity used as the on-disk folder name.
-    let id: UUID
-    /// Human-friendly label shown on the home screen (defaults to a date).
-    var name: String
-    let createdAt: Date
-    var puzzleId: String
-    let trimmedJPEG: Data
-    var entries: [CaptureEntry] = []
-    var isProcessing = false
-    var puzzleExpired = false
-    var errorMessage: String?
+  /// Stable local identity used as the on-disk folder name.
+  let id: UUID
+  /// Human-friendly label shown on the home screen (defaults to a date).
+  var name: String
+  let createdAt: Date
+  var puzzleId: String
+  let trimmedJPEG: Data
+  var entries: [CaptureEntry] = []
+  var isProcessing = false
+  var puzzleExpired = false
+  var errorMessage: String?
 
-    @ObservationIgnored private let store: PuzzleStore?
+  @ObservationIgnored private let store: PuzzleStore?
 
-    init(
-        id: UUID = UUID(),
-        name: String,
-        puzzleId: String,
-        trimmedJPEG: Data,
-        createdAt: Date = Date(),
-        store: PuzzleStore? = nil
-    ) {
-        self.id = id
-        self.name = name
-        self.puzzleId = puzzleId
-        self.trimmedJPEG = trimmedJPEG
-        self.createdAt = createdAt
-        self.store = store
+  init(
+    id: UUID = UUID(),
+    name: String,
+    puzzleId: String,
+    trimmedJPEG: Data,
+    createdAt: Date = Date(),
+    store: PuzzleStore? = nil
+  ) {
+    self.id = id
+    self.name = name
+    self.puzzleId = puzzleId
+    self.trimmedJPEG = trimmedJPEG
+    self.createdAt = createdAt
+    self.store = store
+  }
+
+  /// Writes the current state to disk. Cheap and idempotent.
+  func persist() {
+    store?.save(self)
+  }
+
+  var placedEntries: [CaptureEntry] {
+    entries.filter { $0.result != nil }
+  }
+
+  func enqueue(jpeg: Data, api: APIClient) {
+    entries.append(CaptureEntry(jpeg: jpeg))
+    persist()
+    processNext(api: api)
+  }
+
+  /// Resumes any pieces left `.queued` from a reloaded session.
+  func resume(api: APIClient) {
+    processNext(api: api)
+  }
+
+  func retry(id: UUID, api: APIClient) {
+    guard let index = entries.firstIndex(where: { $0.id == id }) else { return }
+    entries[index].status = .queued
+    processNext(api: api)
+  }
+
+  func remove(id: UUID) {
+    entries.removeAll { $0.id == id }
+    persist()
+  }
+
+  /// Serially drains the queue — one in-flight prediction at a time, like
+  /// the web's usePredictionWorker (rembg segmentation is the slow step).
+  func processNext(api: APIClient) {
+    guard !isProcessing, let index = entries.firstIndex(where: { $0.status == .queued }) else {
+      return
     }
-
-    /// Writes the current state to disk. Cheap and idempotent.
-    func persist() {
-        store?.save(self)
+    isProcessing = true
+    let entry = entries[index]
+    entries[index].status = .predicting
+    Task {
+      await self.process(entry: entry, api: api)
+      self.isProcessing = false
+      self.processNext(api: api)
     }
+  }
 
-    var placedEntries: [CaptureEntry] {
-        entries.filter { $0.result != nil }
+  private func process(entry: CaptureEntry, api: APIClient) async {
+    do {
+      let piece = try await api.processPiece(puzzleId: puzzleId, jpegData: entry.uploadJPEG)
+      update(id: entry.id) { current in
+        current.status = .done
+        current.result = piece
+        if let cleaned = piece.cleanedImage, let data = ImageUtilities.decodeDataURL(cleaned) {
+          current.displayImage = data
+        }
+      }
+      persist()
+    } catch let error as APIError where error.status == 404 {
+      puzzleExpired = true
+      update(id: entry.id) { $0.status = .expired }
+    } catch {
+      update(id: entry.id) { $0.status = .error(error.localizedDescription) }
     }
+  }
 
-    func enqueue(jpeg: Data, api: APIClient) {
-        entries.append(CaptureEntry(jpeg: jpeg))
-        persist()
-        processNext(api: api)
-    }
-
-    /// Resumes any pieces left `.queued` from a reloaded session.
-    func resume(api: APIClient) {
-        processNext(api: api)
-    }
-
-    func retry(id: UUID, api: APIClient) {
-        guard let index = entries.firstIndex(where: { $0.id == id }) else { return }
+  /// Gets a fresh puzzle_id for the kept trimmed image after a backend
+  /// restart, then re-queues entries that failed on the dead id.
+  func reupload(api: APIClient) async {
+    errorMessage = nil
+    do {
+      let response = try await api.uploadPuzzle(jpegData: trimmedJPEG)
+      puzzleId = response.puzzleId
+      puzzleExpired = false
+      for index in entries.indices where entries[index].status == .expired {
         entries[index].status = .queued
-        processNext(api: api)
+      }
+      persist()
+      processNext(api: api)
+    } catch {
+      errorMessage = error.localizedDescription
     }
+  }
 
-    func remove(id: UUID) {
-        entries.removeAll { $0.id == id }
-        persist()
-    }
-
-    /// Serially drains the queue — one in-flight prediction at a time, like
-    /// the web's usePredictionWorker (rembg segmentation is the slow step).
-    func processNext(api: APIClient) {
-        guard !isProcessing, let index = entries.firstIndex(where: { $0.status == .queued }) else { return }
-        isProcessing = true
-        let entry = entries[index]
-        entries[index].status = .predicting
-        Task {
-            await self.process(entry: entry, api: api)
-            self.isProcessing = false
-            self.processNext(api: api)
-        }
-    }
-
-    private func process(entry: CaptureEntry, api: APIClient) async {
-        do {
-            let piece = try await api.processPiece(puzzleId: puzzleId, jpegData: entry.uploadJPEG)
-            update(id: entry.id) { current in
-                current.status = .done
-                current.result = piece
-                if let cleaned = piece.cleanedImage, let data = ImageUtilities.decodeDataURL(cleaned) {
-                    current.displayImage = data
-                }
-            }
-            persist()
-        } catch let error as APIError where error.status == 404 {
-            puzzleExpired = true
-            update(id: entry.id) { $0.status = .expired }
-        } catch {
-            update(id: entry.id) { $0.status = .error(error.localizedDescription) }
-        }
-    }
-
-    /// Gets a fresh puzzle_id for the kept trimmed image after a backend
-    /// restart, then re-queues entries that failed on the dead id.
-    func reupload(api: APIClient) async {
-        errorMessage = nil
-        do {
-            let response = try await api.uploadPuzzle(jpegData: trimmedJPEG)
-            puzzleId = response.puzzleId
-            puzzleExpired = false
-            for index in entries.indices where entries[index].status == .expired {
-                entries[index].status = .queued
-            }
-            persist()
-            processNext(api: api)
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    private func update(id: UUID, _ mutate: (inout CaptureEntry) -> Void) {
-        guard let index = entries.firstIndex(where: { $0.id == id }) else { return }
-        mutate(&entries[index])
-    }
+  private func update(id: UUID, _ mutate: (inout CaptureEntry) -> Void) {
+    guard let index = entries.firstIndex(where: { $0.id == id }) else { return }
+    mutate(&entries[index])
+  }
 }

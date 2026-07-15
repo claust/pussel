@@ -1,101 +1,104 @@
 import SwiftUI
 
 struct ConfirmTrimView: View {
-    /// Mirrors LOW_CONFIDENCE_THRESHOLD in frontend/src/app/real/page.tsx.
-    private static let lowConfidence = 0.4
+  /// Mirrors LOW_CONFIDENCE_THRESHOLD in frontend/src/app/real/page.tsx.
+  private static let lowConfidence = 0.4
 
-    @Environment(AppModel.self) private var model
-    @State private var quarterTurns = 0
-    let candidate: TrimCandidate
-    /// Decoded once at init rather than in `body`, which re-runs on every
-    /// rotate tap (base64-decoding the data URL and the JPEG each time would be
-    /// wasteful during the rotation animation).
-    private let previewImage: UIImage?
+  @Environment(AppModel.self) private var model
+  @State private var quarterTurns = 0
+  let candidate: TrimCandidate
+  /// Decoded once at init rather than in `body`, which re-runs on every
+  /// rotate tap (base64-decoding the data URL and the JPEG each time would be
+  /// wasteful during the rotation animation).
+  private let previewImage: UIImage?
 
-    init(candidate: TrimCandidate) {
-        self.candidate = candidate
-        self.previewImage = candidate.trimmedJPEG.flatMap(UIImage.init(data:))
-    }
+  init(candidate: TrimCandidate) {
+    self.candidate = candidate
+    self.previewImage = candidate.trimmedJPEG.flatMap(UIImage.init(data:))
+  }
 
-    var body: some View {
-        VStack(spacing: 16) {
-            Text("Does this look right?")
-                .font(.title2.bold())
-            if candidate.detection.confidence < Self.lowConfidence {
-                Label("Detection looks uncertain — consider retaking.", systemImage: "exclamationmark.triangle.fill")
-                    .font(.footnote)
-                    .foregroundStyle(.orange)
-            }
-            if let image = previewImage {
-                // Square bounding box so the image stays fully visible at every
-                // angle while it spins (a rotating landscape/portrait photo would
-                // otherwise overflow its frame at the 90°/270° positions).
-                Color.clear
-                    .aspectRatio(1, contentMode: .fit)
-                    .overlay {
-                        Image(uiImage: image)
-                            .resizable()
-                            .scaledToFit()
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                            .rotationEffect(.degrees(Double(quarterTurns) * 90))
-                    }
-                    .frame(maxHeight: 420)
-                Button {
-                    // Always increment (never wrap to 0) so the animation turns
-                    // clockwise on every tap instead of unwinding 270° → 0°.
-                    withAnimation(.snappy(duration: 0.35)) {
-                        quarterTurns += 1
-                    }
-                } label: {
-                    Label("Rotate", systemImage: "rotate.right")
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.regular)
-                .disabled(model.flow.isBusy)
-            } else {
-                ContentUnavailableView("Could not decode the trimmed image", systemImage: "xmark.octagon")
-            }
-            Text("Detection confidence: \(Int(candidate.detection.confidence * 100))%")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-            Spacer()
-            if model.flow.isBusy {
-                ProgressView("Uploading puzzle…")
-            } else {
-                HStack(spacing: 12) {
-                    Button {
-                        model.flow.errorMessage = nil
-                        model.flow.pendingRetake = candidate.source
-                        model.flow.phase = .capturePuzzle
-                    } label: {
-                        Label("Retake", systemImage: "arrow.counterclockwise")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.large)
-
-                    Button {
-                        Task { await model.acceptTrim(candidate, quarterTurns: quarterTurns) }
-                    } label: {
-                        Label("Use This", systemImage: "checkmark")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    // Gate on the cached preview (not the base64-decoding
-                    // `trimmedJPEG` computed property) so this doesn't re-decode
-                    // on every rotate tap and stays disabled exactly when the
-                    // preview can't be shown.
-                    .disabled(previewImage == nil)
-                }
-            }
-            if let error = model.flow.errorMessage {
-                Text(error)
-                    .font(.footnote)
-                    .foregroundStyle(.red)
-                    .multilineTextAlignment(.center)
-            }
+  var body: some View {
+    VStack(spacing: 16) {
+      Text("Does this look right?")
+        .font(.title2.bold())
+      if candidate.detection.confidence < Self.lowConfidence {
+        Label(
+          "Detection looks uncertain — consider retaking.",
+          systemImage: "exclamationmark.triangle.fill"
+        )
+        .font(.footnote)
+        .foregroundStyle(.orange)
+      }
+      if let image = previewImage {
+        // Square bounding box so the image stays fully visible at every
+        // angle while it spins (a rotating landscape/portrait photo would
+        // otherwise overflow its frame at the 90°/270° positions).
+        Color.clear
+          .aspectRatio(1, contentMode: .fit)
+          .overlay {
+            Image(uiImage: image)
+              .resizable()
+              .scaledToFit()
+              .clipShape(RoundedRectangle(cornerRadius: 12))
+              .rotationEffect(.degrees(Double(quarterTurns) * 90))
+          }
+          .frame(maxHeight: 420)
+        Button {
+          // Always increment (never wrap to 0) so the animation turns
+          // clockwise on every tap instead of unwinding 270° → 0°.
+          withAnimation(.snappy(duration: 0.35)) {
+            quarterTurns += 1
+          }
+        } label: {
+          Label("Rotate", systemImage: "rotate.right")
         }
-        .padding(24)
+        .buttonStyle(.bordered)
+        .controlSize(.regular)
+        .disabled(model.flow.isBusy)
+      } else {
+        ContentUnavailableView("Could not decode the trimmed image", systemImage: "xmark.octagon")
+      }
+      Text("Detection confidence: \(Int(candidate.detection.confidence * 100))%")
+        .font(.footnote)
+        .foregroundStyle(.secondary)
+      Spacer()
+      if model.flow.isBusy {
+        ProgressView("Uploading puzzle…")
+      } else {
+        HStack(spacing: 12) {
+          Button {
+            model.flow.errorMessage = nil
+            model.flow.pendingRetake = candidate.source
+            model.flow.phase = .capturePuzzle
+          } label: {
+            Label("Retake", systemImage: "arrow.counterclockwise")
+              .frame(maxWidth: .infinity)
+          }
+          .buttonStyle(.bordered)
+          .controlSize(.large)
+
+          Button {
+            Task { await model.acceptTrim(candidate, quarterTurns: quarterTurns) }
+          } label: {
+            Label("Use This", systemImage: "checkmark")
+              .frame(maxWidth: .infinity)
+          }
+          .buttonStyle(.borderedProminent)
+          .controlSize(.large)
+          // Gate on the cached preview (not the base64-decoding
+          // `trimmedJPEG` computed property) so this doesn't re-decode
+          // on every rotate tap and stays disabled exactly when the
+          // preview can't be shown.
+          .disabled(previewImage == nil)
+        }
+      }
+      if let error = model.flow.errorMessage {
+        Text(error)
+          .font(.footnote)
+          .foregroundStyle(.red)
+          .multilineTextAlignment(.center)
+      }
     }
+    .padding(24)
+  }
 }
