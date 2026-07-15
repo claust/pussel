@@ -187,7 +187,7 @@ network/checkpoints/
 network/outputs/
 
 # RunPod deployment artifacts (built with runpod/prepare_package.sh)
-network/runpod_package/
+network/runpod_package*/
 
 # PyTorch Lightning checkpoints
 *.pt
