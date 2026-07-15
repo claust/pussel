@@ -5,6 +5,7 @@ struct ConfirmTrimView: View {
     private static let lowConfidence = 0.4
 
     @Environment(AppModel.self) private var model
+    @State private var quarterTurns = 0
     let candidate: TrimCandidate
 
     var body: some View {
@@ -17,11 +18,31 @@ struct ConfirmTrimView: View {
                     .foregroundStyle(.orange)
             }
             if let data = candidate.trimmedJPEG, let image = UIImage(data: data) {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFit()
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                // Square bounding box so the image stays fully visible at every
+                // angle while it spins (a rotating landscape/portrait photo would
+                // otherwise overflow its frame at the 90°/270° positions).
+                Color.clear
+                    .aspectRatio(1, contentMode: .fit)
+                    .overlay {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFit()
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .rotationEffect(.degrees(Double(quarterTurns) * 90))
+                    }
                     .frame(maxHeight: 420)
+                Button {
+                    // Always increment (never wrap to 0) so the animation turns
+                    // clockwise on every tap instead of unwinding 270° → 0°.
+                    withAnimation(.snappy(duration: 0.35)) {
+                        quarterTurns += 1
+                    }
+                } label: {
+                    Label("Rotate", systemImage: "rotate.right")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.regular)
+                .disabled(model.flow.isBusy)
             } else {
                 ContentUnavailableView("Could not decode the trimmed image", systemImage: "xmark.octagon")
             }
@@ -45,7 +66,7 @@ struct ConfirmTrimView: View {
                     .controlSize(.large)
 
                     Button {
-                        Task { await model.acceptTrim(candidate) }
+                        Task { await model.acceptTrim(candidate, quarterTurns: quarterTurns) }
                     } label: {
                         Label("Use This", systemImage: "checkmark")
                             .frame(maxWidth: .infinity)
