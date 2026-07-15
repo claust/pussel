@@ -27,10 +27,19 @@ extension AppModel {
     }
   }
 
-  /// Uploads the accepted trimmed image and starts a solve session.
-  func acceptTrim(_ candidate: TrimCandidate) async {
-    guard let trimmed = candidate.trimmedJPEG else {
+  /// Uploads the accepted trimmed image and starts a solve session. Any
+  /// user-applied rotation (`quarterTurns` × 90° clockwise) is baked into the
+  /// uploaded and stored image so the puzzle appears upright everywhere.
+  func acceptTrim(_ candidate: TrimCandidate, quarterTurns: Int = 0) async {
+    // Ignore repeat taps (e.g. a double-tap on "Use This") while an upload
+    // is already in flight so we don't start concurrent uploads/sessions.
+    guard !flow.isBusy else { return }
+    guard let decoded = candidate.trimmedJPEG else {
       flow.errorMessage = "Could not decode the trimmed image."
+      return
+    }
+    guard let trimmed = ImageUtilities.rotatedJPEG(from: decoded, quarterTurns: quarterTurns) else {
+      flow.errorMessage = "Could not rotate the trimmed image."
       return
     }
     flow.errorMessage = nil
