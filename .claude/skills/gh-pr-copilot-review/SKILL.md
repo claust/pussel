@@ -9,7 +9,7 @@ description: Commit local changes, push a branch, create a GitHub pull request, 
 
 Publish local work to GitHub end to end: inspect scope, branch, stage, commit, push, create a PR, request GitHub Copilot code review, verify the request through GitHub issue events, monitor Copilot review output, address substantive feedback, push fixes, re-request Copilot review, and continue until unresolved feedback is only nits or non-actionable.
 
-Claude Code does not receive passive GitHub callbacks in an ordinary session. For follow-up progress, actively poll GitHub, or set up a scheduled task when the user asks to keep watching.
+Claude Code does not receive passive GitHub callbacks in an ordinary session. To wait for a review, use a background watcher that polls internally and wakes you when it finishes (see "Wait For The Review Without Foreground Polling").
 
 ## Publish Workflow
 
@@ -152,6 +152,36 @@ Treat Copilot as done when it submits a review from `copilot-pull-request-review
 - CI status
 - whether the branch is behind the base branch
 
+### Wait For The Review Without Foreground Polling
+
+Copilot reviews take a couple of minutes. Do not sit in a foreground loop
+re-running `gh` by hand — there are no passive GitHub push callbacks, but you
+can make the wait hands-off with a single background watcher that polls
+internally and exits the moment a review lands. When a `run_in_background`
+command finishes, the harness re-invokes you automatically, so this behaves
+like "notify me when the review is ready" while you stay idle in between.
+
+Launch it with `run_in_background: true`:
+
+```bash
+# Waits for a Copilot review NEWER than a known baseline timestamp, then exits.
+# For the first round, use an empty baseline ("") so any Copilot review matches.
+BASELINE="<latest-copilot-review-submitted_at-or-empty>"
+for i in $(seq 1 60); do
+  LATEST=$(gh api repos/<owner>/<repo>/pulls/<pr-number>/reviews \
+    --jq '[.[] | select(.user.login=="copilot-pull-request-reviewer[bot]" or .user.login=="Copilot")] | max_by(.submitted_at) | .submitted_at' 2>/dev/null)
+  if [ -n "$LATEST" ] && [ "$LATEST" \> "$BASELINE" ]; then
+    echo "COPILOT_REVIEW_READY latest=$LATEST"; exit 0
+  fi
+  sleep 20
+done
+echo "WATCHER_TIMEOUT_NO_NEW_REVIEW"; exit 0
+```
+
+For re-review rounds, set `BASELINE` to the previous round's latest Copilot
+`submitted_at` so the watcher waits for the *new* review rather than returning
+the old one immediately. Each round gets its own watcher.
+
 ## Keep The PR Branch Updated
 
 While monitoring or addressing a PR, keep the PR branch current with the base branch. This is the local equivalent of clicking GitHub's "Update branch" button.
@@ -267,11 +297,7 @@ When a review comment has been addressed, resolve the corresponding GitHub revie
 
 ## Periodic Follow-Up
 
-If the user asks to watch, monitor, check back, notify them, or get callbacks, set up a scheduled task rather than claiming passive callbacks exist.
-
-- Use the `/loop` skill for short-term monitoring within the current session.
-- Use a scheduled task (the `schedule` skill) for detached repository monitoring.
-- The follow-up prompt should inspect the PR using the GitHub CLI/API commands above and report only meaningful changes: new Copilot review, new comments, failed checks, or merge readiness.
+If the user asks to watch, monitor, check back, notify them, or get callbacks, use the background watcher in "Wait For The Review Without Foreground Polling" rather than claiming passive callbacks exist. It polls GitHub internally and wakes you on completion, so you never sit in a foreground loop. Report only meaningful changes when it fires: new Copilot review, new comments, failed checks, or merge readiness.
 
 ## Important Details
 
