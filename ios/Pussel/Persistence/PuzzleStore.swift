@@ -1,5 +1,5 @@
+import Foundation
 import Observation
-import UIKit
 
 /// A lightweight row for the home-screen list — enough to render a card
 /// without loading every piece image of every stored puzzle.
@@ -72,8 +72,9 @@ final class PuzzleStore {
     /// prunes files for removed pieces, and rewrites the manifest. Idempotent —
     /// safe to call on every change (enqueue, prediction done, remove, reupload).
     func save(_ session: SolveSession) {
-        let dir = puzzleDir(session.id)
         let pieces = piecesDir(session.id)
+        // Creating the pieces dir with intermediates also creates its parent
+        // puzzle dir, so no separate puzzle-dir creation is needed.
         try? fileManager.createDirectory(at: pieces, withIntermediateDirectories: true)
 
         let trimmed = trimmedURL(session.id)
@@ -97,12 +98,13 @@ final class PuzzleStore {
         }
         pruneOrphanPieceFiles(in: pieces, keeping: keep)
 
+        let now = Date()
         let manifest = PuzzleManifest(
             id: session.id,
             serverPuzzleId: session.puzzleId,
             name: session.name,
             createdAt: session.createdAt,
-            updatedAt: Date(),
+            updatedAt: now,
             pieces: session.entries.map { entry in
                 StoredPiece(
                     id: entry.id,
@@ -120,7 +122,29 @@ final class PuzzleStore {
         if let data = try? encoder.encode(manifest) {
             try? data.write(to: manifestURL(session.id), options: .atomic)
         }
-        refresh()
+
+        // Update just this puzzle's summary from in-memory state rather than
+        // rescanning and re-decoding the whole directory on every persist()
+        // (which runs on enqueue/prediction/remove/reupload).
+        upsert(
+            PuzzleSummary(
+                id: session.id,
+                name: session.name,
+                createdAt: session.createdAt,
+                updatedAt: now,
+                pieceCount: session.entries.count,
+                placedCount: session.entries.filter { $0.result != nil }.count,
+                thumbnail: session.trimmedJPEG
+            )
+        )
+    }
+
+    /// Inserts or replaces a summary in the in-memory list, keeping it sorted
+    /// by most-recent activity.
+    private func upsert(_ summary: PuzzleSummary) {
+        puzzles.removeAll { $0.id == summary.id }
+        puzzles.append(summary)
+        puzzles.sort { $0.updatedAt > $1.updatedAt }
     }
 
     /// Rehydrates a full working session from disk, or nil if the folder is
