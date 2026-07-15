@@ -1,0 +1,60 @@
+# SwiftLint configuration for the Pussel iOS app.
+# Run locally with `swiftlint` from the `ios/` directory (brew install swiftlint).
+# CI runs `swiftlint lint --quiet`; by default only error-level violations fail
+# the build, so warnings surface in the log without blocking merges.
+
+included:
+  - Pussel
+  - PusselTests
+
+# The generated Xcode project and build output are gitignored, but exclude them
+# defensively so a local lint run never walks into generated sources.
+excluded:
+  - Pussel.xcodeproj
+  - .build
+  - DerivedData
+
+# Match the repo-wide 120-character line-length convention (see CLAUDE.md).
+line_length:
+  warning: 120
+  error: 160
+  ignores_comments: true
+  ignores_urls: true
+
+# SwiftUI view bodies and stores legitimately run long; keep these as warnings
+# with generous ceilings so they inform without failing CI.
+type_body_length:
+  warning: 400
+  error: 600
+
+file_length:
+  warning: 600
+  error: 1000
+  ignore_comment_only_lines: true
+
+function_body_length:
+  warning: 80
+  error: 150
+
+identifier_name:
+  # Allow short names common in SwiftUI/graphics code (x, y, id, to, dx, dy).
+  min_length:
+    warning: 2
+    error: 1
+  excluded:
+    - id
+    - x
+    - y
+    - to
+    - dx
+    - dy
+
+disabled_rules:
+  - todo # TODO/FIXME comments are tracked elsewhere, not a lint gate.
+
+opt_in_rules:
+  - empty_count
+  - closure_spacing
+  - contains_over_first_not_nil
+  - first_where
+  - toggle_bool
