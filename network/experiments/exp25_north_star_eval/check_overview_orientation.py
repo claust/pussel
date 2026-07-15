@@ -95,7 +95,7 @@ def main() -> None:
         exif_tag = Image.open(args.dataset_root / puzzle_id / "overview.jpg").getexif().get(274, 1)
 
         votes = dict.fromkeys(range(4), 0)
-        matched = 0
+        n_successful = 0
         for k in range(4):
             view = _resize_max_side(rotate_cw(raw, k), SIFT_OVERVIEW_SIDE)
             gray = cv2.cvtColor(view, cv2.COLOR_RGB2GRAY)
@@ -109,7 +109,7 @@ def main() -> None:
                 mask = (piece_gray > 8).astype(np.uint8) * 255
                 rot = snapped_rotation_votes(matcher, piece_gray, mask, puzzle_kp, puzzle_des)
                 if rot is not None:
-                    matched += 1
+                    n_successful += 1
                     if rot == 0:
                         votes[k] += 1
         best_k = max(votes, key=lambda k: votes[k])
@@ -120,7 +120,7 @@ def main() -> None:
             "exif_tag": int(exif_tag),
             "exif_implied_cw_deg": exif_cw,
             "agrees_with_exif": best_k * 90 == exif_cw,
-            "n_match_attempts": matched,
+            "n_successful_matches": n_successful,
         }
         print(
             f"{puzzle_id}: votes {votes} -> rotate {best_k * 90} deg CW "

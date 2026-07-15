@@ -85,8 +85,25 @@ OVERVIEW_OVERRIDES: dict[str, int] = {"paw_patrol_a": 2052}
 # residual rotation wins, near-unanimously per puzzle
 # (experiments/exp25_north_star_eval/check_overview_orientation.py).
 # Measured 2026-07-15 on v1: 180 for every puzzle (unanimous piece votes; EXIF was wrong
-# for frozen_scene, frozen_closeup, paw_patrol_a and unicorn_night).
-OVERVIEW_ROTATIONS: dict[str, int] = {slug: 180 for _, _, _, slug in PUZZLES}
+# for frozen_scene, frozen_closeup, paw_patrol_a and unicorn_night). Only measured slugs
+# are listed — an unmeasured (future) puzzle falls back to its EXIF orientation until its
+# rotation is measured and added here.
+OVERVIEW_ROTATIONS: dict[str, int] = {
+    "frozen_scene": 180,
+    "frozen_closeup": 180,
+    "dumbo": 180,
+    "bambi": 180,
+    "lion_king": 180,
+    "jungle_book": 180,
+    "peppa_kitchen": 180,
+    "peppa_forest": 180,
+    "peppa_aquarium": 180,
+    "peppa_family": 180,
+    "paw_patrol_a": 180,
+    "paw_patrol_b": 180,
+    "unicorn_pink": 180,
+    "unicorn_night": 180,
+}
 
 BACKGROUNDS = ["red_carpet", "gray_fabric", "cardboard", "wood"]
 SHOTS_PER_PIECE = len(BACKGROUNDS)
@@ -149,7 +166,7 @@ def normalize_overview(path: Path, slug: str, quality: int) -> None:
         del exif[274]
     degrees = OVERVIEW_ROTATIONS.get(slug, exif_deg)  # fall back to EXIF for unmeasured puzzles
     if degrees:
-        img = img.rotate(-degrees, expand=True)
+        img = img.transpose(PIL_TRANSPOSE[(4 - degrees // 90) % 4])  # lossless; degrees are CW, transpose keys CCW
     img.save(path, quality=quality, exif=exif.tobytes(), icc_profile=icc_profile)
 
 

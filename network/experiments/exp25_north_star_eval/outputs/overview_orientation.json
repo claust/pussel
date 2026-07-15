@@ -10,7 +10,7 @@
     "exif_tag": 6,
     "exif_implied_cw_deg": 90,
     "agrees_with_exif": false,
-    "n_match_attempts": 192
+    "n_successful_matches": 192
   },
   "puzzle02_frozen_closeup": {
     "votes_upright_by_cw_rotation": {
@@ -23,7 +23,7 @@
     "exif_tag": 8,
     "exif_implied_cw_deg": 270,
     "agrees_with_exif": false,
-    "n_match_attempts": 183
+    "n_successful_matches": 183
   },
   "puzzle03_dumbo": {
     "votes_upright_by_cw_rotation": {
@@ -36,7 +36,7 @@
     "exif_tag": 3,
     "exif_implied_cw_deg": 180,
     "agrees_with_exif": true,
-    "n_match_attempts": 147
+    "n_successful_matches": 147
   },
   "puzzle04_bambi": {
     "votes_upright_by_cw_rotation": {
@@ -49,7 +49,7 @@
     "exif_tag": 3,
     "exif_implied_cw_deg": 180,
     "agrees_with_exif": true,
-    "n_match_attempts": 243
+    "n_successful_matches": 243
   },
   "puzzle05_lion_king": {
     "votes_upright_by_cw_rotation": {
@@ -62,7 +62,7 @@
     "exif_tag": 3,
     "exif_implied_cw_deg": 180,
     "agrees_with_exif": true,
-    "n_match_attempts": 245
+    "n_successful_matches": 245
   },
   "puzzle06_jungle_book": {
     "votes_upright_by_cw_rotation": {
@@ -75,7 +75,7 @@
     "exif_tag": 3,
     "exif_implied_cw_deg": 180,
     "agrees_with_exif": true,
-    "n_match_attempts": 300
+    "n_successful_matches": 300
   },
   "puzzle07_peppa_kitchen": {
     "votes_upright_by_cw_rotation": {
@@ -88,7 +88,7 @@
     "exif_tag": 3,
     "exif_implied_cw_deg": 180,
     "agrees_with_exif": true,
-    "n_match_attempts": 96
+    "n_successful_matches": 96
   },
   "puzzle08_peppa_forest": {
     "votes_upright_by_cw_rotation": {
@@ -101,7 +101,7 @@
     "exif_tag": 3,
     "exif_implied_cw_deg": 180,
     "agrees_with_exif": true,
-    "n_match_attempts": 192
+    "n_successful_matches": 192
   },
   "puzzle09_peppa_aquarium": {
     "votes_upright_by_cw_rotation": {
@@ -114,7 +114,7 @@
     "exif_tag": 3,
     "exif_implied_cw_deg": 180,
     "agrees_with_exif": true,
-    "n_match_attempts": 137
+    "n_successful_matches": 137
   },
   "puzzle10_peppa_family": {
     "votes_upright_by_cw_rotation": {
@@ -127,7 +127,7 @@
     "exif_tag": 3,
     "exif_implied_cw_deg": 180,
     "agrees_with_exif": true,
-    "n_match_attempts": 215
+    "n_successful_matches": 215
   },
   "puzzle11_paw_patrol_a": {
     "votes_upright_by_cw_rotation": {
@@ -140,7 +140,7 @@
     "exif_tag": 1,
     "exif_implied_cw_deg": 0,
     "agrees_with_exif": false,
-    "n_match_attempts": 296
+    "n_successful_matches": 296
   },
   "puzzle12_paw_patrol_b": {
     "votes_upright_by_cw_rotation": {
@@ -153,7 +153,7 @@
     "exif_tag": 3,
     "exif_implied_cw_deg": 180,
     "agrees_with_exif": true,
-    "n_match_attempts": 294
+    "n_successful_matches": 294
   },
   "puzzle13_unicorn_pink": {
     "votes_upright_by_cw_rotation": {
@@ -166,7 +166,7 @@
     "exif_tag": 3,
     "exif_implied_cw_deg": 180,
     "agrees_with_exif": true,
-    "n_match_attempts": 376
+    "n_successful_matches": 376
   },
   "puzzle14_unicorn_night": {
     "votes_upright_by_cw_rotation": {
@@ -179,6 +179,6 @@
     "exif_tag": 1,
     "exif_implied_cw_deg": 0,
     "agrees_with_exif": false,
-    "n_match_attempts": 335
+    "n_successful_matches": 335
   }
 }
