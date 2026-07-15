@@ -147,17 +147,17 @@ ios-generate:
 ios-run: ios-generate
 	xcrun simctl boot "$(IOS_SIMULATOR)" 2>/dev/null || true
 	open -a Simulator
-	xcodebuild build -project $(IOS_PROJECT) -scheme $(IOS_SCHEME) \
-		-destination 'platform=iOS Simulator,name=$(IOS_SIMULATOR)' -derivedDataPath $(IOS_DERIVED)
-	xcrun simctl install booted $(IOS_DERIVED)/Build/Products/Debug-iphonesimulator/$(IOS_APP_NAME).app
-	xcrun simctl launch booted $(IOS_BUNDLE_ID)
+	xcodebuild build -project "$(IOS_PROJECT)" -scheme "$(IOS_SCHEME)" \
+		-destination 'platform=iOS Simulator,name=$(IOS_SIMULATOR)' -derivedDataPath "$(IOS_DERIVED)"
+	xcrun simctl install booted "$(IOS_DERIVED)/Build/Products/Debug-iphonesimulator/$(IOS_APP_NAME).app"
+	xcrun simctl launch booted "$(IOS_BUNDLE_ID)"
 
 # Run the unit tests on the Simulator.
 ios-test: ios-generate
-	xcodebuild test -project $(IOS_PROJECT) -scheme $(IOS_SCHEME) \
-		-destination 'platform=iOS Simulator,name=$(IOS_SIMULATOR)' -derivedDataPath $(IOS_DERIVED)
+	xcodebuild test -project "$(IOS_PROJECT)" -scheme "$(IOS_SCHEME)" \
+		-destination 'platform=iOS Simulator,name=$(IOS_SIMULATOR)' -derivedDataPath "$(IOS_DERIVED)"
 
-# Build a Debug build, then install + launch on a connected iPhone.
+# Build a Debug build, then install + launch on a connected device (iPhone/iPad).
 # Requires DEVELOPMENT_TEAM in ios/Config/Secrets.xcconfig (device signing).
 # The device is auto-detected; override with IOS_DEVICE=<name-or-udid>.
 ios-deploy: ios-generate
@@ -166,12 +166,12 @@ ios-deploy: ios-generate
 		DEVICE=$$(xcrun devicectl list devices 2>/dev/null | awk '{ ok=0; for (i=1;i<=NF;i++) if ($$i=="connected") ok=1; if (ok) for (i=1;i<=NF;i++) if ($$i ~ /^[0-9A-Fa-f]{8}-[0-9A-Fa-f]/) {print $$i; exit} }'); \
 	fi; \
 	if [ -z "$$DEVICE" ]; then \
-		echo "No connected iPhone found. Connect and trust a device, or pass IOS_DEVICE=<name-or-udid>."; \
+		echo "No connected device found. Connect and trust a device, or pass IOS_DEVICE=<name-or-udid>."; \
 		exit 1; \
 	fi; \
 	echo "Deploying to device: $$DEVICE"; \
-	xcodebuild build -project $(IOS_PROJECT) -scheme $(IOS_SCHEME) \
-		-destination 'generic/platform=iOS' -derivedDataPath $(IOS_DERIVED) -allowProvisioningUpdates && \
+	xcodebuild build -project "$(IOS_PROJECT)" -scheme "$(IOS_SCHEME)" \
+		-destination 'generic/platform=iOS' -derivedDataPath "$(IOS_DERIVED)" -allowProvisioningUpdates && \
 	xcrun devicectl device install app --device "$$DEVICE" \
-		$(IOS_DERIVED)/Build/Products/Debug-iphoneos/$(IOS_APP_NAME).app && \
-	xcrun devicectl device process launch --device "$$DEVICE" $(IOS_BUNDLE_ID)
+		"$(IOS_DERIVED)/Build/Products/Debug-iphoneos/$(IOS_APP_NAME).app" && \
+	xcrun devicectl device process launch --device "$$DEVICE" "$(IOS_BUNDLE_ID)"
