@@ -127,8 +127,11 @@ IOS_DERIVED    = ios/.build
 ios-generate:
 	@command -v xcodegen >/dev/null 2>&1 || { \
 		echo "xcodegen not found. Install it with: brew install xcodegen"; exit 1; }
-	@test -f ios/Config/Secrets.xcconfig || \
-		echo "Warning: ios/Config/Secrets.xcconfig is missing — copy ios/Config/Secrets.example.xcconfig (device builds need DEVELOPMENT_TEAM)."
+	@test -f ios/Config/Secrets.xcconfig || { \
+		echo "ios/Config/Secrets.xcconfig is missing. Debug.xcconfig and Release.xcconfig"; \
+		echo "#include it, so xcodebuild fails without it. Create it with:"; \
+		echo "  cp ios/Config/Secrets.example.xcconfig ios/Config/Secrets.xcconfig"; \
+		exit 1; }
 	cd ios && xcodegen generate
 
 # Build, install, and launch on the iOS Simulator. Boots the target simulator
