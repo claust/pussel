@@ -13,7 +13,7 @@ Key features:
 
 from typing import Literal
 
-import timm  # type: ignore
+import timm  # type: ignore[import-untyped]
 import torch
 import torch.nn as nn
 import torch.nn.functional as F

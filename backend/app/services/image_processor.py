@@ -8,7 +8,7 @@ import base64
 import io
 import os
 from pathlib import Path
-from typing import Optional, cast
+from typing import Any, Optional, cast
 from uuid import UUID
 
 import torch
@@ -38,6 +38,43 @@ CHECKPOINT_PATH = os.environ.get("MODEL_CHECKPOINT_PATH", DEFAULT_CHECKPOINT_PAT
 # Image sizes expected by the model
 PIECE_SIZE = 128
 PUZZLE_SIZE = 256
+
+
+def _extract_state_dict(checkpoint: Any) -> Any:
+    """Return the model weights from a loaded checkpoint.
+
+    Supports both a raw ``state_dict`` (exp20's ``checkpoint_best.pt``) and a
+    ``{"model_state_dict": ...}`` wrapper (exp18-style checkpoints).
+
+    Args:
+        checkpoint: The object returned by ``torch.load``.
+
+    Returns:
+        The model ``state_dict`` mapping.
+    """
+    if isinstance(checkpoint, dict) and "model_state_dict" in checkpoint:
+        return checkpoint["model_state_dict"]
+    return checkpoint
+
+
+def _load_checkpoint(path: str, device: torch.device) -> Any:
+    """Load a checkpoint file, preferring the safe ``weights_only`` path.
+
+    Modern checkpoints (including exp20's raw tensor ``state_dict``) load with
+    ``weights_only=True``, which avoids arbitrary pickle execution. Legacy
+    checkpoints that pickle non-tensor objects fall back to a full load.
+
+    Args:
+        path: Filesystem path to the checkpoint.
+        device: Device to map tensors onto.
+
+    Returns:
+        The loaded checkpoint object.
+    """
+    try:
+        return torch.load(path, map_location=device, weights_only=True)
+    except Exception:  # noqa: BLE001 - fall back for legacy pickled checkpoints
+        return torch.load(path, map_location=device, weights_only=False)
 
 
 class ImageProcessor:
@@ -79,9 +116,9 @@ class ImageProcessor:
 
         Returns:
             The loaded model in evaluation mode, or None when no checkpoint is
-            available. Without a model, ``process_piece`` returns a neutral
-            fallback prediction so the app still runs (e.g. in CI, where the
-            checkpoint is not committed).
+            available or fails to load. Without a model, ``process_piece``
+            returns a neutral fallback prediction so the app still runs (e.g. in
+            CI, where the checkpoint is not committed).
         """
         if not os.path.exists(CHECKPOINT_PATH):
             print(f"Model checkpoint not found at {CHECKPOINT_PATH}; predictions will use a neutral fallback")
@@ -98,11 +135,17 @@ class ImageProcessor:
             rotation_dropout=0.2,
         )
 
-        # Load checkpoint. Some checkpoints wrap the weights in a "model_state_dict"
-        # key (exp18-style); exp20's checkpoint_best.pt is a raw state dict.
-        checkpoint = torch.load(CHECKPOINT_PATH, map_location=self.device, weights_only=False)
-        state_dict = checkpoint["model_state_dict"] if "model_state_dict" in checkpoint else checkpoint
-        model.load_state_dict(state_dict)
+        # Load onto CPU first, then move the whole model to the target device in
+        # one transfer. A corrupt or incompatible checkpoint falls back to the
+        # neutral prediction path rather than crashing ImageProcessor init.
+        try:
+            checkpoint = _load_checkpoint(CHECKPOINT_PATH, torch.device("cpu"))
+            model.load_state_dict(_extract_state_dict(checkpoint))
+        except Exception as exc:  # noqa: BLE001 - degrade gracefully on any load failure
+            print(
+                f"Failed to load model checkpoint at {CHECKPOINT_PATH} ({exc}); predictions will use a neutral fallback"
+            )
+            return None
 
         model.to(self.device)
         model.eval()
