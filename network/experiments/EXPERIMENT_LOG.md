@@ -584,6 +584,44 @@ Conclusions:
 
 ---
 
+## Exp 26: Domain Randomization (realism-augmented training)
+
+**Date:** July 2026 **Status:** FAILED on the real task (synthetic
+improved to **76.2% both**; north_star unchanged at **12.7% both**)
+
+Retrained the exp20 architecture with domain randomization (critical-review
+item #5) to attack the exp25 collapse. Pieces regenerated as RGBA and pushed
+through toggleable realism augmentations — **independent** photometric
+jitter on piece vs puzzle (the anti-pixel-shortcut lever), scale ±15%, mild
+perspective, ±8° rotation jitter, backgrounds composited behind the piece
+(black/solid/gradient/other-puzzle texture), rembg-style mask erode/dilate,
+sensor noise, JPEG — while val/test stay black-composited and byte-comparable
+to exp20 (same frozen split, val selection, test touched once). Trained on a
+RunPod RTX 4090 (50 epochs, 2.2 h); train and val curves overlap for all 50
+epochs — under DR the model cannot memorize appearance.
+
+Results: **synthetic test 76.4% cell / 99.0% rotation / 76.2% both** — beats
+exp20 (72.9/94.6/72.2) on every metric; DR acted as a regularizer. But on
+north_star v1 (touched once): **22.3% cell / 33.5% rotation / 12.7% both**
+vs exp20's 14.8% — the transfer gain is zero. Diagnostics: the 4x4-only
+subset scores the same (11.5%), all four backgrounds score the same
+(10–14%), and the rotation confusion is not diffuse but biased (predicts
+90°/270° for everything) — i.e. the features latch onto artifacts that
+photographed pieces don't carry.
+
+Key finding: **the sim-to-real gap does not live in the nuisance factors
+input-level augmentation can randomize.** Every augmentation transforms the
+same digital pixels; a photographed physical piece differs structurally
+(printed halftone, gloss, embossed relief, camera ISP, photographed box art
+as overview). SIFT survives because it matches local gradient geometry; the
+learned features encode nothing that survives print-and-photograph. Next
+levers (exp27): pretrained robust features (DINOv2/LoFTR) under the
+correlation head (review item #8), a small real-capture training set
+(train-split puzzles only), print-and-photograph simulation — and ship the
+classical hybrid meanwhile.
+
+---
+
 ## Summary Table
 
 | Exp | Focus                       | Test Result            | Key Finding                                    |
@@ -613,6 +651,7 @@ Conclusions:
 | 23  | Classical baselines         | **83% cell / 90% rot** | SIFT→NCC hybrid beats the CNN with no training |
 | 24  | Piece/not-piece classifier  | **99.1% bal. acc**     | Kills preview false positives (faces at 0.000) |
 | 25  | North-star real-photo eval  | **77% both (hybrid)**  | CNN collapses on real photos (14.8% both)      |
+| 26  | Domain randomization (4x4)  | 76% synth / 13% real   | Realism augs lift synthetic, don't transfer    |
 
 ---
 
@@ -654,6 +693,15 @@ broken on real photos (exp20 checkpoint: 14.8% both, barely above random on
 position). The bar for any learned model is now **76.7% both on
 north_star v1**, and the backend would be better served today by the
 classical hybrid than by its current CNN path.
+
+exp26 hardened this conclusion: input-level domain randomization
+(independent photometrics, geometry, backgrounds, sensor noise) lifts the
+*synthetic* benchmark to 76.2% both — the best learned synthetic result on
+the realistic 4x4 benchmark — but leaves the real task unchanged (12.7%
+both). Whatever separates digital crops from photographed physical pieces
+is not reachable by augmenting digital pixels; the promising remaining
+levers are pretrained robust features (DINOv2/LoFTR, review item #8), a
+small real-capture training set, and print-and-photograph simulation.
 
 **Key Learnings:**
 1. **Data quantity AND quality matter** (exp17): Must see all cells per puzzle
