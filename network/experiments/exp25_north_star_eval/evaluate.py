@@ -215,9 +215,14 @@ def build_piece_cache(records: list[dict[str, Any]], dataset_root: Path, cache_d
     """
     cache_dir.mkdir(parents=True, exist_ok=True)
     fallback_path = cache_dir / "fallbacks.json"
-    if fallback_path.exists() and all((cache_dir / cache_name(r)).exists() for r in records):
+    # A cached PNG alone does not prove rembg succeeded for it — only its entry in
+    # fallbacks.json is authoritative. Crops without a recorded entry are recomputed.
+    known: dict[str, bool] = {}
+    if fallback_path.exists():
         with open(fallback_path) as f:
-            return json.load(f)
+            known = json.load(f)
+    if all((cache_dir / cache_name(r)).exists() and r["piece_file"] in known for r in records):
+        return {r["piece_file"]: known[r["piece_file"]] for r in records}
 
     from rembg import new_session, remove  # local import: heavy, pulls onnxruntime
 
@@ -226,8 +231,8 @@ def build_piece_cache(records: list[dict[str, Any]], dataset_root: Path, cache_d
     start = time.time()
     for i, rec in enumerate(records):
         out_path = cache_dir / cache_name(rec)
-        if out_path.exists():
-            fallbacks[rec["piece_file"]] = False  # assume prior success; fallbacks.json is authoritative when complete
+        if out_path.exists() and rec["piece_file"] in known:
+            fallbacks[rec["piece_file"]] = known[rec["piece_file"]]
             continue
         img = Image.open(dataset_root / rec["piece_file"]).convert("RGB")
         x1, y1, x2, y2 = rec["bbox"]
@@ -239,7 +244,7 @@ def build_piece_cache(records: list[dict[str, Any]], dataset_root: Path, cache_d
         if (i + 1) % 100 == 0:
             print(f"  [cache {i + 1}/{len(records)}] {time.time() - start:.0f}s", flush=True)
     with open(fallback_path, "w") as f:
-        json.dump(fallbacks, f)
+        json.dump({**known, **fallbacks}, f)  # keep entries from other record subsets
     return fallbacks
 
 
