@@ -43,4 +43,13 @@ struct CaptureEntry: Identifiable, Equatable {
         self.uploadJPEG = jpeg
         self.displayImage = jpeg
     }
+
+    /// Rehydrates an entry loaded from disk (see PuzzleStore.loadSession).
+    init(id: UUID, uploadJPEG: Data, displayImage: Data, status: Status, result: PieceResponse?) {
+        self.id = id
+        self.uploadJPEG = uploadJPEG
+        self.displayImage = displayImage
+        self.status = status
+        self.result = result
+    }
 }
