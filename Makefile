@@ -7,8 +7,10 @@
         start-backend start-frontend stop-backend stop-frontend \
         ios-generate ios-run ios-deploy ios-test
 
-# Run all checks (Python + Next.js)
-check: check-backend check-network check-shared check-frontend
+# Run all checks (Python + Next.js + iOS)
+# Note: check-ios needs macOS + Xcode; CI calls the per-component targets
+# directly (never this aggregate), so Linux runners are unaffected.
+check: check-backend check-network check-shared check-frontend check-ios
 
 # Backend checks (uses uv to run tools from the backend venv)
 check-backend:
@@ -41,8 +43,8 @@ check-frontend:
 check-ios:
 	cd ios && xcrun swift-format lint --strict --recursive Pussel PusselTests
 
-# Auto-format all code (Python + Next.js)
-format: format-backend format-network format-frontend
+# Auto-format all code (Python + Next.js + iOS)
+format: format-backend format-network format-frontend format-ios
 
 # Auto-format backend (uses uv to run tools from the backend venv)
 format-backend:
