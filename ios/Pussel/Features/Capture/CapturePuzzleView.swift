@@ -4,6 +4,7 @@ import SwiftUI
 struct CapturePuzzleView: View {
     @Environment(AppModel.self) private var model
     @State private var showCamera = false
+    @State private var showLibrary = false
     @State private var photoItem: PhotosPickerItem?
 
     private var hasSavedPuzzles: Bool {
@@ -23,22 +24,24 @@ struct CapturePuzzleView: View {
         .scrollBounceBehavior(.basedOnSize)
         .fullScreenCover(isPresented: $showCamera) {
             CameraPicker { image in
-                Task { await handle(image: image) }
+                Task { await handle(image: image, source: .camera) }
             }
             .ignoresSafeArea()
         }
+        .photosPicker(isPresented: $showLibrary, selection: $photoItem, matching: .images)
         .onChange(of: photoItem) { _, item in
             guard let item else { return }
             Task {
                 if let data = try? await item.loadTransferable(type: Data.self),
                    let image = UIImage(data: data) {
-                    await handle(image: image)
+                    await handle(image: image, source: .library)
                 } else {
                     model.flow.errorMessage = "Could not load the selected photo."
                 }
                 photoItem = nil
             }
         }
+        .onAppear(perform: reopenPickerIfRetaking)
     }
 
     private var content: some View {
@@ -46,7 +49,7 @@ struct CapturePuzzleView: View {
             // Compact header once there are saved puzzles to keep below it;
             // otherwise a taller hero centered in the screen.
             Spacer(minLength: hasSavedPuzzles ? 8 : 40)
-            Image(systemName: "photo.artframe")
+            Image(systemName: "puzzlepiece.extension.fill")
                 .font(.system(size: hasSavedPuzzles ? 40 : 56))
                 .foregroundStyle(.tint)
             Text("Photograph the puzzle")
@@ -94,14 +97,33 @@ struct CapturePuzzleView: View {
     }
 
     private var photoLibraryButton: some View {
-        PhotosPicker(selection: $photoItem, matching: .images) {
+        Button {
+            showLibrary = true
+        } label: {
             Label("Choose from Library", systemImage: "photo.on.rectangle")
                 .frame(maxWidth: .infinity)
         }
         .controlSize(.large)
     }
 
-    private func handle(image: UIImage) async {
-        await model.startTrim(image: image)
+    /// After "Retake", jump straight back into whichever picker produced the
+    /// original photo instead of making the user pick a source again.
+    private func reopenPickerIfRetaking() {
+        guard let source = model.flow.pendingRetake else { return }
+        model.flow.pendingRetake = nil
+        switch source {
+        case .camera:
+            if CameraPicker.isAvailable {
+                showCamera = true
+            } else {
+                showLibrary = true
+            }
+        case .library:
+            showLibrary = true
+        }
+    }
+
+    private func handle(image: UIImage, source: CaptureSource) async {
+        await model.startTrim(image: image, source: source)
     }
 }

@@ -11,7 +11,7 @@ extension AppModel {
     }()
 
     /// Detects the puzzle frame and moves to the confirm-trim step.
-    func startTrim(image: UIImage) async {
+    func startTrim(image: UIImage, source: CaptureSource) async {
         guard let jpeg = ImageUtilities.normalizedJPEG(from: image) else {
             flow.errorMessage = "Could not process the photo."
             return
@@ -21,7 +21,7 @@ extension AppModel {
         defer { flow.isBusy = false }
         do {
             let detection = try await api.detectFrame(jpegData: jpeg)
-            flow.phase = .confirmTrim(TrimCandidate(rawJPEG: jpeg, detection: detection))
+            flow.phase = .confirmTrim(TrimCandidate(rawJPEG: jpeg, detection: detection, source: source))
         } catch {
             flow.errorMessage = error.localizedDescription
         }
