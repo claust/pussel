@@ -2,14 +2,16 @@
 
 import asyncio
 import io
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+import torch
 from fastapi import UploadFile
 from PIL import Image
 
 from app.services import image_processor as ip_module
-from app.services.image_processor import ImageProcessor
+from app.services.image_processor import ImageProcessor, _extract_state_dict
 
 
 def make_upload(content: bytes) -> UploadFile:
@@ -44,6 +46,32 @@ def test_missing_checkpoint_returns_neutral_fallback() -> None:
     assert result.position_confidence == 0.0
     assert result.rotation == 0
     assert result.rotation_confidence == 0.0
+
+
+def test_extract_state_dict_accepts_raw_state_dict() -> None:
+    """A raw state_dict (exp20 checkpoint_best.pt) is returned unchanged."""
+    raw = {"layer.weight": torch.zeros(2, 2)}
+
+    assert _extract_state_dict(raw) is raw
+
+
+def test_extract_state_dict_unwraps_model_state_dict() -> None:
+    """A wrapped {"model_state_dict": ...} checkpoint (exp18-style) is unwrapped."""
+    weights = {"layer.weight": torch.zeros(2, 2)}
+    wrapped = {"model_state_dict": weights, "epoch": 5, "optimizer_state_dict": {}}
+
+    assert _extract_state_dict(wrapped) is weights
+
+
+def test_corrupt_checkpoint_falls_back_to_no_model(tmp_path: Path) -> None:
+    """A checkpoint that exists but fails to load yields no model, not a crash."""
+    bad_ckpt = tmp_path / "corrupt.pt"
+    bad_ckpt.write_bytes(b"not a real torch checkpoint")
+
+    with patch.object(ip_module, "CHECKPOINT_PATH", str(bad_ckpt)):
+        processor = ImageProcessor()
+
+    assert processor.model is None
 
 
 def test_load_puzzle_tensor_rejects_non_uuid_puzzle_id() -> None:
