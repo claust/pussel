@@ -333,7 +333,7 @@ class FastBackboneModel(nn.Module):
 
     def _extract_features(self, backbone: nn.Module, x: torch.Tensor) -> torch.Tensor:
         """Extract features from backbone, handling different output formats."""
-        if self.backbone_name in ["repvgg_a0", "mobileone_s0"]:
+        if self.backbone_name in ("repvgg_a0", "mobileone_s0"):
             features = backbone(x)
             return features[-1]
         else:
@@ -405,82 +405,5 @@ class FastBackboneModel(nn.Module):
         position, _, _ = self.forward(piece, puzzle)
         return self.positions_to_cells(position, grid_size)
 
-    def get_parameter_groups(
-        self,
-        backbone_lr: float = 1e-5,
-        head_lr: float = 1e-3,
-        weight_decay: float = 1e-4,
-    ) -> list[dict]:
-        """Get parameter groups with differential learning rates."""
-        backbone_params = [p for p in self.piece_backbone.parameters() if p.requires_grad]
-        backbone_params += [p for p in self.puzzle_backbone.parameters() if p.requires_grad]
-
-        head_params = [p for p in self.spatial_correlation.parameters() if p.requires_grad]
-        head_params += [p for p in self.refinement.parameters() if p.requires_grad]
-        head_params += [p for p in self.rotation_correlation.parameters() if p.requires_grad]
-
-        param_groups = []
-        if backbone_params:
-            param_groups.append(
-                {
-                    "params": backbone_params,
-                    "lr": backbone_lr,
-                    "weight_decay": weight_decay,
-                    "name": "backbone",
-                }
-            )
-        if head_params:
-            param_groups.append(
-                {
-                    "params": head_params,
-                    "lr": head_lr,
-                    "weight_decay": weight_decay,
-                    "name": "heads",
-                }
-            )
-
-        return param_groups
-
-
-def count_parameters(model: nn.Module, trainable_only: bool = True) -> int:
-    """Count parameters in the model."""
-    if trainable_only:
-        return sum(p.numel() for p in model.parameters() if p.requires_grad)
-    return sum(p.numel() for p in model.parameters())
-
-
-if __name__ == "__main__":
-    print("=" * 60)
-    print("Fast Backbone Model Test (Exp20 - 4x4 Grid)")
-    print("=" * 60)
-
-    batch_size = 4
-    piece_size = 128
-    puzzle_size = 256
-
-    dummy_piece = torch.randn(batch_size, 3, piece_size, piece_size)
-    dummy_puzzle = torch.randn(batch_size, 3, puzzle_size, puzzle_size)
-
-    # Test default backbone (ShuffleNetV2)
-    backbone_name: BackboneType = "shufflenet_v2_x0_5"
-    print(f"\n--- {backbone_name} ---")
-
-    model = FastBackboneModel(backbone_name=backbone_name, pretrained=True)
-    total_params = count_parameters(model, trainable_only=False)
-    trainable_params = count_parameters(model, trainable_only=True)
-
-    print(f"Feature dimension: {model.feature_dim}")
-    print(f"Total parameters: {total_params:,}")
-    print(f"Trainable parameters: {trainable_params:,}")
-
-    # Test forward pass
-    position, rotation_logits, attention = model(dummy_piece, dummy_puzzle)
-    print(f"Position shape: {position.shape}")
-    print(f"Rotation logits shape: {rotation_logits.shape}")
-    print(f"Attention shape: {attention.shape}")
-
-    # Test cell prediction for 4x4 grid
-    cells = model.predict_cell(dummy_piece, dummy_puzzle, grid_size=4)
-    print(f"Predicted cells: {cells.tolist()}")
     print("Cell range: 0-15 (4x4 grid)")
     print("Forward pass: OK")

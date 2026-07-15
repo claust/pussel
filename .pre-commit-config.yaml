@@ -57,7 +57,7 @@ repos:
       - id: backend-pyright
         name: backend pyright type checking
         description: Run pyright type checking for backend
-        entry: bash -c 'cd backend && pyright .'
+        entry: bash -c 'cd backend && uv run pyright .'
         language: system
         files: ^backend/.*\.py$
         pass_filenames: false
