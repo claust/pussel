@@ -1,13 +1,13 @@
 import SwiftUI
 
+/// PIECE_SIZE_RATIO in puzzle-detail.tsx.
+private let pieceSizeRatio: CGFloat = 0.12
+
 /// The trimmed puzzle image with each predicted piece drawn at its normalized
 /// position. Mirrors frontend/src/components/puzzle/puzzle-detail.tsx:
 /// fixed piece size (12% of image dimensions), counter-clockwise rotation,
 /// confidence bar along the bottom edge.
 struct PuzzleOverlayView: View {
-    /// PIECE_SIZE_RATIO in puzzle-detail.tsx.
-    private static let pieceSizeRatio = 0.12
-
     let session: SolveSession
 
     var body: some View {
@@ -36,8 +36,8 @@ private struct PieceMarker: View {
     let canvas: CGSize
 
     var body: some View {
-        let width = canvas.width * 0.12
-        let height = canvas.height * 0.12
+        let width = canvas.width * pieceSizeRatio
+        let height = canvas.height * pieceSizeRatio
         VStack(spacing: 0) {
             if let image = UIImage(data: entry.displayImage) {
                 Image(uiImage: image)

@@ -34,7 +34,9 @@ final class PieceCameraSession: NSObject, AVCapturePhotoCaptureDelegate {
     }
 
     func capturePhoto() async -> UIImage? {
-        guard isConfigured else { return nil }
+        // Ignore shutter taps while a capture is in flight — overwriting the
+        // stored continuation would leak it and hang the first caller.
+        guard isConfigured, captureContinuation == nil else { return nil }
         return await withCheckedContinuation { continuation in
             captureContinuation = continuation
             photoOutput.capturePhoto(with: AVCapturePhotoSettings(), delegate: self)
