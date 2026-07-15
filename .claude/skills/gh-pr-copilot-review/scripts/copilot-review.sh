@@ -42,9 +42,14 @@ shift
 
 OWNER="" REPO="" PR="" BASELINE="" INTERVAL=20 MAX_ITERS=60
 
-# Require that a flag was given a value ($2 present), so `--owner` with no value
-# fails clearly instead of `shift 2` erroring and continuing with empty values.
-require_value() { [ $# -ge 2 ] || die "flag $1 requires a value"; }
+# Require that a flag was given a real value: a next token must exist and not
+# itself look like a flag, so `--owner` (no value) or `--owner --repo x` both
+# fail clearly instead of `shift 2` erroring or capturing `--repo` as the value.
+# None of this script's values legitimately start with `-`.
+require_value() {
+  [ $# -ge 2 ] || die "flag $1 requires a value"
+  case "$2" in -*) die "flag $1 requires a value, got flag-like '$2'" ;; esac
+}
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -115,7 +120,9 @@ case "$cmd" in
       # (auth, bad PR, network), whereas rc 0 with empty output just means no
       # Copilot review has landed yet. Masking the former as a timeout hides the
       # actual problem, so fail fast once it is clearly not transient.
-      if latest=$(latest_copilot_ts 2>/dev/null); then
+      # No 2>/dev/null here: on failure let gh/jq's own error reach the caller,
+      # per latest_copilot_ts's contract, so repeated failures are diagnosable.
+      if latest=$(latest_copilot_ts); then
         fails=0
         if [ -n "$latest" ] && { [ -z "$BASELINE" ] || [[ "$latest" > "$BASELINE" ]]; }; then
           echo "COPILOT_REVIEW_READY latest=$latest"
