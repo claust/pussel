@@ -125,8 +125,15 @@ final class PuzzleStore {
                 )
             }
         )
-        if let data = try? encoder.encode(manifest) {
-            try? data.write(to: manifestURL(session.id), options: .atomic)
+        do {
+            let data = try encoder.encode(manifest)
+            try data.write(to: manifestURL(session.id), options: .atomic)
+        } catch {
+            // Persistence is the whole point — don't advertise a puzzle in the
+            // list that won't survive a relaunch. Surface loudly in Debug and
+            // leave the in-memory list untouched.
+            assertionFailure("Failed to persist puzzle \(session.id): \(error)")
+            return
         }
 
         // Update just this puzzle's summary from in-memory state rather than
