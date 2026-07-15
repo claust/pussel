@@ -1,0 +1,4 @@
+#include "Secrets.xcconfig"
+
+// Deployed Azure backend.
+API_BASE_URL = https:/$()/pussel.thomasen.dk

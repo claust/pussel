@@ -1,0 +1,6 @@
+#include "Secrets.xcconfig"
+
+// Local FastAPI backend (make start-backend). The Simulator shares the Mac's
+// network stack, so localhost works there; a physical device cannot resolve
+// this — point it at the Mac's LAN IP (needs an ATS exception) or use Release.
+API_BASE_URL = http:/$()/localhost:8000
