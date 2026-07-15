@@ -35,6 +35,13 @@ DEFAULT_CHECKPOINT_PATH = str(
 )
 CHECKPOINT_PATH = os.environ.get("MODEL_CHECKPOINT_PATH", DEFAULT_CHECKPOINT_PATH)
 
+# Opt-in escape hatch for legacy checkpoints that pickle non-tensor objects and
+# therefore cannot be loaded with ``weights_only=True``. Off by default because
+# a full pickle load executes arbitrary code, and ``MODEL_CHECKPOINT_PATH`` is
+# operator-configurable. Set ``ALLOW_UNSAFE_CHECKPOINT_LOAD=1`` only for a
+# trusted checkpoint.
+ALLOW_UNSAFE_CHECKPOINT_LOAD = os.environ.get("ALLOW_UNSAFE_CHECKPOINT_LOAD", "").lower() in ("1", "true", "yes")
+
 # Image sizes expected by the model
 PIECE_SIZE = 128
 PUZZLE_SIZE = 256
@@ -58,11 +65,14 @@ def _extract_state_dict(checkpoint: Any) -> Any:
 
 
 def _load_checkpoint(path: str, device: torch.device) -> Any:
-    """Load a checkpoint file, preferring the safe ``weights_only`` path.
+    """Load a checkpoint file using the safe ``weights_only`` path.
 
     Modern checkpoints (including exp20's raw tensor ``state_dict``) load with
     ``weights_only=True``, which avoids arbitrary pickle execution. Legacy
-    checkpoints that pickle non-tensor objects fall back to a full load.
+    checkpoints that pickle non-tensor objects can only be read with a full
+    (unsafe) load; that path is gated behind ``ALLOW_UNSAFE_CHECKPOINT_LOAD`` so
+    it is never taken implicitly. When the safe load fails and the escape hatch
+    is off, the error propagates and the caller degrades to neutral predictions.
 
     Args:
         path: Filesystem path to the checkpoint.
@@ -73,7 +83,10 @@ def _load_checkpoint(path: str, device: torch.device) -> Any:
     """
     try:
         return torch.load(path, map_location=device, weights_only=True)
-    except Exception:  # noqa: BLE001 - fall back for legacy pickled checkpoints
+    except Exception:  # noqa: BLE001 - decide whether the unsafe fallback is permitted
+        if not ALLOW_UNSAFE_CHECKPOINT_LOAD:
+            raise
+        print(f"weights_only load failed for {path}; retrying with full pickle load (ALLOW_UNSAFE_CHECKPOINT_LOAD set)")
         return torch.load(path, map_location=device, weights_only=False)
 
 
