@@ -51,7 +51,7 @@ private struct QueueTile: View {
             }
             statusLabel
             HStack(spacing: 10) {
-                if case .error = entry.status {
+                if entry.status.isRetryable {
                     Button(action: onRetry) {
                         Image(systemName: "arrow.clockwise")
                     }
@@ -78,6 +78,12 @@ private struct QueueTile: View {
                     .font(.caption2.monospacedDigit())
                     .foregroundStyle(.green)
             }
+        case .expired:
+            Text("Puzzle session expired")
+                .font(.caption2)
+                .foregroundStyle(.red)
+                .lineLimit(1)
+                .frame(maxWidth: 96)
         case .error(let message):
             Text(message)
                 .font(.caption2)

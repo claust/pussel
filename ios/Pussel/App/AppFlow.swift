@@ -96,7 +96,7 @@ final class SolveSession {
             }
         } catch let error as APIError where error.status == 404 {
             puzzleExpired = true
-            update(id: entry.id) { $0.status = .error("Puzzle session expired") }
+            update(id: entry.id) { $0.status = .expired }
         } catch {
             update(id: entry.id) { $0.status = .error(error.localizedDescription) }
         }
@@ -110,7 +110,7 @@ final class SolveSession {
             let response = try await api.uploadPuzzle(jpegData: trimmedJPEG)
             puzzleId = response.puzzleId
             puzzleExpired = false
-            for index in entries.indices where entries[index].status == .error("Puzzle session expired") {
+            for index in entries.indices where entries[index].status == .expired {
                 entries[index].status = .queued
             }
             processNext(api: api)

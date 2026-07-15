@@ -48,7 +48,6 @@ targets:
         GoogleServerClientID: $(GOOGLE_SERVER_CLIENT_ID)
         CFBundleURLTypes:
           - CFBundleURLSchemes: [$(GOOGLE_URL_SCHEME)]
-          - CFBundleURLSchemes: [pusseldebug]
     dependencies:
       - package: GoogleSignIn
         product: GoogleSignIn
