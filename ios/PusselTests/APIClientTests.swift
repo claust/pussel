@@ -20,8 +20,12 @@ final class StubURLProtocol: URLProtocol {
     set { lock.withLock { _receivedRequests = newValue } }
   }
 
+  // These override URLProtocol's class members, so `static` isn't an option
+  // (it can't be combined with `override`); silence static_over_final_class.
+  // swiftlint:disable static_over_final_class
   override class func canInit(with request: URLRequest) -> Bool { true }
   override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+  // swiftlint:enable static_over_final_class
 
   override func startLoading() {
     let handler = Self.lock.withLock {
@@ -62,7 +66,7 @@ final class APIClientTests: XCTestCase {
     )
   }
 
-  func testMultipartRequestBuilding() {
+  func testMultipartRequestBuilding() throws {
     let request = client.makeMultipartRequest(
       path: "api/v1/puzzle/abc/piece",
       queryItems: [URLQueryItem(name: "remove_bg", value: "true")],
@@ -74,7 +78,7 @@ final class APIClientTests: XCTestCase {
       request.url?.absoluteString, "http://stub.local/api/v1/puzzle/abc/piece?remove_bg=true")
     let contentType = request.value(forHTTPHeaderField: "Content-Type") ?? ""
     XCTAssertTrue(contentType.hasPrefix("multipart/form-data; boundary="))
-    let body = String(decoding: request.httpBody ?? Data(), as: UTF8.self)
+    let body = try XCTUnwrap(String(bytes: request.httpBody ?? Data(), encoding: .utf8))
     XCTAssertTrue(body.contains("name=\"file\"; filename=\"piece.jpg\""))
     XCTAssertTrue(body.contains("Content-Type: image/jpeg"))
   }

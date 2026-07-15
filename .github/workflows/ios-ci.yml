@@ -69,8 +69,10 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
+      # --strict promotes every warning to an error so lint warnings block the
+      # merge instead of merely surfacing in the log (mirrors `make check-ios`).
       - name: SwiftLint
-        run: swiftlint lint --quiet
+        run: swiftlint lint --quiet --strict
 
       # swift-format (bundled with the selected Xcode) owns layout; enforce it
       # in CI so unformatted code can't merge. Mirrors `make check-ios` /
