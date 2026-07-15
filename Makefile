@@ -38,16 +38,21 @@ check-shared:
 check-frontend:
 	cd frontend && bun run check
 
-# iOS checks — lint Swift formatting without modifying files (macOS + Xcode only).
-# Uses Apple's official swift-format bundled with Xcode; --strict makes lint
-# warnings fail the build so it doubles as a CI-style gate. Skips cleanly where
-# swift-format is unavailable (non-macOS), so the `check` aggregate stays
-# cross-platform.
+# iOS checks — swift-format formatting lint + SwiftLint, matching iOS CI.
+# swift-format (bundled with Xcode; --strict fails on any formatting drift)
+# owns layout; SwiftLint enforces the style rules in ios/.swiftlint.yml. Each
+# step skips cleanly when its tool is absent (e.g. non-macOS), so the `check`
+# aggregate stays cross-platform.
 check-ios:
 	@if xcrun --find swift-format >/dev/null 2>&1; then \
 		cd ios && xcrun swift-format lint --strict --recursive Pussel PusselTests; \
 	else \
-		echo "Skipping check-ios (swift-format not found — needs macOS + Xcode)"; \
+		echo "Skipping swift-format lint (not found — needs macOS + Xcode)"; \
+	fi
+	@if command -v swiftlint >/dev/null 2>&1; then \
+		cd ios && swiftlint lint --quiet; \
+	else \
+		echo "Skipping SwiftLint (not found — install with: brew install swiftlint)"; \
 	fi
 
 # Auto-format all code (Python + Next.js + iOS)
