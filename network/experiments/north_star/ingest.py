@@ -77,6 +77,34 @@ PUZZLES: list[tuple[int, int, int, str]] = [
 # artwork was photographed later as IMG_2052. Override numbers never count as piece shots.
 OVERVIEW_OVERRIDES: dict[str, int] = {"paw_patrol_a": 2052}
 
+# slug -> clockwise degrees that make the converted overview upright in the capture-order
+# sense (row 0 at the top as the pieces were rastered). iPhone EXIF orientation is
+# unreliable for these top-down shots AND the poster sometimes lay rotated relative to the
+# camera, so orientation was *measured*: the verified-upright piece crops are SIFT-matched
+# against the overview at all four rotations and the rotation where pieces match with zero
+# residual rotation wins, near-unanimously per puzzle
+# (experiments/exp25_north_star_eval/check_overview_orientation.py).
+# Measured 2026-07-15 on v1: 180 for every puzzle (unanimous piece votes; EXIF was wrong
+# for frozen_scene, frozen_closeup, paw_patrol_a and unicorn_night). Only measured slugs
+# are listed — an unmeasured (future) puzzle falls back to its EXIF orientation until its
+# rotation is measured and added here.
+OVERVIEW_ROTATIONS: dict[str, int] = {
+    "frozen_scene": 180,
+    "frozen_closeup": 180,
+    "dumbo": 180,
+    "bambi": 180,
+    "lion_king": 180,
+    "jungle_book": 180,
+    "peppa_kitchen": 180,
+    "peppa_forest": 180,
+    "peppa_aquarium": 180,
+    "peppa_family": 180,
+    "paw_patrol_a": 180,
+    "paw_patrol_b": 180,
+    "unicorn_pink": 180,
+    "unicorn_night": 180,
+}
+
 BACKGROUNDS = ["red_carpet", "gray_fabric", "cardboard", "wood"]
 SHOTS_PER_PIECE = len(BACKGROUNDS)
 
@@ -119,6 +147,27 @@ def convert_heic(src: Path, dst: Path, max_side: int, quality: int, match_srgb: 
     proc = subprocess.run(cmd + [str(src), "--out", str(dst)], capture_output=True, text=True)
     if proc.returncode != 0 or not dst.exists():
         raise RuntimeError(f"sips failed for {src.name}: {proc.stderr.strip()}")
+
+
+def normalize_overview(path: Path, slug: str, quality: int) -> None:
+    """Bake the measured upright rotation into an overview JPEG and drop its EXIF orientation.
+
+    ``sips`` keeps the source EXIF orientation tag as metadata, so the raw pixel
+    orientation of overview photos varies per puzzle and EXIF-unaware consumers
+    (PIL, OpenCV) see rotated content. Rotates the pixels by
+    ``OVERVIEW_ROTATIONS[slug]`` (measured from the pieces, see the constant's
+    comment) and clears the stale orientation tag so viewers do not double-rotate.
+    """
+    img = Image.open(path)
+    icc_profile = img.info.get("icc_profile")
+    exif = img.getexif()
+    exif_deg = {1: 0, 3: 180, 6: 90, 8: 270}.get(int(exif.get(274, 1)), 0)
+    if 274 in exif:
+        del exif[274]
+    degrees = OVERVIEW_ROTATIONS.get(slug, exif_deg)  # fall back to EXIF for unmeasured puzzles
+    if degrees:
+        img = img.transpose(PIL_TRANSPOSE[(4 - degrees // 90) % 4])  # lossless; degrees are CW, transpose keys CCW
+    img.save(path, quality=quality, exif=exif.tobytes(), icc_profile=icc_profile)
 
 
 def components(mask: np.ndarray, min_area: int) -> list[tuple[int, np.ndarray]]:
@@ -611,6 +660,7 @@ def ingest_puzzle(
     pdir = opts.output / puzzle_id
     (pdir / "pieces").mkdir(parents=True, exist_ok=True)
     convert_heic(byno[OVERVIEW_OVERRIDES.get(slug, anchor)], pdir / "overview.jpg", opts.max_side, opts.quality)
+    normalize_overview(pdir / "overview.jpg", slug, opts.quality)
     overrides = load_overrides()
     bbox_overrides = load_bbox_overrides()
 
