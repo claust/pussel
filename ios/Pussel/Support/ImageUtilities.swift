@@ -9,7 +9,7 @@ enum ImageUtilities {
     /// ImageIO, which decodes only what the thumbnail needs. Used for the
     /// home-screen puzzle list so a full-size image isn't held in memory or
     /// decoded just to draw a small card.
-    static func thumbnailJPEG(from data: Data, maxPixel: CGFloat = 240) -> Data? {
+    static func thumbnailJPEG(from data: Data, maxPixel: Int = 240) -> Data? {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
         let options: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
