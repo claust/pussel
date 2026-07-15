@@ -25,9 +25,9 @@ black-composited pieces as exp20, so those numbers stay comparable.
 | Augmentation | What it does | Why (real-photo gap it closes) |
 | --- | --- | --- |
 | **Independent photometric** | Brightness/contrast/saturation/hue drawn **separately** for piece and puzzle (puzzle milder) | The core lever. Identical jitter keeps pixel-identity; independent jitter destroys the shortcut. |
-| **Scale jitter** | Piece resized ±20% | Photographed pieces have unknown scale vs the box art. |
+| **Scale jitter** | Piece resized ±15% | Photographed pieces have unknown scale vs the box art. |
 | **Perspective** | Mild random homography on the piece | Hand-held camera is not fronto-parallel. |
-| **Rotation jitter** | ±10° around each 90° candidate (label stays 4-class) | Pieces are never placed at an exact 90°. |
+| **Rotation jitter** | ±8° around each 90° candidate (label stays 4-class) | Pieces are never placed at an exact 90°. |
 | **Realistic background** | RGBA piece composited on black / solid / gradient / another puzzle's texture | Deployed rembg output is black (kept as the majority mode); textured modes teach robustness to segmentation leakage. |
 | **Mask halo** | Alpha randomly eroded/dilated a few px before compositing | rembg masks are imperfect (edge eaten or background ring bleeds in). |
 | **Sensor noise** | Additive Gaussian noise | Camera sensor / ISO grain. |
