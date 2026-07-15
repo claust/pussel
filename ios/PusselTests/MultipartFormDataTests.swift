@@ -3,11 +3,11 @@ import XCTest
 @testable import Pussel
 
 final class MultipartFormDataTests: XCTestCase {
-  func testFilePartStructure() {
+  func testFilePartStructure() throws {
     var form = MultipartFormData(boundary: "TESTBOUNDARY")
     form.appendFile(
       name: "file", filename: "puzzle.jpg", mimeType: "image/jpeg", data: Data("JPEGBYTES".utf8))
-    let body = String(decoding: form.encoded(), as: UTF8.self)
+    let body = try XCTUnwrap(String(bytes: form.encoded(), encoding: .utf8))
 
     let expected =
       "--TESTBOUNDARY\r\n"
@@ -19,10 +19,10 @@ final class MultipartFormDataTests: XCTestCase {
     XCTAssertEqual(form.contentType, "multipart/form-data; boundary=TESTBOUNDARY")
   }
 
-  func testFieldPartStructure() {
+  func testFieldPartStructure() throws {
     var form = MultipartFormData(boundary: "TESTBOUNDARY")
     form.appendField(name: "corners", value: "{\"x\":0.1}")
-    let body = String(decoding: form.encoded(), as: UTF8.self)
+    let body = try XCTUnwrap(String(bytes: form.encoded(), encoding: .utf8))
 
     XCTAssertTrue(
       body.contains("Content-Disposition: form-data; name=\"corners\"\r\n\r\n{\"x\":0.1}\r\n"))

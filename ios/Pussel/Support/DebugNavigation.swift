@@ -56,42 +56,72 @@
     func handleDebugURL(_ url: URL) -> Bool {
       guard url.scheme == "pusseldebug" else { return false }
       let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
-      func value(_ name: String) -> String? {
-        items.first { $0.name == name }?.value
-      }
+      let host = url.host()
       Task { @MainActor in
-        switch url.host() {
-        case "reset":
-          flow.reset()
-        case "trim":
-          if let image = Self.hostImage(value("puzzle")) {
-            await startTrim(image: image, source: .library)
-          }
-        case "accept":
-          if case .confirmTrim(let candidate) = flow.phase {
-            await acceptTrim(candidate)
-          }
-        case "piece":
-          if let image = Self.hostImage(value("path")) {
-            addPiece(image: image)
-          }
-        case "reupload":
-          if case .solving(let session) = flow.phase {
-            await session.reupload(api: api)
-          }
-        case "open":
-          if let index = value("index").flatMap(Int.init), store.puzzles.indices.contains(index) {
-            openPuzzle(store.puzzles[index].id)
-          }
-        case "delete":
-          if let index = value("index").flatMap(Int.init), store.puzzles.indices.contains(index) {
-            deletePuzzle(store.puzzles[index].id)
-          }
-        default:
-          break
-        }
+        await runDebugCommand(host) { name in items.first { $0.name == name }?.value }
       }
       return true
+    }
+
+    // One thin case per command keeps this dispatcher's cyclomatic complexity
+    // low; each command's own guards live in its helper below.
+    private func runDebugCommand(_ host: String?, value: (String) -> String?) async {
+      switch host {
+      case "reset":
+        flow.reset()
+      case "trim":
+        await debugTrim(path: value("puzzle"))
+      case "accept":
+        await debugAccept()
+      case "piece":
+        debugAddPiece(path: value("path"))
+      case "reupload":
+        await debugReupload()
+      case "open":
+        debugOpen(index: value("index"))
+      case "delete":
+        debugDelete(index: value("index"))
+      default:
+        break
+      }
+    }
+
+    private func debugTrim(path: String?) async {
+      if let image = Self.hostImage(path) {
+        await startTrim(image: image, source: .library)
+      }
+    }
+
+    private func debugAccept() async {
+      if case .confirmTrim(let candidate) = flow.phase {
+        await acceptTrim(candidate)
+      }
+    }
+
+    private func debugAddPiece(path: String?) {
+      if let image = Self.hostImage(path) {
+        addPiece(image: image)
+      }
+    }
+
+    private func debugReupload() async {
+      if case .solving(let session) = flow.phase {
+        await session.reupload(api: api)
+      }
+    }
+
+    private func debugOpen(index: String?) {
+      guard let index = index.flatMap(Int.init), store.puzzles.indices.contains(index) else {
+        return
+      }
+      openPuzzle(store.puzzles[index].id)
+    }
+
+    private func debugDelete(index: String?) {
+      guard let index = index.flatMap(Int.init), store.puzzles.indices.contains(index) else {
+        return
+      }
+      deletePuzzle(store.puzzles[index].id)
     }
 
     private static func hostImage(_ path: String?) -> UIImage? {

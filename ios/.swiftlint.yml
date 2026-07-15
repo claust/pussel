@@ -1,7 +1,7 @@
 # SwiftLint configuration for the Pussel iOS app.
 # Run locally with `swiftlint` from the `ios/` directory (brew install swiftlint).
-# CI runs `swiftlint lint --quiet`; by default only error-level violations fail
-# the build, so warnings surface in the log without blocking merges.
+# CI runs `swiftlint lint --quiet --strict`, which promotes every warning to an
+# error so any lint violation blocks the merge (not just error-level rules).
 
 included:
   - Pussel
