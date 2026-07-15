@@ -130,15 +130,25 @@ IOS_PROJECT    = ios/Pussel.xcodeproj
 IOS_SIMULATOR ?= iPhone 17 Pro
 IOS_DERIVED    = ios/.build
 
+# Canonical (gitignored, machine-local) copy of the real secrets. It lives
+# outside every worktree so a fresh worktree or a `git clean` never loses it;
+# ios-generate restores ios/Config/Secrets.xcconfig from here automatically.
+IOS_SECRETS_CANONICAL ?= $(HOME)/.config/pussel/Secrets.xcconfig
+
 # Regenerate the (gitignored) Xcode project from project.yml. Requires
 # `brew install xcodegen`; needs Config/Secrets.xcconfig to exist first.
 ios-generate:
 	@command -v xcodegen >/dev/null 2>&1 || { \
 		echo "xcodegen not found. Install it with: brew install xcodegen"; exit 1; }
+	@if [ ! -f ios/Config/Secrets.xcconfig ] && [ -f "$(IOS_SECRETS_CANONICAL)" ]; then \
+		echo "ios/Config/Secrets.xcconfig missing; restoring from $(IOS_SECRETS_CANONICAL)"; \
+		cp "$(IOS_SECRETS_CANONICAL)" ios/Config/Secrets.xcconfig; \
+	fi
 	@test -f ios/Config/Secrets.xcconfig || { \
 		echo "ios/Config/Secrets.xcconfig is missing."; \
 		echo "The Debug/Release xcconfigs #include it, so xcodebuild fails without it."; \
-		echo "Create it with: cp ios/Config/Secrets.example.xcconfig ios/Config/Secrets.xcconfig"; \
+		echo "Restore your real values with: cp \"$(IOS_SECRETS_CANONICAL)\" ios/Config/Secrets.xcconfig"; \
+		echo "Or start from the template: cp ios/Config/Secrets.example.xcconfig ios/Config/Secrets.xcconfig"; \
 		exit 1; }
 	cd ios && xcodegen generate
 
