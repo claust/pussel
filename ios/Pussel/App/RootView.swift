@@ -48,6 +48,7 @@ struct AppFlowView: View {
                     } label: {
                         Image(systemName: "person.crop.circle")
                     }
+                    .accessibilityLabel("Account")
                 }
             }
         }

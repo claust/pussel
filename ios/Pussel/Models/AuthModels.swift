@@ -5,7 +5,7 @@ struct UserDTO: Codable, Equatable {
     let email: String
     let name: String
     let picture: String?
-    var createdAt: String?
+    let createdAt: String?
 }
 
 /// Response of POST /api/v1/auth/google.
