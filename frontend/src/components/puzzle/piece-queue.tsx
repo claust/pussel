@@ -41,15 +41,15 @@ export function PieceQueue({ entries, onRetry, onDelete, className }: PieceQueue
             <div
               key={entry.id}
               className={cn(
-                'animate-queue-pop group focus-visible:ring-ring relative w-24 shrink-0 cursor-pointer rounded-lg border-2 focus:outline-none focus-visible:ring-2',
+                'animate-queue-pop group focus-visible:ring-ring relative w-24 shrink-0 rounded-lg border-2 focus:outline-none focus-visible:ring-2',
                 entry.status === 'done' && 'border-green-500',
                 entry.status === 'error' && 'border-destructive',
                 (entry.status === 'queued' || entry.status === 'predicting') && 'border-border'
               )}
-              // Focusable so the enlarged preview is reachable by keyboard (tab to the tile)
-              // and by touch (tap the tile) without activating the retry/delete buttons.
+              // Focusable (but not an activatable control — the preview is revealed purely via
+              // CSS :focus-within) so the enlarged view is reachable by keyboard (tab to the
+              // tile) and by touch (tap the tile) without triggering the retry/delete buttons.
               tabIndex={0}
-              role="button"
               aria-label={`Captured piece ${index + 1} — focus to enlarge`}
               data-testid="queue-entry"
               data-status={entry.status}
