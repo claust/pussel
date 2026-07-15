@@ -1,7 +1,7 @@
 """Service module for processing puzzle pieces and matching them to puzzles.
 
 Uses FastBackboneModel that compares piece features with puzzle features
-to predict position (3x3 grid) and rotation.
+to predict position (4x4 grid) and rotation.
 """
 
 import base64
@@ -24,12 +24,12 @@ from app.models.puzzle_model import PieceResponse, Position
 from app.services.background_remover import get_background_remover
 from app.services.piece_detector import crop_to_alpha_region
 
-# Path to checkpoint (3x3 grid model with 82% cell accuracy, 95% rotation accuracy)
+# Path to checkpoint (exp20 4x4 grid model, realistic pieces, ~72.9% cell accuracy)
 DEFAULT_CHECKPOINT_PATH = str(
     Path(__file__).resolve().parents[3]
     / "network"
     / "experiments"
-    / "exp18_3x3_20k_puzzles"
+    / "exp20_realistic_pieces"
     / "outputs"
     / "checkpoint_best.pt"
 )
@@ -87,8 +87,9 @@ class ImageProcessor:
             print(f"Model checkpoint not found at {CHECKPOINT_PATH}; predictions will use a neutral fallback")
             return None
 
-        # Initialize model with same config as training
+        # Initialize model with same config as exp20 training
         model = FastBackboneModel(
+            backbone_name="shufflenet_v2_x0_5",
             pretrained=False,  # We'll load weights from checkpoint
             correlation_dim=128,
             rotation_hidden_dim=128,
@@ -97,9 +98,11 @@ class ImageProcessor:
             rotation_dropout=0.2,
         )
 
-        # Load checkpoint
+        # Load checkpoint. Some checkpoints wrap the weights in a "model_state_dict"
+        # key (exp18-style); exp20's checkpoint_best.pt is a raw state dict.
         checkpoint = torch.load(CHECKPOINT_PATH, map_location=self.device, weights_only=False)
-        model.load_state_dict(checkpoint["model_state_dict"])
+        state_dict = checkpoint["model_state_dict"] if "model_state_dict" in checkpoint else checkpoint
+        model.load_state_dict(state_dict)
 
         model.to(self.device)
         model.eval()

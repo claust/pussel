@@ -1,21 +1,79 @@
-"""FastBackboneModel for 3x3 grid puzzle piece matching.
+"""FastBackboneModel for 4x4 grid puzzle piece matching (exp20).
 
-This model predicts both position (which of 9 cells) and rotation of a puzzle piece
-by comparing the piece features with puzzle features using ShuffleNetV2_x0.5 backbone.
+Vendored from ``network/experiments/exp20_realistic_pieces/model.py`` so the
+backend can load the exp20 checkpoint. The model predicts a continuous
+position ``(x, y) in [0, 1]`` plus a 4-class rotation by comparing piece and
+puzzle features with a ShuffleNetV2_x0.5 backbone.
 
-Architecture:
-- Dual ShuffleNetV2_x0.5 backbones (piece + puzzle)
-- Spatial correlation for position prediction
-- Rotation correlation for rotation prediction (0/90/180/270)
-
-Performance: 82% cell accuracy, 95% rotation accuracy on 3x3 grids.
+Key features:
+- 4x4 grid (16 cells) trained on realistic puzzle pieces
+- predict_cell() maps the continuous position to a 16-class cell index
+- Coordinate regression (continuous x, y output)
 """
 
+from typing import Literal
+
+import timm  # type: ignore
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import models
 from torchvision.models import ShuffleNet_V2_X0_5_Weights
+
+BackboneType = Literal["repvgg_a0", "mobileone_s0", "shufflenet_v2_x0_5", "mobilenet_v3_small"]
+
+
+def get_backbone(backbone_name: BackboneType, pretrained: bool = True) -> tuple[nn.Module, int]:
+    """Create a backbone network and return it with its feature dimension.
+
+    Args:
+        backbone_name: Name of the backbone to use.
+        pretrained: Whether to use pretrained weights.
+
+    Returns:
+        Tuple of (backbone_module, feature_dim).
+    """
+    if backbone_name == "repvgg_a0":
+        model = timm.create_model("repvgg_a0", pretrained=pretrained, features_only=True)
+        with torch.no_grad():
+            dummy = torch.zeros(1, 3, 224, 224)
+            features = model(dummy)[-1]
+            feature_dim = features.shape[1]
+        return model, feature_dim
+
+    elif backbone_name == "mobileone_s0":
+        model = timm.create_model("mobileone_s0", pretrained=pretrained, features_only=True)
+        with torch.no_grad():
+            dummy = torch.zeros(1, 3, 224, 224)
+            features = model(dummy)[-1]
+            feature_dim = features.shape[1]
+        return model, feature_dim
+
+    elif backbone_name == "shufflenet_v2_x0_5":
+        weights = ShuffleNet_V2_X0_5_Weights.IMAGENET1K_V1 if pretrained else None
+        full_model = models.shufflenet_v2_x0_5(weights=weights)
+        backbone = nn.Sequential(
+            full_model.conv1,
+            full_model.maxpool,
+            full_model.stage2,
+            full_model.stage3,
+            full_model.stage4,
+            full_model.conv5,
+        )
+        feature_dim = 1024
+        return backbone, feature_dim
+
+    elif backbone_name == "mobilenet_v3_small":
+        from torchvision.models import MobileNet_V3_Small_Weights
+
+        weights = MobileNet_V3_Small_Weights.IMAGENET1K_V1 if pretrained else None
+        full_model = models.mobilenet_v3_small(weights=weights)
+        backbone = full_model.features
+        feature_dim = 576
+        return backbone, feature_dim
+
+    else:
+        raise ValueError(f"Unknown backbone: {backbone_name}")
 
 
 class SpatialCorrelationModule(nn.Module):
@@ -23,17 +81,11 @@ class SpatialCorrelationModule(nn.Module):
 
     def __init__(
         self,
-        feature_dim: int = 1024,
+        feature_dim: int = 576,
         correlation_dim: int = 128,
         dropout: float = 0.1,
     ):
-        """Initialize the spatial correlation module.
-
-        Args:
-            feature_dim: Feature dimension from backbones.
-            correlation_dim: Reduced dimension for correlation computation.
-            dropout: Dropout rate for regularization.
-        """
+        """Initialize the spatial correlation module."""
         super().__init__()
 
         self.piece_proj = nn.Sequential(
@@ -49,17 +101,7 @@ class SpatialCorrelationModule(nn.Module):
         self.temperature = nn.Parameter(torch.ones(1) * (correlation_dim**0.5))
 
     def forward(self, piece_feat: torch.Tensor, puzzle_feat_map: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        """Compute spatial correlation between piece and puzzle.
-
-        Args:
-            piece_feat: Piece feature vector (B, feature_dim).
-            puzzle_feat_map: Puzzle spatial features (B, feature_dim, H, W).
-
-        Returns:
-            Tuple of:
-                - attention_map: Softmax attention over puzzle locations (B, 1, H, W)
-                - expected_position: Weighted average position (B, 2)
-        """
+        """Compute spatial correlation between piece and puzzle."""
         batch_size = piece_feat.shape[0]
         _, _, h, w = puzzle_feat_map.shape
 
@@ -88,28 +130,15 @@ class SpatialCorrelationModule(nn.Module):
 
 
 class RotationCorrelationModule(nn.Module):
-    """Rotation prediction via correlation between piece and puzzle.
-
-    For each rotation r in [0, 90, 180, 270]:
-        1. Rotate the piece feature map by r degrees
-        2. Extract the puzzle region at the predicted position
-        3. Compute similarity between rotated piece and puzzle region
-        4. The rotation with highest similarity is the prediction
-    """
+    """Rotation prediction via correlation between piece and puzzle."""
 
     def __init__(
         self,
-        feature_dim: int = 1024,
+        feature_dim: int = 576,
         hidden_dim: int = 128,
         dropout: float = 0.2,
     ):
-        """Initialize the rotation correlation module.
-
-        Args:
-            feature_dim: Feature dimension from backbones.
-            hidden_dim: Hidden dimension for comparison network.
-            dropout: Dropout rate for regularization.
-        """
+        """Initialize the rotation correlation module."""
         super().__init__()
         self.feature_dim = feature_dim
 
@@ -141,15 +170,7 @@ class RotationCorrelationModule(nn.Module):
         )
 
     def _rotate_feature_map(self, feat_map: torch.Tensor, rotation_idx: int) -> torch.Tensor:
-        """Rotate a feature map by 0, 90, 180, or 270 degrees.
-
-        Args:
-            feat_map: Feature map of shape (B, C, H, W).
-            rotation_idx: Rotation index (0=0deg, 1=90deg, 2=180deg, 3=270deg).
-
-        Returns:
-            Rotated feature map of shape (B, C, H, W).
-        """
+        """Rotate a feature map by 0, 90, 180, or 270 degrees."""
         if rotation_idx == 0:
             return feat_map
         elif rotation_idx == 1:
@@ -164,17 +185,15 @@ class RotationCorrelationModule(nn.Module):
         puzzle_feat_map: torch.Tensor,
         position: torch.Tensor,
         target_size: tuple[int, int],
-        grid_size: int = 3,
+        grid_size: int = 4,  # Changed from 3 to 4 for exp20
     ) -> torch.Tensor:
         """Extract puzzle region at the predicted position using grid indexing.
-
-        For 3x3 grid, this extracts the cell at the predicted position.
 
         Args:
             puzzle_feat_map: Feature map of the puzzle [B, C, H, W].
             position: Predicted position [B, 2] with (x, y) in [0, 1].
             target_size: Target size (h, w) for the extracted region.
-            grid_size: Grid size (3 for 3x3 grid).
+            grid_size: Grid size (4 for 4x4 grid).
 
         Returns:
             Extracted regions [B, C, h, w].
@@ -183,7 +202,6 @@ class RotationCorrelationModule(nn.Module):
         _, c, h_puzzle, w_puzzle = puzzle_feat_map.shape
         h_piece, w_piece = target_size
 
-        # Compute grid cell indices from position
         x_idx = torch.clamp((position[:, 0] * grid_size).long(), 0, grid_size - 1)
         y_idx = torch.clamp((position[:, 1] * grid_size).long(), 0, grid_size - 1)
 
@@ -219,16 +237,7 @@ class RotationCorrelationModule(nn.Module):
         puzzle_feat_map: torch.Tensor,
         position: torch.Tensor,
     ) -> torch.Tensor:
-        """Compute rotation scores by comparing piece to puzzle.
-
-        Args:
-            piece_feat_map: Piece spatial features (B, C, H_piece, W_piece).
-            puzzle_feat_map: Puzzle spatial features (B, C, H_puzzle, W_puzzle).
-            position: Predicted position (B, 2) in [0, 1] coords.
-
-        Returns:
-            Rotation logits (B, 4) for rotations [0, 90, 180, 270].
-        """
+        """Compute rotation scores by comparing piece to puzzle."""
         _, _, h_piece, w_piece = piece_feat_map.shape
 
         puzzle_region = self._extract_region(puzzle_feat_map, position, (h_piece, w_piece))
@@ -247,13 +256,17 @@ class RotationCorrelationModule(nn.Module):
 
 
 class FastBackboneModel(nn.Module):
-    """Model with ShuffleNetV2_x0.5 backbone for 3x3 grid puzzle solving.
+    """Model with configurable fast backbone for experimentation.
 
-    Achieves 82% cell accuracy and 95% rotation accuracy on 3x3 grids.
+    Supports multiple backbone architectures for speed comparison while
+    maintaining the rotation correlation architecture.
+
+    Adapted for 4x4 grid (16 cells) in exp20.
     """
 
     def __init__(
         self,
+        backbone_name: BackboneType = "shufflenet_v2_x0_5",
         pretrained: bool = True,
         correlation_dim: int = 128,
         rotation_hidden_dim: int = 128,
@@ -261,9 +274,10 @@ class FastBackboneModel(nn.Module):
         dropout: float = 0.1,
         rotation_dropout: float = 0.2,
     ):
-        """Initialize the model with ShuffleNetV2_x0.5 backbone.
+        """Initialize the model with specified backbone.
 
         Args:
+            backbone_name: Which backbone to use.
             pretrained: Whether to use pretrained weights.
             correlation_dim: Dimension for position correlation.
             rotation_hidden_dim: Hidden dimension for rotation comparison.
@@ -272,31 +286,12 @@ class FastBackboneModel(nn.Module):
             rotation_dropout: Dropout rate for rotation head.
         """
         super().__init__()
+        self.backbone_name = backbone_name
         self.freeze_backbone_flag = freeze_backbone
-        self.feature_dim = 1024  # ShuffleNetV2 x0.5 final conv outputs 1024 channels
 
-        # Create ShuffleNetV2 backbones
-        weights = ShuffleNet_V2_X0_5_Weights.IMAGENET1K_V1 if pretrained else None
-        piece_model = models.shufflenet_v2_x0_5(weights=weights)
-        puzzle_model = models.shufflenet_v2_x0_5(weights=weights)
-
-        # Extract feature extractor (everything before final FC)
-        self.piece_backbone = nn.Sequential(
-            piece_model.conv1,
-            piece_model.maxpool,
-            piece_model.stage2,
-            piece_model.stage3,
-            piece_model.stage4,
-            piece_model.conv5,
-        )
-        self.puzzle_backbone = nn.Sequential(
-            puzzle_model.conv1,
-            puzzle_model.maxpool,
-            puzzle_model.stage2,
-            puzzle_model.stage3,
-            puzzle_model.stage4,
-            puzzle_model.conv5,
-        )
+        # Create backbone
+        self.piece_backbone, self.feature_dim = get_backbone(backbone_name, pretrained)
+        self.puzzle_backbone, _ = get_backbone(backbone_name, pretrained)
 
         # Global pooling
         self.piece_pool = nn.AdaptiveAvgPool2d(1)
@@ -336,22 +331,30 @@ class FastBackboneModel(nn.Module):
         for param in self.puzzle_backbone.parameters():
             param.requires_grad = False
 
+    def _extract_features(self, backbone: nn.Module, x: torch.Tensor) -> torch.Tensor:
+        """Extract features from backbone, handling different output formats."""
+        if self.backbone_name in ["repvgg_a0", "mobileone_s0"]:
+            features = backbone(x)
+            return features[-1]
+        else:
+            return backbone(x)
+
     def forward(self, piece: torch.Tensor, puzzle: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Forward pass.
 
         Args:
-            piece: Piece image tensor of shape (batch, 3, 128, 128).
-            puzzle: Puzzle image tensor of shape (batch, 3, 256, 256).
+            piece: Piece image tensor [B, 3, H, W].
+            puzzle: Puzzle image tensor [B, 3, H, W].
 
         Returns:
-            Tuple of:
-                - position: Predicted (cx, cy) coordinates (batch, 2) in [0, 1]
-                - rotation_logits: Rotation class logits (batch, 4)
-                - attention_map: Correlation map over puzzle (batch, 1, H, W)
+            Tuple of (position, rotation_logits, attention_map).
+            - position: Continuous (x, y) coordinates in [0, 1]
+            - rotation_logits: Logits for 4-class rotation classification
+            - attention_map: Spatial attention over puzzle
         """
         # Extract spatial features
-        puzzle_feat_map = self.puzzle_backbone(puzzle)
-        piece_feat_map = self.piece_backbone(piece)
+        puzzle_feat_map = self._extract_features(self.puzzle_backbone, puzzle)
+        piece_feat_map = self._extract_features(self.piece_backbone, piece)
 
         # Pool piece features for position correlation
         piece_feat = self.piece_pool(piece_feat_map).flatten(1)
@@ -372,20 +375,112 @@ class FastBackboneModel(nn.Module):
 
         return position, rotation_logits, attention_map
 
-    def predict_cell(self, piece: torch.Tensor, puzzle: torch.Tensor, grid_size: int = 3) -> torch.Tensor:
+    @staticmethod
+    def positions_to_cells(position: torch.Tensor, grid_size: int = 4) -> torch.Tensor:
+        """Convert predicted (cx, cy) positions to grid cell indices.
+
+        Args:
+            position: Tensor of shape (batch, 2) with normalized (cx, cy).
+            grid_size: Size of the grid (4 for 4x4 grid).
+
+        Returns:
+            Cell indices (0 to grid_size*grid_size - 1).
+        """
+        cx, cy = position[:, 0], position[:, 1]
+        col_idx = torch.clamp((cx * grid_size).long(), 0, grid_size - 1)
+        row_idx = torch.clamp((cy * grid_size).long(), 0, grid_size - 1)
+        return row_idx * grid_size + col_idx
+
+    def predict_cell(self, piece: torch.Tensor, puzzle: torch.Tensor, grid_size: int = 4) -> torch.Tensor:
         """Predict which cell the piece belongs to in a grid.
 
         Args:
             piece: Piece image tensor.
             puzzle: Puzzle image tensor.
-            grid_size: Size of the grid (3 for 3x3 grid).
+            grid_size: Size of the grid (4 for 4x4 grid).
 
         Returns:
             Cell indices (0 to grid_size*grid_size - 1).
         """
         position, _, _ = self.forward(piece, puzzle)
-        cx, cy = position[:, 0], position[:, 1]
-        col_idx = torch.clamp((cx * grid_size).long(), 0, grid_size - 1)
-        row_idx = torch.clamp((cy * grid_size).long(), 0, grid_size - 1)
-        cell = row_idx * grid_size + col_idx
-        return cell
+        return self.positions_to_cells(position, grid_size)
+
+    def get_parameter_groups(
+        self,
+        backbone_lr: float = 1e-5,
+        head_lr: float = 1e-3,
+        weight_decay: float = 1e-4,
+    ) -> list[dict]:
+        """Get parameter groups with differential learning rates."""
+        backbone_params = [p for p in self.piece_backbone.parameters() if p.requires_grad]
+        backbone_params += [p for p in self.puzzle_backbone.parameters() if p.requires_grad]
+
+        head_params = [p for p in self.spatial_correlation.parameters() if p.requires_grad]
+        head_params += [p for p in self.refinement.parameters() if p.requires_grad]
+        head_params += [p for p in self.rotation_correlation.parameters() if p.requires_grad]
+
+        param_groups = []
+        if backbone_params:
+            param_groups.append(
+                {
+                    "params": backbone_params,
+                    "lr": backbone_lr,
+                    "weight_decay": weight_decay,
+                    "name": "backbone",
+                }
+            )
+        if head_params:
+            param_groups.append(
+                {
+                    "params": head_params,
+                    "lr": head_lr,
+                    "weight_decay": weight_decay,
+                    "name": "heads",
+                }
+            )
+
+        return param_groups
+
+
+def count_parameters(model: nn.Module, trainable_only: bool = True) -> int:
+    """Count parameters in the model."""
+    if trainable_only:
+        return sum(p.numel() for p in model.parameters() if p.requires_grad)
+    return sum(p.numel() for p in model.parameters())
+
+
+if __name__ == "__main__":
+    print("=" * 60)
+    print("Fast Backbone Model Test (Exp20 - 4x4 Grid)")
+    print("=" * 60)
+
+    batch_size = 4
+    piece_size = 128
+    puzzle_size = 256
+
+    dummy_piece = torch.randn(batch_size, 3, piece_size, piece_size)
+    dummy_puzzle = torch.randn(batch_size, 3, puzzle_size, puzzle_size)
+
+    # Test default backbone (ShuffleNetV2)
+    backbone_name: BackboneType = "shufflenet_v2_x0_5"
+    print(f"\n--- {backbone_name} ---")
+
+    model = FastBackboneModel(backbone_name=backbone_name, pretrained=True)
+    total_params = count_parameters(model, trainable_only=False)
+    trainable_params = count_parameters(model, trainable_only=True)
+
+    print(f"Feature dimension: {model.feature_dim}")
+    print(f"Total parameters: {total_params:,}")
+    print(f"Trainable parameters: {trainable_params:,}")
+
+    # Test forward pass
+    position, rotation_logits, attention = model(dummy_piece, dummy_puzzle)
+    print(f"Position shape: {position.shape}")
+    print(f"Rotation logits shape: {rotation_logits.shape}")
+    print(f"Attention shape: {attention.shape}")
+
+    # Test cell prediction for 4x4 grid
+    cells = model.predict_cell(dummy_piece, dummy_puzzle, grid_size=4)
+    print(f"Predicted cells: {cells.tolist()}")
+    print("Cell range: 0-15 (4x4 grid)")
+    print("Forward pass: OK")
