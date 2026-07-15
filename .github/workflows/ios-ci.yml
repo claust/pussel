@@ -1,0 +1,95 @@
+name: iOS CI
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main, release]
+    paths:
+      - 'ios/**'
+      - '.github/workflows/ios-ci.yml'
+  pull_request:
+    branches: [main, release]
+    paths:
+      - 'ios/**'
+      - '.github/workflows/ios-ci.yml'
+
+# macOS runner minutes bill at 10x the Linux rate on private repos, so the
+# path filter above keeps this off backend/frontend-only PRs. Cancel superseded
+# runs to avoid stacking expensive macOS jobs.
+concurrency:
+  group: ios-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    name: Build, test & lint
+    # macos-15 carries the Xcode 26 toolchain selected below (the iOS 26 SDK
+    # this app's deployment target requires). The "Select Xcode 26" step pins
+    # the exact version, so this only needs an image that has a 26.x installed.
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: ios
+    env:
+      SCHEME: Pussel
+      # Concrete simulator so `xcodebuild test` has a bootable destination.
+      # iPhone 17 Pro ships with the Xcode 26 iOS 26 runtime (matches ios/README).
+      DESTINATION: 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Pin the toolchain to the latest Xcode 26.x (the iOS 26 SDK this app's
+      # deployment target requires) rather than a hard-coded /Applications path,
+      # which can break across runner-image updates.
+      - name: Select Xcode 26
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '~> 26.0'
+
+      - name: Show toolchain versions
+        run: |
+          xcodebuild -version
+          xcrun simctl list runtimes | grep iOS || true
+
+      # xcbeautify is used to prettify xcodebuild output in the Build/Test steps;
+      # install it explicitly rather than relying on it being preinstalled.
+      - name: Install tooling (XcodeGen + SwiftLint + xcbeautify)
+        run: |
+          brew install xcodegen swiftlint xcbeautify
+
+      # Simulator builds need no signing and exercise no Google flow, so a
+      # placeholder Secrets.xcconfig (gitignored, required by Debug.xcconfig's
+      # non-optional #include) is enough. No repo secrets required.
+      - name: Stub Secrets.xcconfig
+        run: cp Config/Secrets.example.xcconfig Config/Secrets.xcconfig
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: SwiftLint
+        run: swiftlint lint --quiet
+
+      - name: Build
+        run: |
+          set -o pipefail
+          xcodebuild build-for-testing \
+            -project Pussel.xcodeproj \
+            -scheme "$SCHEME" \
+            -destination "$DESTINATION" \
+            -derivedDataPath .build \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcbeautify
+
+      - name: Test
+        run: |
+          set -o pipefail
+          xcodebuild test-without-building \
+            -project Pussel.xcodeproj \
+            -scheme "$SCHEME" \
+            -destination "$DESTINATION" \
+            -derivedDataPath .build \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcbeautify
