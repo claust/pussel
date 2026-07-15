@@ -152,7 +152,7 @@ ios-test: ios-generate
 ios-deploy: ios-generate
 	@DEVICE="$(IOS_DEVICE)"; \
 	if [ -z "$$DEVICE" ]; then \
-		DEVICE=$$(xcrun devicectl list devices 2>/dev/null | awk '/connected/ {for (i=1;i<=NF;i++) if ($$i ~ /^[0-9A-Fa-f]{8}-[0-9A-Fa-f]/) {print $$i; exit}}'); \
+		DEVICE=$$(xcrun devicectl list devices 2>/dev/null | awk '{ ok=0; for (i=1;i<=NF;i++) if ($$i=="connected") ok=1; if (ok) for (i=1;i<=NF;i++) if ($$i ~ /^[0-9A-Fa-f]{8}-[0-9A-Fa-f]/) {print $$i; exit} }'); \
 	fi; \
 	if [ -z "$$DEVICE" ]; then \
 		echo "No connected iPhone found. Connect and trust a device, or pass IOS_DEVICE=<name-or-udid>."; \
