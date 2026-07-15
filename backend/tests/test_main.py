@@ -111,7 +111,7 @@ def test_process_piece_invalid_puzzle() -> None:
 
 
 def test_process_piece() -> None:
-    """Test processing a valid puzzle piece."""
+    """Test processing a valid puzzle piece (CNN matcher path)."""
     # Create mock response
     mock_response = PieceResponse(
         position=Position(x=0.25, y=0.75),
@@ -135,10 +135,14 @@ def test_process_piece() -> None:
             response = client.post("/api/v1/puzzle/upload", files=files, headers=get_auth_header())
         puzzle_id = response.json()["puzzle_id"]
 
-        # Test piece processing with mocked image processor
-        with patch(
-            "app.main.get_image_processor",
-            return_value=mock_processor,
+        # Test piece processing with mocked image processor (force the CNN matcher path;
+        # the default MATCHER is "classical", which would otherwise route to it instead)
+        with (
+            patch.object(settings, "MATCHER", "cnn"),
+            patch(
+                "app.main.get_image_processor",
+                return_value=mock_processor,
+            ),
         ):
             with tempfile.NamedTemporaryFile(suffix=".jpg") as temp_file:
                 temp_file.write(b"fake piece content")
