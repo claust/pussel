@@ -66,7 +66,8 @@ format-frontend:
 	cd frontend && bun run format
 
 # Auto-format iOS Swift code in place (macOS + Xcode only). Uses Apple's
-# official swift-format (bundled with Xcode); style comes from ios/.swift-format.
+# official swift-format (bundled with Xcode) with its default style (no
+# project config file).
 format-ios:
 	cd ios && xcrun swift-format format --in-place --recursive Pussel PusselTests
 
