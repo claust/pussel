@@ -56,6 +56,31 @@ enum ImageUtilities {
         return encoded
     }
 
+    /// Returns `image` rotated clockwise by `quarterTurns` × 90°. Implemented by
+    /// reinterpreting the EXIF orientation, so it is cheap (no resampling);
+    /// `normalizedJPEG` bakes the rotation into the pixels when the image is
+    /// redrawn upright for upload (see `rotatedJPEG`).
+    static func rotated(_ image: UIImage, quarterTurns: Int) -> UIImage {
+        let turns = ((quarterTurns % 4) + 4) % 4
+        guard turns != 0, let cgImage = image.cgImage else { return image }
+        let orientation: UIImage.Orientation
+        switch turns {
+        case 1: orientation = .right
+        case 2: orientation = .down
+        default: orientation = .left
+        }
+        return UIImage(cgImage: cgImage, scale: image.scale, orientation: orientation)
+    }
+
+    /// Rotates JPEG `data` clockwise by `quarterTurns` × 90° and re-encodes it
+    /// with the rotation baked into the pixels. Returns the original data when
+    /// there is nothing to rotate or it cannot be decoded.
+    static func rotatedJPEG(from data: Data, quarterTurns: Int) -> Data? {
+        guard ((quarterTurns % 4) + 4) % 4 != 0 else { return data }
+        guard let image = UIImage(data: data) else { return data }
+        return normalizedJPEG(from: rotated(image, quarterTurns: quarterTurns))
+    }
+
     /// Decodes a "data:image/...;base64,..." string (or bare base64) to bytes.
     static func decodeDataURL(_ string: String) -> Data? {
         guard let comma = string.firstIndex(of: ",") else {
