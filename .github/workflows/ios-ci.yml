@@ -72,6 +72,12 @@ jobs:
       - name: SwiftLint
         run: swiftlint lint --quiet
 
+      # swift-format (bundled with the selected Xcode) owns layout; enforce it
+      # in CI so unformatted code can't merge. Mirrors `make check-ios` /
+      # `make format-ios`. --strict fails the job on any formatting drift.
+      - name: swift-format lint
+        run: xcrun swift-format lint --strict --recursive Pussel PusselTests
+
       - name: Build
         run: |
           set -o pipefail
