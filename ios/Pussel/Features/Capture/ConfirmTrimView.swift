@@ -35,6 +35,7 @@ struct ConfirmTrimView: View {
                 HStack(spacing: 12) {
                     Button {
                         model.flow.errorMessage = nil
+                        model.flow.pendingRetake = candidate.source
                         model.flow.phase = .capturePuzzle
                     } label: {
                         Label("Retake", systemImage: "arrow.counterclockwise")
