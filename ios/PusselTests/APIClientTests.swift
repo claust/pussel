@@ -104,9 +104,7 @@ final class APIClientTests: XCTestCase {
 
     func test401TriggersReauthAndRetriesOnce() async throws {
         authStore.backendToken = "stale"
-        nonisolated(unsafe) var attempts = 0
         StubURLProtocol.handler = { request in
-            attempts += 1
             if request.value(forHTTPHeaderField: "Authorization") == "Bearer fresh" {
                 return (200, Data(#"{"puzzle_id": "p2", "image_url": null}"#.utf8))
             }
@@ -118,7 +116,9 @@ final class APIClientTests: XCTestCase {
         }
         let response = try await client.uploadPuzzle(jpegData: Data("J".utf8))
         XCTAssertEqual(response.puzzleId, "p2")
-        XCTAssertEqual(attempts, 2)
+        // The lock-guarded request log stands in for a hand-rolled counter,
+        // which would race with URLSession's internal threads.
+        XCTAssertEqual(StubURLProtocol.receivedRequests.count, 2)
     }
 
     func test401WithoutReauthSurfacesError() async {

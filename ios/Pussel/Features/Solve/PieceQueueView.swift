@@ -55,10 +55,12 @@ private struct QueueTile: View {
                     Button(action: onRetry) {
                         Image(systemName: "arrow.clockwise")
                     }
+                    .accessibilityLabel("Retry piece")
                 }
                 Button(role: .destructive, action: onDelete) {
                     Image(systemName: "trash")
                 }
+                .accessibilityLabel("Delete piece")
             }
             .font(.footnote)
             .buttonStyle(.borderless)
