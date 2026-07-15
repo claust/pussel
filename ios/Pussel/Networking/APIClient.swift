@@ -93,6 +93,13 @@ final class APIClient {
             return try await send(request, authenticated: true, allowRetry: false)
         }
         guard (200..<300).contains(http.statusCode) else {
+            if http.statusCode == 401, authenticated {
+                // Silent re-auth failed or the retry 401ed again — drop the
+                // session so RootView falls back to SignInView instead of
+                // leaving an "authenticated" UI whose every call fails.
+                authStore.backendToken = nil
+                authStore.user = nil
+            }
             throw APIError.from(data: data, status: http.statusCode)
         }
         return data
