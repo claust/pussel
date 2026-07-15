@@ -398,8 +398,10 @@ def _jpeg_recompress(img: Image.Image, quality: int) -> Image.Image:
 def black_composite(piece_rgba: Image.Image) -> Image.Image:
     """Black-composite an RGBA piece to RGB (the exp20 / deployed appearance).
 
-    Used for the un-augmented path and for val/test so those stay
-    byte-comparable to the exp20 frozen benchmark.
+    Used for the un-augmented path and for val/test so those stay directly
+    comparable to the exp20 frozen benchmark (same protocol and appearance;
+    not guaranteed bitwise-identical, since the RGBA rotate blends edge
+    pixels with the transparent fill before compositing).
 
     Args:
         piece_rgba: RGBA piece.

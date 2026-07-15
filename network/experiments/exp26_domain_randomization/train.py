@@ -91,7 +91,10 @@ def export_state_dict_checkpoint(output_dir: Path, device: torch.device) -> Path
     Returns:
         Path to the written raw-state_dict checkpoint.
     """
-    ckpt = torch.load(output_dir / "checkpoint_best.pt", map_location=device)
+    ckpt_path = output_dir / "checkpoint_best.pt"
+    ckpt = torch.load(ckpt_path, map_location=device, weights_only=True)
+    if "model_state_dict" not in ckpt:
+        raise KeyError(f"'model_state_dict' missing from {ckpt_path} (keys: {sorted(ckpt)})")
     raw_path = output_dir / "checkpoint_best_state_dict.pt"
     torch.save(ckpt["model_state_dict"], raw_path)
     return raw_path
