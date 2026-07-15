@@ -8,8 +8,9 @@
         ios-generate ios-run ios-deploy ios-test
 
 # Run all checks (Python + Next.js + iOS)
-# Note: check-ios needs macOS + Xcode; CI calls the per-component targets
-# directly (never this aggregate), so Linux runners are unaffected.
+# check-ios self-skips where swift-format is unavailable (non-macOS), so this
+# aggregate stays cross-platform. CI also calls the per-component targets
+# directly rather than this aggregate.
 check: check-backend check-network check-shared check-frontend check-ios
 
 # Backend checks (uses uv to run tools from the backend venv)
@@ -39,9 +40,15 @@ check-frontend:
 
 # iOS checks — lint Swift formatting without modifying files (macOS + Xcode only).
 # Uses Apple's official swift-format bundled with Xcode; --strict makes lint
-# warnings fail the build so it doubles as a CI-style gate.
+# warnings fail the build so it doubles as a CI-style gate. Skips cleanly where
+# swift-format is unavailable (non-macOS), so the `check` aggregate stays
+# cross-platform.
 check-ios:
-	cd ios && xcrun swift-format lint --strict --recursive Pussel PusselTests
+	@if xcrun --find swift-format >/dev/null 2>&1; then \
+		cd ios && xcrun swift-format lint --strict --recursive Pussel PusselTests; \
+	else \
+		echo "Skipping check-ios (swift-format not found — needs macOS + Xcode)"; \
+	fi
 
 # Auto-format all code (Python + Next.js + iOS)
 format: format-backend format-network format-frontend format-ios
@@ -67,9 +74,14 @@ format-frontend:
 
 # Auto-format iOS Swift code in place (macOS + Xcode only). Uses Apple's
 # official swift-format (bundled with Xcode) with its default style (no
-# project config file).
+# project config file). Skips cleanly where swift-format is unavailable
+# (non-macOS), so the `format` aggregate stays cross-platform.
 format-ios:
-	cd ios && xcrun swift-format format --in-place --recursive Pussel PusselTests
+	@if xcrun --find swift-format >/dev/null 2>&1; then \
+		cd ios && xcrun swift-format format --in-place --recursive Pussel PusselTests; \
+	else \
+		echo "Skipping format-ios (swift-format not found — needs macOS + Xcode)"; \
+	fi
 
 # Run backend tests with coverage (uses uv)
 test-backend:
