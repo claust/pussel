@@ -33,6 +33,8 @@ targets:
     info:
       path: Pussel/Resources/Info.plist
       properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         NSCameraUsageDescription: Pussel uses the camera to photograph your puzzle and its pieces.

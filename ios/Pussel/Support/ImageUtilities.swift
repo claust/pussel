@@ -20,13 +20,16 @@ enum ImageUtilities {
             image.draw(in: CGRect(origin: .zero, size: targetSize))
         }
 
+        let minQuality: CGFloat = 0.4
         var quality = quality
         var data = upright.jpegData(compressionQuality: quality)
-        while let encoded = data, encoded.count > maxUploadBytes, quality > 0.4 {
-            quality -= 0.15
+        while let encoded = data, encoded.count > maxUploadBytes, quality > minQuality {
+            quality = max(quality - 0.15, minQuality)
             data = upright.jpegData(compressionQuality: quality)
         }
-        return data
+        // Fail fast rather than letting the backend reject the upload with 413.
+        guard let encoded = data, encoded.count <= maxUploadBytes else { return nil }
+        return encoded
     }
 
     /// Decodes a "data:image/...;base64,..." string (or bare base64) to bytes.
