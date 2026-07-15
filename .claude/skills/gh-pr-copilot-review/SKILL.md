@@ -52,25 +52,26 @@ When the user invokes this skill, execute the workflow automatically when the in
    gh pr create --base <base> --head "$(git branch --show-current)" --title "<title>" --body "<body>"
    ```
 
-8. Request Copilot review by running `scripts/copilot-review.sh request` (the GraphQL bot-review path documented below). Use it for both initial review requests and re-review requests after pushing fixes. Do not rely on `gh pr edit --add-reviewer Copilot` or `gh pr edit --add-reviewer @copilot`; those commands can return success without creating a visible pending Copilot request or a new `copilot_work_started` event.
+8. Request Copilot review by running `.claude/skills/gh-pr-copilot-review/scripts/copilot-review.sh request` (the GraphQL bot-review path documented below). Use it for both initial review requests and re-review requests after pushing fixes. Do not rely on `gh pr edit --add-reviewer Copilot` or `gh pr edit --add-reviewer @copilot`; those commands can return success without creating a visible pending Copilot request or a new `copilot_work_started` event.
 
 ## Helper Script
 
 The shell-fragile steps (request, verify, status, wait) are packaged in
-`scripts/copilot-review.sh`, so they run identically every session instead of
+`.claude/skills/gh-pr-copilot-review/scripts/copilot-review.sh`, so they run identically every session instead of
 being retyped and re-broken. It has a `#!/usr/bin/env bash` shebang, so it is
 immune to the caller's interactive shell — importantly it does not hit the
 `[ "$a" \> "$b" ]` string compare that errors under zsh with
 "condition expected: >" and silently defeats a hand-written watcher.
 
 `owner`/`repo`/`pr` auto-detect from the current repo and checked-out PR branch
-when the flags are omitted. Reference paths relative to the skill directory:
+when the flags are omitted. Paths below are relative to the repo root (the usual
+working directory for skill commands), so they run as-is:
 
 ```bash
-scripts/copilot-review.sh request   # request / re-request Copilot review
-scripts/copilot-review.sh verify    # events + pending reviewers (confirm it registered)
-scripts/copilot-review.sh status    # submitted reviews (user, state, submitted_at, body)
-scripts/copilot-review.sh wait [--baseline TS] [--interval SECS] [--max-iters N]
+.claude/skills/gh-pr-copilot-review/scripts/copilot-review.sh request   # request / re-request Copilot review
+.claude/skills/gh-pr-copilot-review/scripts/copilot-review.sh verify    # events + pending reviewers (confirm it registered)
+.claude/skills/gh-pr-copilot-review/scripts/copilot-review.sh status    # submitted reviews (user, state, submitted_at, body)
+.claude/skills/gh-pr-copilot-review/scripts/copilot-review.sh wait [--baseline TS] [--interval SECS] [--max-iters N]
 # add --owner O --repo R --pr N to any of the above to be explicit
 ```
 
@@ -80,7 +81,7 @@ unavailable.
 
 ## Request Or Re-Request Copilot Review
 
-Run `scripts/copilot-review.sh request` (works for both the initial request and
+Run `.claude/skills/gh-pr-copilot-review/scripts/copilot-review.sh request` (works for both the initial request and
 re-review after pushing fixes). Under the hood it uses GraphQL
 `requestReviewsByLogin` with `botLogins:["copilot-pull-request-reviewer"]` — the
 reliable programmatic equivalent of the web UI's Copilot review/re-review
@@ -138,7 +139,7 @@ gh api graphql \
 
 ## Verify Copilot Request
 
-Run `scripts/copilot-review.sh verify`. It reports issue events and pending
+Run `.claude/skills/gh-pr-copilot-review/scripts/copilot-review.sh verify`. It reports issue events and pending
 requested reviewers; GitHub may leave `reviewRequests` empty in `gh pr view`,
 and submitted Copilot reviews remove Copilot from the pending requested-reviewer
 list, so events are the reliable signal. Equivalent raw calls:
@@ -192,11 +193,11 @@ Launch the `wait` subcommand with `run_in_background: true`:
 
 ```bash
 # First round — empty baseline, so any Copilot review matches:
-scripts/copilot-review.sh wait
+.claude/skills/gh-pr-copilot-review/scripts/copilot-review.sh wait
 
 # Re-review round — pass the previous round's latest Copilot submitted_at so it
 # waits for the NEW review instead of returning the old one immediately:
-scripts/copilot-review.sh wait --baseline 2026-07-15T15:58:45Z
+.claude/skills/gh-pr-copilot-review/scripts/copilot-review.sh wait --baseline 2026-07-15T15:58:45Z
 ```
 
 It prints `COPILOT_REVIEW_READY latest=<ts>` and exits 0 the moment a matching
@@ -247,7 +248,7 @@ When `gh pr view` reports that the branch is behind, the merge state is blocked 
 
 6. Wait for CI to run again on the updated branch. Monitor the new check run until it finishes. If CI fails, inspect logs, fix the failure, push again, and keep monitoring.
 
-7. If the update or conflict resolution changes code that Copilot previously reviewed, re-request Copilot review with `scripts/copilot-review.sh request`.
+7. If the update or conflict resolution changes code that Copilot previously reviewed, re-request Copilot review with `.claude/skills/gh-pr-copilot-review/scripts/copilot-review.sh request`.
 
 ## Address Review Feedback
 
@@ -308,7 +309,7 @@ When a review comment has been addressed, resolve the corresponding GitHub revie
      -F thread=<review-thread-id>
    ```
 
-6. Re-request Copilot review with `scripts/copilot-review.sh request` after every push that addresses Copilot feedback.
+6. Re-request Copilot review with `.claude/skills/gh-pr-copilot-review/scripts/copilot-review.sh request` after every push that addresses Copilot feedback.
 
 7. Keep the branch updated with the base branch while this loop is running. If the base branch changes, merge it into the PR branch, resolve any conflicts, push, and wait for CI to rerun.
 
@@ -327,7 +328,7 @@ If the user asks to watch, monitor, check back, notify them, or get callbacks, u
 
 ## Important Details
 
-- Prefer `scripts/copilot-review.sh` (subcommands `request`, `verify`, `status`, `wait`) over hand-typed `gh`/loop snippets — it is the tested, shell-portable entrypoint. Reach for raw `gh` only to debug or when the script is unavailable.
+- Prefer `.claude/skills/gh-pr-copilot-review/scripts/copilot-review.sh` (subcommands `request`, `verify`, `status`, `wait`) over hand-typed `gh`/loop snippets — it is the tested, shell-portable entrypoint. Reach for raw `gh` only to debug or when the script is unavailable.
 - Never hand-roll the review-wait poll loop in the interactive shell: a `[ "$a" \> "$b" ]` timestamp compare errors under zsh ("condition expected: >") and loops until timeout without ever matching. The script uses a bash shebang + `[[ > ]]` to avoid this.
 - Programmatic Copilot review requests should use GraphQL `requestReviewsByLogin` with `botLogins:["copilot-pull-request-reviewer"]`.
 - `gh pr edit --add-reviewer Copilot` and `gh pr edit --add-reviewer @copilot` can return success without a new visible request. Treat them as insufficient unless verification shows a fresh Copilot event, pending reviewer, or review.
