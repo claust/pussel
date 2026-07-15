@@ -540,6 +540,50 @@ bare-hand negatives yet.
 
 ---
 
+## Exp 25: North-Star Real-Photo Evaluation
+
+**Date:** July 2026 **Status:** MILESTONE (classical hybrid **76.7% both**;
+CNN collapses to 14.8%)
+
+First evaluation of any method on real photographs — the north-star v1 set
+(14 physical kids' puzzles, 236 pieces, 944 piece photos on 4 backgrounds,
+grids 2x3–5x5/4x6). Protocol: pieces prepared through the exact deployed
+preview path (bbox crop → rembg → black composite, 0 segmentation failures),
+4 applied rotations per photo (3,776 samples), predictions binned into each
+puzzle's own grid against the auto-cropped overview photo. Random = ~5.9%
+cell / 25% rotation. Along the way a real dataset defect was found and fixed:
+the overview JPEGs' raw pixel orientation was arbitrary (stale EXIF, wrong
+for 4/14 puzzles); orientation is now *measured* by SIFT-matching the
+verified-upright pieces against the overview at all 4 rotations
+(unanimous: 180° for all 14) and baked into the pixels by `ingest.py`.
+
+| Method              | Cell      | Rotation  | Both      | vs synthetic (both) |
+| ------------------- | --------- | --------- | --------- | ------------------- |
+| SIFT→NCC hybrid     | **77.9%** | 90.3→**89.2%** | **76.7%** | 82.2% → 76.7% (−5.5) |
+| SIFT (85% coverage) | 72.6%     | 80.1%     | 71.5%     | —                   |
+| NCC multi-scale     | 50.5%     | 68.9%     | 48.9%     | 76.9% → 48.9% (−28) |
+| CNN + rot search    | 24.2%     | 48.1%     | 18.0%     | —                   |
+| CNN (exp20)         | 22.4%     | 44.0%     | 14.8%     | 72.2% → 14.8% (−57) |
+
+Conclusions:
+
+1. **The critical review's headline fear is confirmed**: the CNN learned
+   pixel-identical matching that does not survive a camera (barely above
+   random on position; diffuse rotation confusion). All synthetic results to
+   date say nothing about the real task. Test-time rotation search (review
+   item #7) recovers only +3.2.
+2. **Classical matching survives**: the zero-training SIFT→NCC hybrid loses
+   only 5.5 points and leads the real benchmark by 28. SIFT itself is
+   near-perfect when it matches (84% both on its 85% coverage); wood is the
+   hardest background (69% both), `frozen_scene`/`unicorn_pink` the hardest
+   puzzles (low-texture artwork where the NCC fallback is weak).
+3. **The real-task bar is now 76.7% both-correct on north_star v1.** exp26
+   (realism-augmented training per review item #5) must beat that — and the
+   backend's current CNN path is, on real photos, far below what shipping
+   the classical hybrid would give today.
+
+---
+
 ## Summary Table
 
 | Exp | Focus                       | Test Result            | Key Finding                                    |
@@ -568,6 +612,7 @@ bare-hand negatives yet.
 | 22  | RoMa V2 dense matching      | 64% cell / 58% rot     | Loses to CNN on both metrics (after label fix) |
 | 23  | Classical baselines         | **83% cell / 90% rot** | SIFT→NCC hybrid beats the CNN with no training |
 | 24  | Piece/not-piece classifier  | **99.1% bal. acc**     | Kills preview false positives (faces at 0.000) |
+| 25  | North-star real-photo eval  | **77% both (hybrid)**  | CNN collapses on real photos (14.8% both)      |
 
 ---
 
@@ -602,6 +647,14 @@ The CNN wins only on rotation. RoMa (exp22) is worse than both and ~1000×
 slower; the RoMa hybrid plan is dropped. Any future learned model on this
 benchmark must clear the 82% classical floor to count as progress.
 
+**For real photographed pieces (the actual product task):** the same
+SIFT→NCC hybrid is the only usable method — **77.9% cell / 89.2% rotation /
+76.7% both** on north_star v1 (exp25). Every trained CNN is effectively
+broken on real photos (exp20 checkpoint: 14.8% both, barely above random on
+position). The bar for any learned model is now **76.7% both on
+north_star v1**, and the backend would be better served today by the
+classical hybrid than by its current CNN path.
+
 **Key Learnings:**
 1. **Data quantity AND quality matter** (exp17): Must see all cells per puzzle
    together for proper feature learning
@@ -617,14 +670,21 @@ benchmark must clear the 82% classical floor to count as progress.
    were driven by a metric that was capped at 25% by construction. A
    perfect-model sanity check on any new test path would have caught it.
 
-**Next Steps** (from the critical review; #1–#3 are done):
+**Next Steps** (from the critical review; #1–#4 are done):
 - ~~Fix the methodology harness: frozen train/val/test split, checkpoint
   selection on val (not test), train metrics in eval mode~~ — DONE July
   2026, see "Methodology Harness Fix" entry above
-- Attack realism: photographed-piece "north star" test set (capture plan
-  in [NORTH_STAR_GUIDE.md](NORTH_STAR_GUIDE.md)); independent
-  photometric jitter / perspective / backgrounds in synthetic data —
-  now urgent, since exp23 showed the synthetic benchmark is largely
-  solvable by pixel matching and cannot demonstrate learned-model value
+- ~~Photographed-piece "north star" test set and first real-photo
+  evaluation~~ — DONE July 2026 (exp25): captured, ingested, evaluated;
+  CNN collapses (14.8% both), classical hybrid holds (76.7% both)
+- **exp26 — train for realism** (critical review item #5): independent
+  photometric jitter on piece and puzzle, random scale/perspective warps,
+  real backgrounds instead of black, sensor noise/JPEG artifacts in the
+  exp20 generator/dataset; train under the frozen-split harness, report
+  north_star v1 as the headline metric, beat 76.7% both
+- **Consider shipping the SIFT→NCC hybrid in the backend meanwhile** — on
+  real photos it beats the served CNN by ~5x both-correct
+- Dense heatmap head (review item #6) so one model covers arbitrary grid
+  sizes (north-star puzzles range 2x3–4x6; real puzzles 500+ pieces)
 
 ---

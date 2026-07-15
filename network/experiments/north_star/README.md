@@ -74,6 +74,14 @@ Key mechanics (details in the `ingest.py` docstring):
   rotation (CCW 90° steps) or piece bbox (final-image pixel coords) for shots
   where detection fails; add rows after checking the contact sheets — manual
   entries beat both automatic signals.
+- **Overview orientation is measured, not trusted**: iPhone EXIF was wrong for
+  4 of 14 overviews (top-down shots; the poster also lay rotated relative to
+  the camera). `OVERVIEW_ROTATIONS` holds the clockwise rotation that makes
+  each overview upright in the capture-order sense, measured by SIFT-matching
+  the verified-upright piece crops against the overview at all 4 rotations
+  (`exp25_north_star_eval/check_overview_orientation.py`; unanimous 180° for
+  all 14 puzzles in v1). `normalize_overview` bakes it into the pixels and
+  strips the stale EXIF tag.
 
 ## Usage discipline
 
