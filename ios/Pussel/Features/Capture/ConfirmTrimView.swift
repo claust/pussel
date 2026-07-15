@@ -7,6 +7,15 @@ struct ConfirmTrimView: View {
     @Environment(AppModel.self) private var model
     @State private var quarterTurns = 0
     let candidate: TrimCandidate
+    /// Decoded once at init rather than in `body`, which re-runs on every
+    /// rotate tap (base64-decoding the data URL and the JPEG each time would be
+    /// wasteful during the rotation animation).
+    private let previewImage: UIImage?
+
+    init(candidate: TrimCandidate) {
+        self.candidate = candidate
+        self.previewImage = candidate.trimmedJPEG.flatMap(UIImage.init(data:))
+    }
 
     var body: some View {
         VStack(spacing: 16) {
@@ -17,7 +26,7 @@ struct ConfirmTrimView: View {
                     .font(.footnote)
                     .foregroundStyle(.orange)
             }
-            if let data = candidate.trimmedJPEG, let image = UIImage(data: data) {
+            if let image = previewImage {
                 // Square bounding box so the image stays fully visible at every
                 // angle while it spins (a rotating landscape/portrait photo would
                 // otherwise overflow its frame at the 90°/270° positions).
