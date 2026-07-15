@@ -7,7 +7,7 @@
     /// promptless path is a Darwin notification plus a command file:
     ///   echo "pusseldebug://trim?puzzle=/host/path.jpg" > /tmp/pussel-debug-command
     ///   xcrun simctl spawn booted notifyutil -p dk.delectosoft.pussel.debug
-    /// Commands: trim?puzzle=, accept, piece?path=, reset.
+    /// Commands: trim?puzzle=, accept, piece?path=, reupload, reset.
     /// Simulator apps can read host file paths directly. Compiled out of
     /// Release builds; the handler runs the same actions as the real UI.
     @MainActor
@@ -20,8 +20,14 @@
             ProcessInfo.processInfo.environment["PUSSEL_DEBUG_COMMAND_FILE"] ?? "/tmp/pussel-debug-command"
         }
 
+        private static var isObserving = false
+
         static func start(_ model: AppModel) {
             Self.model = model
+            // .task can re-run when the view hierarchy is recreated; register
+            // the Darwin observer only once or commands would run repeatedly.
+            guard !isObserving else { return }
+            isObserving = true
             CFNotificationCenterAddObserver(
                 CFNotificationCenterGetDarwinNotifyCenter(),
                 nil,
