@@ -132,6 +132,9 @@ final class APIClientTests: XCTestCase {
         } catch let error as APIError {
             XCTAssertEqual(error.status, 401)
             XCTAssertEqual(error.message, "Authentication required. Please sign in.")
+            // The dead session must be dropped so the UI returns to sign-in.
+            XCTAssertNil(authStore.backendToken)
+            XCTAssertNil(authStore.user)
         } catch {
             XCTFail("Unexpected error type: \(error)")
         }
