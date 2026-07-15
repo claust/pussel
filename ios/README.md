@@ -59,6 +59,28 @@ re-upload, then re-queues affected pieces.
 
 ## Build & test from the CLI
 
+The repo-root `Makefile` wraps the common flows (all run `xcodegen generate`
+first):
+
+```bash
+make ios-run       # build → install → launch on the Simulator
+make ios-test      # run the unit tests on the Simulator
+make ios-deploy    # build → install → launch on a connected iPhone
+```
+
+Override the simulator or target device on the command line:
+
+```bash
+make ios-run IOS_SIMULATOR="iPhone 17 Pro Max"
+make ios-deploy IOS_DEVICE=<name-or-udid>   # device is auto-detected otherwise
+```
+
+`ios-deploy` needs `DEVELOPMENT_TEAM` set in `Config/Secrets.xcconfig` (device
+signing) and a device that's connected and trusts this Mac.
+
+<details>
+<summary>Equivalent raw <code>xcodebuild</code> / <code>simctl</code> commands</summary>
+
 ```bash
 xcodebuild build -project Pussel.xcodeproj -scheme Pussel \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -derivedDataPath .build
@@ -68,6 +90,19 @@ xcodebuild test -project Pussel.xcodeproj -scheme Pussel \
 
 xcrun simctl install booted .build/Build/Products/Debug-iphonesimulator/Pussel.app
 xcrun simctl launch booted dk.delectosoft.pussel
+```
+
+</details>
+
+## Formatting
+
+Swift code is formatted with Apple's [swift-format](https://github.com/swiftlang/swift-format)
+(bundled with Xcode 26 — no extra install), using its default style (no
+project config).
+
+```bash
+make format-ios    # format all Swift sources in place
+make check-ios     # lint formatting without modifying files (--strict)
 ```
 
 ## Debug driving (Simulator has no camera)

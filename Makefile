@@ -1,10 +1,11 @@
 # Makefile for running CI checks locally
 # Run `make check` to run all checks, or individual targets
 
-.PHONY: check check-backend check-network check-shared check-frontend \
-        format format-backend format-network format-shared format-frontend \
+.PHONY: check check-backend check-network check-shared check-frontend check-ios \
+        format format-backend format-network format-shared format-frontend format-ios \
         test-backend install-dev-backend install-dev-network \
-        start-backend start-frontend stop-backend stop-frontend
+        start-backend start-frontend stop-backend stop-frontend \
+        ios-generate ios-run ios-deploy ios-test
 
 # Run all checks (Python + Next.js)
 check: check-backend check-network check-shared check-frontend
@@ -34,6 +35,12 @@ check-shared:
 check-frontend:
 	cd frontend && bun run check
 
+# iOS checks — lint Swift formatting without modifying files (macOS + Xcode only).
+# Uses Apple's official swift-format bundled with Xcode; --strict makes lint
+# warnings fail the build so it doubles as a CI-style gate.
+check-ios:
+	cd ios && xcrun swift-format lint --strict --recursive Pussel PusselTests
+
 # Auto-format all code (Python + Next.js)
 format: format-backend format-network format-frontend
 
@@ -55,6 +62,11 @@ format-shared:
 # Auto-format frontend
 format-frontend:
 	cd frontend && bun run format
+
+# Auto-format iOS Swift code in place (macOS + Xcode only). Uses Apple's
+# official swift-format (bundled with Xcode); style comes from ios/.swift-format.
+format-ios:
+	cd ios && xcrun swift-format format --in-place --recursive Pussel PusselTests
 
 # Run backend tests with coverage (uses uv)
 test-backend:
@@ -80,3 +92,54 @@ stop-backend:
 
 stop-frontend:
 	@lsof -ti:3000 | xargs kill -9 2>/dev/null || echo "Frontend not running on port 3000"
+
+# ---------------------------------------------------------------------------
+# iOS app (macOS + Xcode 26 only)
+# ---------------------------------------------------------------------------
+# Config knobs — override on the command line, e.g.
+#   make ios-run IOS_SIMULATOR="iPhone 17 Pro Max"
+#   make ios-deploy IOS_DEVICE=<name-or-udid>
+IOS_SCHEME     = Pussel
+IOS_BUNDLE_ID  = dk.delectosoft.pussel
+IOS_PROJECT    = ios/Pussel.xcodeproj
+IOS_SIMULATOR ?= iPhone 17 Pro
+IOS_DERIVED    = ios/.build
+
+# Regenerate the (gitignored) Xcode project from project.yml. Requires
+# `brew install xcodegen`; needs Config/Secrets.xcconfig to exist first.
+ios-generate:
+	cd ios && xcodegen generate
+
+# Build, install, and launch on the iOS Simulator. Boots the target simulator
+# and opens Simulator.app if it isn't already running.
+ios-run: ios-generate
+	xcrun simctl boot "$(IOS_SIMULATOR)" 2>/dev/null || true
+	open -a Simulator
+	xcodebuild build -project $(IOS_PROJECT) -scheme $(IOS_SCHEME) \
+		-destination 'platform=iOS Simulator,name=$(IOS_SIMULATOR)' -derivedDataPath $(IOS_DERIVED)
+	xcrun simctl install booted $(IOS_DERIVED)/Build/Products/Debug-iphonesimulator/Pussel.app
+	xcrun simctl launch booted $(IOS_BUNDLE_ID)
+
+# Run the unit tests on the Simulator.
+ios-test: ios-generate
+	xcodebuild test -project $(IOS_PROJECT) -scheme $(IOS_SCHEME) \
+		-destination 'platform=iOS Simulator,name=$(IOS_SIMULATOR)' -derivedDataPath $(IOS_DERIVED)
+
+# Build a Debug build, then install + launch on a connected iPhone.
+# Requires DEVELOPMENT_TEAM in ios/Config/Secrets.xcconfig (device signing).
+# The device is auto-detected; override with IOS_DEVICE=<name-or-udid>.
+ios-deploy: ios-generate
+	@DEVICE="$(IOS_DEVICE)"; \
+	if [ -z "$$DEVICE" ]; then \
+		DEVICE=$$(xcrun devicectl list devices 2>/dev/null | awk '/connected/ {for (i=1;i<=NF;i++) if ($$i ~ /^[0-9A-Fa-f]{8}-[0-9A-Fa-f]/) {print $$i; exit}}'); \
+	fi; \
+	if [ -z "$$DEVICE" ]; then \
+		echo "No connected iPhone found. Connect and trust a device, or pass IOS_DEVICE=<name-or-udid>."; \
+		exit 1; \
+	fi; \
+	echo "Deploying to device: $$DEVICE"; \
+	xcodebuild build -project $(IOS_PROJECT) -scheme $(IOS_SCHEME) \
+		-destination 'generic/platform=iOS' -derivedDataPath $(IOS_DERIVED) -allowProvisioningUpdates && \
+	xcrun devicectl device install app --device "$$DEVICE" \
+		$(IOS_DERIVED)/Build/Products/Debug-iphoneos/Pussel.app && \
+	xcrun devicectl device process launch --device "$$DEVICE" $(IOS_BUNDLE_ID)
