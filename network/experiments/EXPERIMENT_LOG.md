@@ -595,8 +595,10 @@ through toggleable realism augmentations — **independent** photometric
 jitter on piece vs puzzle (the anti-pixel-shortcut lever), scale ±15%, mild
 perspective, ±8° rotation jitter, backgrounds composited behind the piece
 (black/solid/gradient/other-puzzle texture), rembg-style mask erode/dilate,
-sensor noise, JPEG — while val/test stay black-composited and byte-comparable
-to exp20 (same frozen split, val selection, test touched once). Trained on a
+sensor noise, JPEG — while val/test stay black-composited and directly
+comparable to exp20 (same frozen split, protocol and appearance; not
+guaranteed bitwise-identical at piece edges), with val selection and test
+touched once. Trained on a
 RunPod RTX 4090 (50 epochs, 2.2 h); train and val curves overlap for all 50
 epochs — under DR the model cannot memorize appearance.
 
