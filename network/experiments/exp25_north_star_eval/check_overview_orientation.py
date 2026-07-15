@@ -91,8 +91,9 @@ def main() -> None:
     matcher = SiftMatcher()
     results: dict[str, dict] = {}
     for puzzle_id in sorted(by_puzzle):
-        raw = np.array(Image.open(args.dataset_root / puzzle_id / "overview.jpg").convert("RGB"))
-        exif_tag = Image.open(args.dataset_root / puzzle_id / "overview.jpg").getexif().get(274, 1)
+        with Image.open(args.dataset_root / puzzle_id / "overview.jpg") as img:
+            raw = np.array(img.convert("RGB"))
+            exif_tag = img.getexif().get(274, 1)
 
         votes = dict.fromkeys(range(4), 0)
         n_successful = 0
@@ -104,7 +105,8 @@ def main() -> None:
                 crop_path = args.cache_dir / cache_name(rec)
                 if not crop_path.exists():
                     continue
-                crop = _resize_max_side(np.array(Image.open(crop_path).convert("RGB")), SIFT_PIECE_SIDE)
+                with Image.open(crop_path) as crop_img:
+                    crop = _resize_max_side(np.array(crop_img.convert("RGB")), SIFT_PIECE_SIDE)
                 piece_gray = cv2.cvtColor(crop, cv2.COLOR_RGB2GRAY)
                 mask = (piece_gray > 8).astype(np.uint8) * 255
                 rot = snapped_rotation_votes(matcher, piece_gray, mask, puzzle_kp, puzzle_des)

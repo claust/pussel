@@ -234,9 +234,9 @@ def build_piece_cache(records: list[dict[str, Any]], dataset_root: Path, cache_d
         if out_path.exists() and rec["piece_file"] in known:
             fallbacks[rec["piece_file"]] = known[rec["piece_file"]]
             continue
-        img = Image.open(dataset_root / rec["piece_file"]).convert("RGB")
-        x1, y1, x2, y2 = rec["bbox"]
-        crop = img.crop((x1, y1, x2 + 1, y2 + 1))
+        with Image.open(dataset_root / rec["piece_file"]) as img:
+            x1, y1, x2, y2 = rec["bbox"]
+            crop = img.convert("RGB").crop((x1, y1, x2 + 1, y2 + 1))
         rgba = remove(crop, session=session)
         segmented = rgba_to_classifier_input(rgba) if isinstance(rgba, Image.Image) else None
         fallbacks[rec["piece_file"]] = segmented is None
@@ -400,7 +400,8 @@ def evaluate_puzzle_classical(
     if _SIFT is None:
         _SIFT = SiftMatcher()
 
-    overview = np.array(Image.open(Path(dataset_root) / puzzle_id / "overview.jpg").convert("RGB"))
+    with Image.open(Path(dataset_root) / puzzle_id / "overview.jpg") as img:
+        overview = np.array(img.convert("RGB"))
     x1, y1, x2, y2 = crop_box
     overview = overview[y1:y2, x1:x2]
     ncc_bgr = cv2.cvtColor(_resize_max_side(overview, NCC_OVERVIEW_SIDE), cv2.COLOR_RGB2BGR)
@@ -410,7 +411,8 @@ def evaluate_puzzle_classical(
 
     out = []
     for rec in records:
-        crop = np.array(Image.open(Path(cache_dir) / cache_name(rec)).convert("RGB"))
+        with Image.open(Path(cache_dir) / cache_name(rec)) as img:
+            crop = np.array(img.convert("RGB"))
         sift_crop = _resize_max_side(crop, SIFT_PIECE_SIDE)
         rows, cols = rec["rows"], rec["cols"]
         for applied_idx in range(4):
@@ -486,7 +488,8 @@ def evaluate_cnn(
     to_tensor = transforms.ToTensor()
     puzzle_tensors: dict[str, "torch.Tensor"] = {}
     for puzzle_id in records_by_puzzle:
-        overview = Image.open(dataset_root / puzzle_id / "overview.jpg").convert("RGB")
+        with Image.open(dataset_root / puzzle_id / "overview.jpg") as img:
+            overview = img.convert("RGB")
         x1, y1, x2, y2 = crop_boxes[puzzle_id]
         overview = overview.crop((x1, y1, x2, y2)).resize((CNN_PUZZLE_SIZE, CNN_PUZZLE_SIZE), Image.Resampling.BILINEAR)
         puzzle_tensors[puzzle_id] = to_tensor(overview)
@@ -501,9 +504,10 @@ def evaluate_cnn(
             for s in batch:
                 if s["piece_file"] not in crop_cache:
                     rec = next(r for r in records_by_puzzle[s["puzzle_id"]] if r["piece_file"] == s["piece_file"])
-                    crop_cache[s["piece_file"]] = np.array(
-                        Image.open(cache_dir / cache_name(rec)).convert("RGB").resize((CNN_PIECE_SIZE, CNN_PIECE_SIZE))
-                    )
+                    with Image.open(cache_dir / cache_name(rec)) as img:
+                        crop_cache[s["piece_file"]] = np.array(
+                            img.convert("RGB").resize((CNN_PIECE_SIZE, CNN_PIECE_SIZE))
+                        )
                 observed = rotate_cw(crop_cache[s["piece_file"]], s["applied_idx"])
                 for candidate in range(4):
                     piece_inputs.append(to_tensor(Image.fromarray(np.rot90(observed, k=candidate).copy())))
@@ -608,7 +612,8 @@ def write_overview_sheet(
     """
     rows = []
     for puzzle_id, (x1, y1, x2, y2) in sorted(crop_boxes.items()):
-        rgb = np.array(Image.open(dataset_root / puzzle_id / "overview.jpg").convert("RGB"))
+        with Image.open(dataset_root / puzzle_id / "overview.jpg") as img:
+            rgb = np.array(img.convert("RGB"))
         boxed = rgb.copy()
         cv2.rectangle(boxed, (x1, y1), (x2 - 1, y2 - 1), (255, 0, 0), 6)
         pair = []
@@ -658,7 +663,8 @@ def main() -> None:
     print("Cropping overviews to the puzzle region...")
     crop_boxes: dict[str, tuple[int, int, int, int]] = {}
     for puzzle_id in puzzle_ids:
-        rgb = np.array(Image.open(args.dataset_root / puzzle_id / "overview.jpg").convert("RGB"))
+        with Image.open(args.dataset_root / puzzle_id / "overview.jpg") as img:
+            rgb = np.array(img.convert("RGB"))
         crop_boxes[puzzle_id] = crop_overview(rgb)
         h, w = rgb.shape[:2]
         x1, y1, x2, y2 = crop_boxes[puzzle_id]
