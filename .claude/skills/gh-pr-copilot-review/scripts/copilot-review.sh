@@ -41,14 +41,19 @@ cmd="${1:-}"
 shift
 
 OWNER="" REPO="" PR="" BASELINE="" INTERVAL=20 MAX_ITERS=60
+
+# Require that a flag was given a value ($2 present), so `--owner` with no value
+# fails clearly instead of `shift 2` erroring and continuing with empty values.
+require_value() { [ $# -ge 2 ] || die "flag $1 requires a value"; }
+
 while [ $# -gt 0 ]; do
   case "$1" in
-    --owner)     OWNER="${2:-}"; shift 2 ;;
-    --repo)      REPO="${2:-}"; shift 2 ;;
-    --pr)        PR="${2:-}"; shift 2 ;;
-    --baseline)  BASELINE="${2:-}"; shift 2 ;;
-    --interval)  INTERVAL="${2:-}"; shift 2 ;;
-    --max-iters) MAX_ITERS="${2:-}"; shift 2 ;;
+    --owner)     require_value "$@"; OWNER="$2"; shift 2 ;;
+    --repo)      require_value "$@"; REPO="$2"; shift 2 ;;
+    --pr)        require_value "$@"; PR="$2"; shift 2 ;;
+    --baseline)  require_value "$@"; BASELINE="$2"; shift 2 ;;
+    --interval)  require_value "$@"; INTERVAL="$2"; shift 2 ;;
+    --max-iters) require_value "$@"; MAX_ITERS="$2"; shift 2 ;;
     *)           die "unknown argument: $1" ;;
   esac
 done
@@ -68,11 +73,13 @@ pr_node_id() {
     --jq '.data.repository.pullRequest.id'
 }
 
-# Latest submitted_at across Copilot reviews, or empty if none yet.
+# Prints the latest submitted_at across Copilot reviews (empty if none yet) and
+# returns gh's exit status, so callers can tell "query succeeded, no review yet"
+# (rc 0, empty) apart from "query failed" (rc != 0). stderr is kept for the
+# caller to surface on failure rather than swallowed here.
 latest_copilot_ts() {
   gh api "repos/$OWNER/$REPO/pulls/$PR/reviews" --paginate --jq \
-    "[.[] | select(.user.login==\"$BOT_REVIEW_LOGIN\" or .user.login==\"$BOT_DISPLAY_LOGIN\")] | max_by(.submitted_at) | .submitted_at // empty" \
-    2>/dev/null
+    "[.[] | select(.user.login==\"$BOT_REVIEW_LOGIN\" or .user.login==\"$BOT_DISPLAY_LOGIN\")] | max_by(.submitted_at) | .submitted_at // empty"
 }
 
 case "$cmd" in
@@ -101,11 +108,24 @@ case "$cmd" in
 
   wait)
     i=0
+    fails=0
+    max_fails=3  # tolerate transient blips; abort only on persistent failure
     while [ "$i" -lt "$MAX_ITERS" ]; do
-      latest=$(latest_copilot_ts)
-      if [ -n "$latest" ] && { [ -z "$BASELINE" ] || [[ "$latest" > "$BASELINE" ]]; }; then
-        echo "COPILOT_REVIEW_READY latest=$latest"
-        exit 0
+      # Separate the query's success from its result: rc != 0 is a real failure
+      # (auth, bad PR, network), whereas rc 0 with empty output just means no
+      # Copilot review has landed yet. Masking the former as a timeout hides the
+      # actual problem, so fail fast once it is clearly not transient.
+      if latest=$(latest_copilot_ts 2>/dev/null); then
+        fails=0
+        if [ -n "$latest" ] && { [ -z "$BASELINE" ] || [[ "$latest" > "$BASELINE" ]]; }; then
+          echo "COPILOT_REVIEW_READY latest=$latest"
+          exit 0
+        fi
+      else
+        fails=$((fails + 1))
+        [ "$fails" -lt "$max_fails" ] \
+          || die "reviews query for $OWNER/$REPO#$PR failed $fails times in a row (auth / bad PR / network?) — aborting wait"
+        echo "warn: reviews query failed (attempt $fails/$max_fails), retrying…" >&2
       fi
       i=$((i + 1))
       sleep "$INTERVAL"
