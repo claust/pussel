@@ -1,0 +1,184 @@
+{
+  "puzzle01_frozen_scene": {
+    "votes_upright_by_cw_rotation": {
+      "0": 1,
+      "1": 0,
+      "2": 48,
+      "3": 0
+    },
+    "best_cw_rotation_deg": 180,
+    "exif_tag": 6,
+    "exif_implied_cw_deg": 90,
+    "agrees_with_exif": false,
+    "n_successful_matches": 192
+  },
+  "puzzle02_frozen_closeup": {
+    "votes_upright_by_cw_rotation": {
+      "0": 0,
+      "1": 1,
+      "2": 44,
+      "3": 1
+    },
+    "best_cw_rotation_deg": 180,
+    "exif_tag": 8,
+    "exif_implied_cw_deg": 270,
+    "agrees_with_exif": false,
+    "n_successful_matches": 183
+  },
+  "puzzle03_dumbo": {
+    "votes_upright_by_cw_rotation": {
+      "0": 0,
+      "1": 0,
+      "2": 36,
+      "3": 1
+    },
+    "best_cw_rotation_deg": 180,
+    "exif_tag": 3,
+    "exif_implied_cw_deg": 180,
+    "agrees_with_exif": true,
+    "n_successful_matches": 147
+  },
+  "puzzle04_bambi": {
+    "votes_upright_by_cw_rotation": {
+      "0": 0,
+      "1": 0,
+      "2": 59,
+      "3": 0
+    },
+    "best_cw_rotation_deg": 180,
+    "exif_tag": 3,
+    "exif_implied_cw_deg": 180,
+    "agrees_with_exif": true,
+    "n_successful_matches": 243
+  },
+  "puzzle05_lion_king": {
+    "votes_upright_by_cw_rotation": {
+      "0": 8,
+      "1": 6,
+      "2": 50,
+      "3": 7
+    },
+    "best_cw_rotation_deg": 180,
+    "exif_tag": 3,
+    "exif_implied_cw_deg": 180,
+    "agrees_with_exif": true,
+    "n_successful_matches": 245
+  },
+  "puzzle06_jungle_book": {
+    "votes_upright_by_cw_rotation": {
+      "0": 0,
+      "1": 0,
+      "2": 75,
+      "3": 0
+    },
+    "best_cw_rotation_deg": 180,
+    "exif_tag": 3,
+    "exif_implied_cw_deg": 180,
+    "agrees_with_exif": true,
+    "n_successful_matches": 300
+  },
+  "puzzle07_peppa_kitchen": {
+    "votes_upright_by_cw_rotation": {
+      "0": 0,
+      "1": 0,
+      "2": 24,
+      "3": 0
+    },
+    "best_cw_rotation_deg": 180,
+    "exif_tag": 3,
+    "exif_implied_cw_deg": 180,
+    "agrees_with_exif": true,
+    "n_successful_matches": 96
+  },
+  "puzzle08_peppa_forest": {
+    "votes_upright_by_cw_rotation": {
+      "0": 0,
+      "1": 0,
+      "2": 48,
+      "3": 0
+    },
+    "best_cw_rotation_deg": 180,
+    "exif_tag": 3,
+    "exif_implied_cw_deg": 180,
+    "agrees_with_exif": true,
+    "n_successful_matches": 192
+  },
+  "puzzle09_peppa_aquarium": {
+    "votes_upright_by_cw_rotation": {
+      "0": 0,
+      "1": 1,
+      "2": 33,
+      "3": 0
+    },
+    "best_cw_rotation_deg": 180,
+    "exif_tag": 3,
+    "exif_implied_cw_deg": 180,
+    "agrees_with_exif": true,
+    "n_successful_matches": 137
+  },
+  "puzzle10_peppa_family": {
+    "votes_upright_by_cw_rotation": {
+      "0": 0,
+      "1": 0,
+      "2": 52,
+      "3": 0
+    },
+    "best_cw_rotation_deg": 180,
+    "exif_tag": 3,
+    "exif_implied_cw_deg": 180,
+    "agrees_with_exif": true,
+    "n_successful_matches": 215
+  },
+  "puzzle11_paw_patrol_a": {
+    "votes_upright_by_cw_rotation": {
+      "0": 3,
+      "1": 5,
+      "2": 71,
+      "3": 1
+    },
+    "best_cw_rotation_deg": 180,
+    "exif_tag": 1,
+    "exif_implied_cw_deg": 0,
+    "agrees_with_exif": false,
+    "n_successful_matches": 296
+  },
+  "puzzle12_paw_patrol_b": {
+    "votes_upright_by_cw_rotation": {
+      "0": 6,
+      "1": 7,
+      "2": 64,
+      "3": 4
+    },
+    "best_cw_rotation_deg": 180,
+    "exif_tag": 3,
+    "exif_implied_cw_deg": 180,
+    "agrees_with_exif": true,
+    "n_successful_matches": 294
+  },
+  "puzzle13_unicorn_pink": {
+    "votes_upright_by_cw_rotation": {
+      "0": 0,
+      "1": 0,
+      "2": 94,
+      "3": 0
+    },
+    "best_cw_rotation_deg": 180,
+    "exif_tag": 3,
+    "exif_implied_cw_deg": 180,
+    "agrees_with_exif": true,
+    "n_successful_matches": 376
+  },
+  "puzzle14_unicorn_night": {
+    "votes_upright_by_cw_rotation": {
+      "0": 1,
+      "1": 0,
+      "2": 84,
+      "3": 0
+    },
+    "best_cw_rotation_deg": 180,
+    "exif_tag": 1,
+    "exif_implied_cw_deg": 0,
+    "agrees_with_exif": false,
+    "n_successful_matches": 335
+  }
+}
