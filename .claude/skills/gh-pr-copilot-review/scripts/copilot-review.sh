@@ -94,8 +94,13 @@ latest_copilot_ts() {
 
 case "$cmd" in
   request)
-    pid=$(pr_node_id)
-    [ -n "$pid" ] || die "could not resolve PR node id for $OWNER/$REPO#$PR"
+    # Guard both failure shapes: a GraphQL error (rc != 0, and gh dumps the raw
+    # JSON to stdout) and a null PR id that jq renders as the literal "null"
+    # (rc 0, non-empty). Either way, fail here instead of sending a bogus
+    # pullRequestId to the mutation.
+    pid=$(pr_node_id) || pid=""
+    { [ -n "$pid" ] && [ "$pid" != "null" ]; } \
+      || die "could not resolve PR node id for $OWNER/$REPO#$PR (does the PR exist?)"
     # shellcheck disable=SC2016  # $pr is a GraphQL var, not shell — must stay unexpanded
     gh api graphql \
       -f query='mutation($pr:ID!){requestReviewsByLogin(input:{pullRequestId:$pr,botLogins:["copilot-pull-request-reviewer"],union:true}){pullRequest{id}}}' \
@@ -140,7 +145,9 @@ case "$cmd" in
         echo "warn: reviews query failed (attempt $fails/$max_fails), retrying…" >&2
       fi
       i=$((i + 1))
-      sleep "$INTERVAL"
+      # Sleep only when another poll will follow, so the final iteration (and
+      # --max-iters 1) doesn't waste one interval before printing the timeout.
+      if [ "$i" -lt "$MAX_ITERS" ]; then sleep "$INTERVAL"; fi
     done
     echo "WATCHER_TIMEOUT_NO_NEW_REVIEW"
     exit 0
