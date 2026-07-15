@@ -28,6 +28,7 @@ from app.models.puzzle_model import (
     QuadCorners,
 )
 from app.models.user_model import GoogleAuthRequest, TokenResponse, User
+from app.services.classical_matcher import get_classical_matcher
 from app.services.image_processor import get_image_processor
 from app.services.piece_detector import get_piece_detector
 from app.services.piece_shape import PieceShapeGenerator
@@ -310,7 +311,7 @@ async def process_piece(
     if puzzle_id not in puzzle_images:
         raise HTTPException(status_code=404, detail="Puzzle not found")
 
-    processor = get_image_processor()
+    processor = get_image_processor() if settings.MATCHER == "cnn" else get_classical_matcher()
     return await processor.process_piece(file, puzzle_id, remove_background=remove_bg)
 
 

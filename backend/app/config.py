@@ -39,6 +39,13 @@ class Settings(BaseSettings):
     # so real-world false positives can be harvested as classifier hard negatives
     SAVE_PREVIEW_CROPS: bool = False
 
+    # Piece matcher backend: "classical" (SIFT->NCC hybrid, exp25) or "cnn"
+    MATCHER: str = "classical"
+    # Grid size used only for the NCC fallback's nominal cell-size estimate
+    # (matches the north-star evaluation puzzles).
+    CLASSICAL_GRID_ROWS: int = 4
+    CLASSICAL_GRID_COLS: int = 4
+
     # Environment setting (used for validation)
     ENVIRONMENT: str = "development"  # development, test, or production
 
