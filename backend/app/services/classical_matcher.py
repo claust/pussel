@@ -100,12 +100,15 @@ class ClassicalMatcher:
         """
         if puzzle_id not in self._puzzle_cache:
             try:
-                if str(UUID(puzzle_id)) != puzzle_id:
+                puzzle_uuid = UUID(puzzle_id)
+                if str(puzzle_uuid) != puzzle_id:
                     raise ValueError
             except ValueError as exc:
                 raise FileNotFoundError(f"Puzzle image not found: {puzzle_id}") from exc
 
-            puzzle_path = os.path.join(settings.UPLOAD_DIR, f"{puzzle_id}.jpg")
+            # Build the filename from the parsed UUID rather than the raw request
+            # string, so the path component can only ever be a canonical UUID.
+            puzzle_path = os.path.join(settings.UPLOAD_DIR, f"{puzzle_uuid}.jpg")
             # Normalize and ensure the puzzle path stays within the upload directory
             base_dir = os.path.realpath(settings.UPLOAD_DIR)
             normalized_path = os.path.realpath(puzzle_path)
