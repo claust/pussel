@@ -94,15 +94,22 @@ xcrun simctl launch booted dk.delectosoft.pussel
 
 </details>
 
-## Formatting
+## Formatting & linting
 
-Swift code is formatted with Apple's [swift-format](https://github.com/swiftlang/swift-format)
-(bundled with Xcode 26 — no extra install), using its default style (no
-project config).
+Two complementary tools:
+
+- **Formatting** — Apple's [swift-format](https://github.com/swiftlang/swift-format)
+  (bundled with Xcode 26, no extra install) owns layout, using its default
+  style (2-space indent, no project config).
+- **Linting** — [SwiftLint](https://github.com/realm/SwiftLint)
+  (`brew install swiftlint`) enforces the style rules in `ios/.swiftlint.yml`;
+  this is what iOS CI runs. The two formatting rules swift-format owns
+  (`opening_brace`, `trailing_comma`) are disabled there so the tools don't
+  fight each other.
 
 ```bash
-make format-ios    # format all Swift sources in place
-make check-ios     # lint formatting without modifying files (--strict)
+make format-ios    # format all Swift sources in place (swift-format)
+make check-ios     # swift-format --strict lint + SwiftLint (matches CI)
 ```
 
 ## Debug driving (Simulator has no camera)
