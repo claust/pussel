@@ -1,0 +1,126 @@
+import Foundation
+import Observation
+
+/// The linear real-mode wizard, mirroring the web app's RealModePhase
+/// (frontend/src/app/real/page.tsx) minus the corner-adjust step.
+enum AppPhase {
+    case capturePuzzle
+    case confirmTrim(TrimCandidate)
+    case solving(SolveSession)
+}
+
+/// A detect-frame result awaiting user confirmation.
+struct TrimCandidate {
+    let rawJPEG: Data
+    let detection: DetectFrameResponse
+
+    var trimmedJPEG: Data? {
+        ImageUtilities.decodeDataURL(detection.trimmedImage)
+    }
+}
+
+@Observable
+@MainActor
+final class AppFlowStore {
+    var phase: AppPhase = .capturePuzzle
+    var isBusy = false
+    var errorMessage: String?
+
+    func reset() {
+        phase = .capturePuzzle
+        isBusy = false
+        errorMessage = nil
+    }
+}
+
+/// State for one solving session. The trimmed image is kept so the puzzle can
+/// be re-uploaded for a fresh puzzle_id when the backend restarts (its puzzle
+/// store is in-memory, so a stored id can 404 mid-session).
+@Observable
+@MainActor
+final class SolveSession {
+    var puzzleId: String
+    let trimmedJPEG: Data
+    var entries: [CaptureEntry] = []
+    var isProcessing = false
+    var puzzleExpired = false
+    var errorMessage: String?
+
+    init(puzzleId: String, trimmedJPEG: Data) {
+        self.puzzleId = puzzleId
+        self.trimmedJPEG = trimmedJPEG
+    }
+
+    var placedEntries: [CaptureEntry] {
+        entries.filter { $0.result != nil }
+    }
+
+    func enqueue(jpeg: Data, api: APIClient) {
+        entries.append(CaptureEntry(jpeg: jpeg))
+        processNext(api: api)
+    }
+
+    func retry(id: UUID, api: APIClient) {
+        guard let index = entries.firstIndex(where: { $0.id == id }) else { return }
+        entries[index].status = .queued
+        processNext(api: api)
+    }
+
+    func remove(id: UUID) {
+        entries.removeAll { $0.id == id }
+    }
+
+    /// Serially drains the queue — one in-flight prediction at a time, like
+    /// the web's usePredictionWorker (rembg segmentation is the slow step).
+    func processNext(api: APIClient) {
+        guard !isProcessing, let index = entries.firstIndex(where: { $0.status == .queued }) else { return }
+        isProcessing = true
+        let entry = entries[index]
+        entries[index].status = .predicting
+        Task {
+            await self.process(entry: entry, api: api)
+            self.isProcessing = false
+            self.processNext(api: api)
+        }
+    }
+
+    private func process(entry: CaptureEntry, api: APIClient) async {
+        do {
+            let piece = try await api.processPiece(puzzleId: puzzleId, jpegData: entry.uploadJPEG)
+            update(id: entry.id) { current in
+                current.status = .done
+                current.result = piece
+                if let cleaned = piece.cleanedImage, let data = ImageUtilities.decodeDataURL(cleaned) {
+                    current.displayImage = data
+                }
+            }
+        } catch let error as APIError where error.status == 404 {
+            puzzleExpired = true
+            update(id: entry.id) { $0.status = .error("Puzzle session expired") }
+        } catch {
+            update(id: entry.id) { $0.status = .error(error.localizedDescription) }
+        }
+    }
+
+    /// Gets a fresh puzzle_id for the kept trimmed image after a backend
+    /// restart, then re-queues entries that failed on the dead id.
+    func reupload(api: APIClient) async {
+        errorMessage = nil
+        do {
+            let response = try await api.uploadPuzzle(jpegData: trimmedJPEG)
+            puzzleId = response.puzzleId
+            puzzleExpired = false
+            for index in entries.indices where entries[index].status == .error("Puzzle session expired") {
+                entries[index].status = .queued
+            }
+            processNext(api: api)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func update(id: UUID, _ mutate: (inout CaptureEntry) -> Void) {
+        guard let index = entries.firstIndex(where: { $0.id == id }) else { return }
+        mutate(&entries[index])
+    }
+}

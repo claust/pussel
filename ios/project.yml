@@ -1,0 +1,72 @@
+name: Pussel
+options:
+  bundleIdPrefix: dk.delectosoft
+  createIntermediateGroups: true
+  deploymentTarget:
+    iOS: "26.0"
+configs:
+  Debug: debug
+  Release: release
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    TARGETED_DEVICE_FAMILY: "1"
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: RS2FKJW2W4
+packages:
+  GoogleSignIn:
+    url: https://github.com/google/GoogleSignIn-iOS
+    from: 8.0.0
+targets:
+  Pussel:
+    type: application
+    platform: iOS
+    sources: [Pussel]
+    configFiles:
+      Debug: Config/Debug.xcconfig
+      Release: Config/Release.xcconfig
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dk.delectosoft.pussel
+        CURRENT_PROJECT_VERSION: 1
+        MARKETING_VERSION: 0.1.0
+    info:
+      path: Pussel/Resources/Info.plist
+      properties:
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        NSCameraUsageDescription: Pussel uses the camera to photograph your puzzle and its pieces.
+        # Allows plain-http backends on the local network (Mac LAN IP during
+        # device testing). Public hosts still require HTTPS.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        ITSAppUsesNonExemptEncryption: false
+        APIBaseURL: $(API_BASE_URL)
+        GoogleIOSClientID: $(GOOGLE_IOS_CLIENT_ID)
+        GoogleServerClientID: $(GOOGLE_SERVER_CLIENT_ID)
+        CFBundleURLTypes:
+          - CFBundleURLSchemes: [$(GOOGLE_URL_SCHEME)]
+          - CFBundleURLSchemes: [pusseldebug]
+    dependencies:
+      - package: GoogleSignIn
+        product: GoogleSignIn
+  PusselTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [PusselTests]
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+    dependencies:
+      - target: Pussel
+schemes:
+  Pussel:
+    build:
+      targets:
+        Pussel: all
+        PusselTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets: [PusselTests]
