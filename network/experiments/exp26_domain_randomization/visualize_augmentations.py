@@ -9,7 +9,7 @@ independence is visible.
 
 Run from the network/ directory:
     uv run python -m experiments.exp26_domain_randomization.visualize_augmentations \\
-        --dataset-root datasets/realistic_4x4_rgba --n-pieces 6 --n-draws 5
+        --dataset-root datasets/realistic_4x4_rgba --n-pieces 6 --n-draws 6
 """
 
 import argparse
