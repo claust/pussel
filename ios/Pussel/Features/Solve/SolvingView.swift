@@ -21,15 +21,20 @@ struct SolvingView: View {
                         .font(.footnote)
                         .foregroundStyle(.red)
                 }
-                Button(role: .destructive) {
-                    model.flow.reset()
-                } label: {
-                    Label("New Puzzle", systemImage: "arrow.counterclockwise")
-                }
-                .buttonStyle(.bordered)
-                .padding(.top, 8)
             }
             .padding()
+        }
+        .toolbar {
+            // Work is saved locally, so leaving the session keeps it around on
+            // the home screen — this is a plain "back", not a discard.
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    model.flow.reset()
+                } label: {
+                    Image(systemName: "chevron.left")
+                }
+                .accessibilityLabel("Back to puzzles")
+            }
         }
     }
 
