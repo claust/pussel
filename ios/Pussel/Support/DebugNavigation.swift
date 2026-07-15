@@ -62,7 +62,7 @@
                     flow.reset()
                 case "trim":
                     if let image = Self.hostImage(value("puzzle")) {
-                        await startTrim(image: image)
+                        await startTrim(image: image, source: .library)
                     }
                 case "accept":
                     if case .confirmTrim(let candidate) = flow.phase {
