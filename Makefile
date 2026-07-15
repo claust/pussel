@@ -122,6 +122,9 @@ stop-frontend:
 #   make ios-run IOS_SIMULATOR="iPhone 17 Pro Max"
 #   make ios-deploy IOS_DEVICE=<name-or-udid>
 IOS_SCHEME     = Pussel
+# Built product name (<IOS_APP_NAME>.app). Keep it in sync with IOS_SCHEME's
+# target PRODUCT_NAME if you override the scheme.
+IOS_APP_NAME   = Pussel
 IOS_BUNDLE_ID  = dk.delectosoft.pussel
 IOS_PROJECT    = ios/Pussel.xcodeproj
 IOS_SIMULATOR ?= iPhone 17 Pro
@@ -146,7 +149,7 @@ ios-run: ios-generate
 	open -a Simulator
 	xcodebuild build -project $(IOS_PROJECT) -scheme $(IOS_SCHEME) \
 		-destination 'platform=iOS Simulator,name=$(IOS_SIMULATOR)' -derivedDataPath $(IOS_DERIVED)
-	xcrun simctl install booted $(IOS_DERIVED)/Build/Products/Debug-iphonesimulator/Pussel.app
+	xcrun simctl install booted $(IOS_DERIVED)/Build/Products/Debug-iphonesimulator/$(IOS_APP_NAME).app
 	xcrun simctl launch booted $(IOS_BUNDLE_ID)
 
 # Run the unit tests on the Simulator.
@@ -170,5 +173,5 @@ ios-deploy: ios-generate
 	xcodebuild build -project $(IOS_PROJECT) -scheme $(IOS_SCHEME) \
 		-destination 'generic/platform=iOS' -derivedDataPath $(IOS_DERIVED) -allowProvisioningUpdates && \
 	xcrun devicectl device install app --device "$$DEVICE" \
-		$(IOS_DERIVED)/Build/Products/Debug-iphoneos/Pussel.app && \
+		$(IOS_DERIVED)/Build/Products/Debug-iphoneos/$(IOS_APP_NAME).app && \
 	xcrun devicectl device process launch --device "$$DEVICE" $(IOS_BUNDLE_ID)
