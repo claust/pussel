@@ -35,10 +35,17 @@ final class AppFlowStore {
 
 /// State for one solving session. The trimmed image is kept so the puzzle can
 /// be re-uploaded for a fresh puzzle_id when the backend restarts (its puzzle
-/// store is in-memory, so a stored id can 404 mid-session).
+/// store is in-memory, so a stored id can 404 mid-session). Every meaningful
+/// change is mirrored to disk through `store` so nothing is lost when the app
+/// is closed (see PuzzleStore).
 @Observable
 @MainActor
 final class SolveSession {
+    /// Stable local identity used as the on-disk folder name.
+    let id: UUID
+    /// Human-friendly label shown on the home screen (defaults to a date).
+    var name: String
+    let createdAt: Date
     var puzzleId: String
     let trimmedJPEG: Data
     var entries: [CaptureEntry] = []
@@ -46,9 +53,27 @@ final class SolveSession {
     var puzzleExpired = false
     var errorMessage: String?
 
-    init(puzzleId: String, trimmedJPEG: Data) {
+    @ObservationIgnored private let store: PuzzleStore?
+
+    init(
+        id: UUID = UUID(),
+        name: String,
+        puzzleId: String,
+        trimmedJPEG: Data,
+        createdAt: Date = Date(),
+        store: PuzzleStore? = nil
+    ) {
+        self.id = id
+        self.name = name
         self.puzzleId = puzzleId
         self.trimmedJPEG = trimmedJPEG
+        self.createdAt = createdAt
+        self.store = store
+    }
+
+    /// Writes the current state to disk. Cheap and idempotent.
+    func persist() {
+        store?.save(self)
     }
 
     var placedEntries: [CaptureEntry] {
@@ -57,6 +82,12 @@ final class SolveSession {
 
     func enqueue(jpeg: Data, api: APIClient) {
         entries.append(CaptureEntry(jpeg: jpeg))
+        persist()
+        processNext(api: api)
+    }
+
+    /// Resumes any pieces left `.queued` from a reloaded session.
+    func resume(api: APIClient) {
         processNext(api: api)
     }
 
@@ -68,6 +99,7 @@ final class SolveSession {
 
     func remove(id: UUID) {
         entries.removeAll { $0.id == id }
+        persist()
     }
 
     /// Serially drains the queue — one in-flight prediction at a time, like
@@ -94,6 +126,7 @@ final class SolveSession {
                     current.displayImage = data
                 }
             }
+            persist()
         } catch let error as APIError where error.status == 404 {
             puzzleExpired = true
             update(id: entry.id) { $0.status = .expired }
@@ -113,6 +146,7 @@ final class SolveSession {
             for index in entries.indices where entries[index].status == .expired {
                 entries[index].status = .queued
             }
+            persist()
             processNext(api: api)
         } catch {
             errorMessage = error.localizedDescription

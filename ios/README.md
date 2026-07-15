@@ -35,6 +35,11 @@ open Pussel.xcodeproj
 
 - **App/** — `AppModel` (root object graph), `AppFlow` (phase state machine:
   capture → confirm trim → solving), `AppActions` (shared wizard actions)
+- **Persistence/** — `PuzzleStore`, on-device storage of every puzzle under
+  `Documents/Puzzles/<uuid>/` (a `manifest.json`, the `trimmed.jpg` picture,
+  and a `pieces/` folder of per-piece image files). No server storage: a
+  session is saved on every change (create, prediction done, remove, reupload)
+  and rehydrated purely from disk when reopened
 - **Networking/** — `APIClient` (async URLSession, Bearer auth, central
   401 → silent re-auth → retry), `MultipartFormData`
 - **Features/Auth/** — Google Sign-In via the GoogleSignIn SDK; the backend
@@ -44,6 +49,9 @@ open Pussel.xcodeproj
 - **Features/Solve/** — persistent camera with manual shutter (device),
   PhotosPicker fallback (Simulator), serial prediction queue, overlay
   rendering that mirrors `frontend/src/components/puzzle/puzzle-detail.tsx`
+- **Features/Library/** — `SavedPuzzlesSection`, the list of stored puzzles on
+  the home screen below the capture buttons (tap to reopen, long-press to
+  delete)
 
 The backend's puzzle store is in-memory, so a `puzzle_id` dies when the
 backend restarts; the app keeps the trimmed image and offers one-tap
@@ -84,5 +92,6 @@ Debug builds accept two escape hatches, both compiled out of Release:
   ```
 
   Commands: `trim?puzzle=<path>`, `accept`, `piece?path=<path>`, `reupload`,
-  `reset`. Simulator apps can read host file paths directly, so fixtures can
-  live anywhere (e.g. `frontend/public/test-puzzles/`).
+  `reset`, `open?index=<n>` / `delete?index=<n>` (index into the saved-puzzles
+  list on the home screen). Simulator apps can read host file paths directly,
+  so fixtures can live anywhere (e.g. `frontend/public/test-puzzles/`).

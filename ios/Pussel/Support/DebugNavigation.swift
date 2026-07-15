@@ -7,7 +7,8 @@
     /// promptless path is a Darwin notification plus a command file:
     ///   echo "pusseldebug://trim?puzzle=/host/path.jpg" > /tmp/pussel-debug-command
     ///   xcrun simctl spawn booted notifyutil -p dk.delectosoft.pussel.debug
-    /// Commands: trim?puzzle=, accept, piece?path=, reupload, reset.
+    /// Commands: trim?puzzle=, accept, piece?path=, reupload, reset,
+    ///   open?index=, delete?index= (index into the saved-puzzles list).
     /// Simulator apps can read host file paths directly. Compiled out of
     /// Release builds; the handler runs the same actions as the real UI.
     @MainActor
@@ -75,6 +76,14 @@
                 case "reupload":
                     if case .solving(let session) = flow.phase {
                         await session.reupload(api: api)
+                    }
+                case "open":
+                    if let index = value("index").flatMap(Int.init), store.puzzles.indices.contains(index) {
+                        openPuzzle(store.puzzles[index].id)
+                    }
+                case "delete":
+                    if let index = value("index").flatMap(Int.init), store.puzzles.indices.contains(index) {
+                        deletePuzzle(store.puzzles[index].id)
                     }
                 default:
                     break
