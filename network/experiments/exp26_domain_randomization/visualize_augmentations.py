@@ -13,7 +13,6 @@ Run from the network/ directory:
 """
 
 import argparse
-import random
 from pathlib import Path
 
 from PIL import Image
@@ -98,18 +97,17 @@ def main() -> None:
     parser.add_argument("--puzzle-root", type=Path, default=DEFAULT_PUZZLE_ROOT, help="Source puzzles root")
     parser.add_argument("--aug-preset", choices=sorted(AUG_PRESETS.keys()), default="full", help="Preset to show")
     parser.add_argument("--n-pieces", type=int, default=6, help="Number of source pieces (rows)")
-    parser.add_argument("--n-draws", type=int, default=5, help="Augmentation draws per piece")
+    parser.add_argument("--n-draws", type=int, default=6, help="Augmentation draws per piece")
     parser.add_argument("--seed", type=int, default=0, help="RNG seed")
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path(__file__).parent / "outputs" / "augmentation_samples.png",
-        help="Output image path",
+        default=Path(__file__).parent / "outputs" / "augmentation_samples.jpg",
+        help="Output image path (JPEG keeps the committed artifact under the pre-commit size limit)",
     )
     args = parser.parse_args()
 
     seed_everything(args.seed)
-    random.seed(args.seed)
     config = AUG_PRESETS[args.aug_preset]
     sheet = build_grid(
         dataset_root=args.dataset_root,
