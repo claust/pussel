@@ -41,17 +41,22 @@ export function PieceQueue({ entries, onRetry, onDelete, className }: PieceQueue
             <div
               key={entry.id}
               className={cn(
-                'animate-queue-pop group relative w-24 shrink-0 rounded-lg border-2',
+                'animate-queue-pop group focus-visible:ring-ring relative w-24 shrink-0 cursor-pointer rounded-lg border-2 focus:outline-none focus-visible:ring-2',
                 entry.status === 'done' && 'border-green-500',
                 entry.status === 'error' && 'border-destructive',
                 (entry.status === 'queued' || entry.status === 'predicting') && 'border-border'
               )}
+              // Focusable so the enlarged preview is reachable by keyboard (tab to the tile)
+              // and by touch (tap the tile) without activating the retry/delete buttons.
+              tabIndex={0}
+              role="button"
+              aria-label={`Captured piece ${index + 1} — focus to enlarge`}
               data-testid="queue-entry"
               data-status={entry.status}
             >
-              {/* Enlarged preview on hover or keyboard focus — floats above the tile and
-                  ignores pointer events so it never blocks the delete/retry controls.
-                  group-focus-within makes it reachable when tabbing to those controls. */}
+              {/* Enlarged preview on hover, keyboard focus, or touch tap — floats above the
+                  tile and ignores pointer events so it never blocks the delete/retry controls.
+                  group-focus-within covers the focusable tile and the buttons inside it. */}
               <div
                 className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 hidden -translate-x-1/2 group-focus-within:block group-hover:block"
                 data-testid="queue-entry-preview"
@@ -65,7 +70,7 @@ export function PieceQueue({ entries, onRetry, onDelete, className }: PieceQueue
                 </div>
               </div>
 
-              <div className="overflow-hidden rounded-md">
+              <div className="overflow-hidden rounded-[inherit]">
                 <img
                   src={imageSrc}
                   alt={`Captured piece ${index + 1}`}
@@ -73,9 +78,9 @@ export function PieceQueue({ entries, onRetry, onDelete, className }: PieceQueue
                 />
               </div>
 
-              {/* Status overlay — rounded bottom matches the tile so its corners don't
-                  protrude past the rounded border (the outer tile has no overflow clip). */}
-              <div className="bg-background/85 absolute inset-x-0 bottom-0 flex h-6 items-center justify-center gap-1 rounded-b-md text-[10px] font-medium">
+              {/* Status overlay — bottom radius matches the tile's rounded-lg so its corners
+                  don't protrude past the rounded border (the outer tile has no overflow clip). */}
+              <div className="bg-background/85 absolute inset-x-0 bottom-0 flex h-6 items-center justify-center gap-1 rounded-b-lg text-[10px] font-medium">
                 {entry.status === 'queued' && <span className="text-muted-foreground">Queued</span>}
                 {entry.status === 'predicting' && (
                   <>
