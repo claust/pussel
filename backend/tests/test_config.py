@@ -92,3 +92,45 @@ def test_jwt_secret_custom_value_in_production(cleanup_imports: None) -> None:
         # Cleanup
         os.environ.pop("ENVIRONMENT", None)
         os.environ.pop("JWT_SECRET", None)
+
+
+def test_matcher_rejects_invalid_value(cleanup_imports: None) -> None:
+    """Test that MATCHER only accepts "classical" or "cnn" (e.g. rejects a typo like "CNN")."""
+    os.environ["MATCHER"] = "CNN"
+
+    try:
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError):
+            from app.config import Settings
+
+            Settings()
+    finally:
+        os.environ.pop("MATCHER", None)
+
+
+def test_matcher_accepts_valid_values(cleanup_imports: None) -> None:
+    """Test that both supported MATCHER values are accepted."""
+    try:
+        from app.config import Settings
+
+        for value in ("classical", "cnn"):
+            os.environ["MATCHER"] = value
+            assert Settings().MATCHER == value
+    finally:
+        os.environ.pop("MATCHER", None)
+
+
+def test_classical_grid_rejects_non_positive(cleanup_imports: None) -> None:
+    """Test that a zero grid size is rejected (would divide by zero in the NCC fallback)."""
+    os.environ["CLASSICAL_GRID_ROWS"] = "0"
+
+    try:
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError):
+            from app.config import Settings
+
+            Settings()
+    finally:
+        os.environ.pop("CLASSICAL_GRID_ROWS", None)
