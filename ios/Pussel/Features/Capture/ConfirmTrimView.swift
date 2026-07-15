@@ -82,7 +82,11 @@ struct ConfirmTrimView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
-                    .disabled(candidate.trimmedJPEG == nil)
+                    // Gate on the cached preview (not the base64-decoding
+                    // `trimmedJPEG` computed property) so this doesn't re-decode
+                    // on every rotate tap and stays disabled exactly when the
+                    // preview can't be shown.
+                    .disabled(previewImage == nil)
                 }
             }
             if let error = model.flow.errorMessage {
