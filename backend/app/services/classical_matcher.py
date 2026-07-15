@@ -119,8 +119,8 @@ class ClassicalMatcher:
                 raise FileNotFoundError(f"Puzzle image not found: {normalized_path}")
 
             # PIL handles the case where the upload isn't actually a JPEG despite the extension.
-            puzzle_img = Image.open(normalized_path).convert("RGB")
-            rgb = np.array(puzzle_img)
+            with Image.open(normalized_path) as puzzle_img:
+                rgb = np.array(puzzle_img.convert("RGB"))
 
             sift_rgb = _resize_max_side(rgb, SIFT_OVERVIEW_SIDE)
             sift_gray = cv2.cvtColor(sift_rgb, cv2.COLOR_RGB2GRAY)
