@@ -49,11 +49,11 @@ export function PieceQueue({ entries, onRetry, onDelete, className }: PieceQueue
               data-testid="queue-entry"
               data-status={entry.status}
             >
-              {/* Enlarged preview on hover — floats above the tile, ignores pointer so it
-                  never blocks the delete/retry controls. Clipped visuals stay inside the
-                  rounded tile via the inner overflow-hidden wrapper below. */}
+              {/* Enlarged preview on hover or keyboard focus — floats above the tile and
+                  ignores pointer events so it never blocks the delete/retry controls.
+                  group-focus-within makes it reachable when tabbing to those controls. */}
               <div
-                className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 hidden -translate-x-1/2 group-hover:block"
+                className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 hidden -translate-x-1/2 group-focus-within:block group-hover:block"
                 data-testid="queue-entry-preview"
               >
                 <div className="bg-background border-border overflow-hidden rounded-lg border-2 shadow-xl">
@@ -73,8 +73,9 @@ export function PieceQueue({ entries, onRetry, onDelete, className }: PieceQueue
                 />
               </div>
 
-              {/* Status overlay */}
-              <div className="bg-background/85 absolute inset-x-0 bottom-0 flex h-6 items-center justify-center gap-1 text-[10px] font-medium">
+              {/* Status overlay — rounded bottom matches the tile so its corners don't
+                  protrude past the rounded border (the outer tile has no overflow clip). */}
+              <div className="bg-background/85 absolute inset-x-0 bottom-0 flex h-6 items-center justify-center gap-1 rounded-b-md text-[10px] font-medium">
                 {entry.status === 'queued' && <span className="text-muted-foreground">Queued</span>}
                 {entry.status === 'predicting' && (
                   <>
