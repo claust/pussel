@@ -27,12 +27,7 @@ struct PusselApp: App {
         WindowGroup {
             RootView()
                 .environment(model)
-                .onOpenURL { url in
-                    #if DEBUG
-                        if model.handleDebugURL(url) { return }
-                    #endif
-                    model.authService.handle(url: url)
-                }
+                .onOpenURL { model.authService.handle(url: $0) }
                 #if DEBUG
                     .task { DebugDriver.start(model) }
                 #endif

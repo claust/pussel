@@ -2,17 +2,33 @@ import XCTest
 
 @testable import Pussel
 
-/// URLProtocol stub so APIClient tests never hit the network.
+/// URLProtocol stub so APIClient tests never hit the network. URLProtocol
+/// callbacks run on URLSession's internal threads, so the shared state is
+/// guarded by a lock.
 final class StubURLProtocol: URLProtocol {
-    nonisolated(unsafe) static var handler: ((URLRequest) -> (Int, Data))?
-    nonisolated(unsafe) static var receivedRequests: [URLRequest] = []
+    private static let lock = NSLock()
+    nonisolated(unsafe) private static var _handler: ((URLRequest) -> (Int, Data))?
+    nonisolated(unsafe) private static var _receivedRequests: [URLRequest] = []
+
+    static var handler: ((URLRequest) -> (Int, Data))? {
+        get { lock.withLock { _handler } }
+        set { lock.withLock { _handler = newValue } }
+    }
+
+    static var receivedRequests: [URLRequest] {
+        get { lock.withLock { _receivedRequests } }
+        set { lock.withLock { _receivedRequests = newValue } }
+    }
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
-        Self.receivedRequests.append(request)
-        guard let handler = Self.handler else {
+        let handler = Self.lock.withLock {
+            Self._receivedRequests.append(request)
+            return Self._handler
+        }
+        guard let handler else {
             client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
             return
         }

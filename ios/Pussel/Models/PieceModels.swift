@@ -18,7 +18,16 @@ struct CaptureEntry: Identifiable, Equatable {
         case queued
         case predicting
         case done
+        /// The backend forgot the puzzle_id (restart) — recoverable via re-upload.
+        case expired
         case error(String)
+
+        var isRetryable: Bool {
+            switch self {
+            case .expired, .error: return true
+            case .queued, .predicting, .done: return false
+            }
+        }
     }
 
     let id: UUID

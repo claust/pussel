@@ -57,9 +57,11 @@ final class PieceCameraSession: NSObject, AVCapturePhotoCaptureDelegate {
         session.beginConfiguration()
         session.sessionPreset = .photo
         session.addInput(input)
-        if session.canAddOutput(photoOutput) {
-            session.addOutput(photoOutput)
+        guard session.canAddOutput(photoOutput) else {
+            session.commitConfiguration()
+            return
         }
+        session.addOutput(photoOutput)
         session.commitConfiguration()
         isConfigured = true
     }
