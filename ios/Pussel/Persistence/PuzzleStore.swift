@@ -10,7 +10,8 @@ struct PuzzleSummary: Identifiable, Equatable {
     let updatedAt: Date
     let pieceCount: Int
     let placedCount: Int
-    /// Bytes of the trimmed puzzle image, used as the card thumbnail.
+    /// Bytes of the small downsampled thumbnail (thumb.jpg), used as the card
+    /// image — not the full-size trimmed puzzle JPEG.
     let thumbnail: Data?
 }
 
