@@ -12,7 +12,9 @@ settings:
     SWIFT_VERSION: "5.0"
     TARGETED_DEVICE_FAMILY: "1"
     CODE_SIGN_STYLE: Automatic
-    DEVELOPMENT_TEAM: RS2FKJW2W4
+    # DEVELOPMENT_TEAM comes from Config/Secrets.xcconfig (gitignored) so the
+    # project definition stays contributor-agnostic. Simulator builds don't
+    # need it; device builds do.
 packages:
   GoogleSignIn:
     url: https://github.com/google/GoogleSignIn-iOS
