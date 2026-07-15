@@ -63,6 +63,11 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+# --interval/--max-iters feed `sleep` and a numeric test, so reject non-integers
+# up front instead of failing obscurely mid-loop.
+case "$INTERVAL" in '' | *[!0-9]*) die "--interval must be a non-negative integer, got '$INTERVAL'" ;; esac
+case "$MAX_ITERS" in '' | *[!0-9]*) die "--max-iters must be a non-negative integer, got '$MAX_ITERS'" ;; esac
+
 # Auto-detect owner/repo/pr from context when not supplied.
 [ -n "$OWNER" ] || OWNER=$(gh repo view --json owner --jq '.owner.login' 2>/dev/null) || true
 [ -n "$REPO" ]  || REPO=$(gh repo view --json name --jq '.name' 2>/dev/null) || true
