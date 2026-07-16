@@ -118,4 +118,98 @@ enum ImageUtilities {
     }
     return Data(base64Encoded: String(string[string.index(after: comma)...]))
   }
+
+  // MARK: Alpha trimming
+
+  /// Returns the smallest pixel-space rect containing every pixel whose
+  /// alpha exceeds `threshold` (0...255), or `nil` when `image` is empty or
+  /// every pixel is at/below the threshold (fully transparent). Works in
+  /// `image`'s own `cgImage` pixel space, so it assumes `.up` orientation —
+  /// true for the images this app feeds it (backend-generated PNGs and
+  /// already-baked captures; see `rotated(_:quarterTurns:)`).
+  ///
+  /// The default threshold is high because segmentation mattes (rembg) can
+  /// leave a faint alpha halo of background across the frame; counting those
+  /// pixels would inflate the box to well beyond the actual subject.
+  static func alphaBoundingBox(of image: UIImage, threshold: UInt8 = 128) -> CGRect? {
+    guard let cgImage = image.cgImage, cgImage.width > 0, cgImage.height > 0 else { return nil }
+    guard let pixels = rgbaPixels(of: cgImage) else { return nil }
+    return opaqueBounds(
+      in: pixels, width: cgImage.width, height: cgImage.height, threshold: threshold)
+  }
+
+  /// Renders `cgImage` into a top-left-origin RGBA8 buffer the same pixel
+  /// size as the image, so alpha can be read byte-by-byte.
+  private static func rgbaPixels(of cgImage: CGImage) -> [UInt8]? {
+    let width = cgImage.width
+    let height = cgImage.height
+    let bytesPerRow = 4 * width
+    var pixels = [UInt8](repeating: 0, count: height * bytesPerRow)
+    guard
+      let context = CGContext(
+        data: &pixels,
+        width: width,
+        height: height,
+        bitsPerComponent: 8,
+        bytesPerRow: bytesPerRow,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+    else { return nil }
+    context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+    return pixels
+  }
+
+  /// Scans an RGBA8 `pixels` buffer for the smallest rect containing every
+  /// pixel whose alpha exceeds `threshold`, or `nil` when none does.
+  private static func opaqueBounds(in pixels: [UInt8], width: Int, height: Int, threshold: UInt8)
+    -> CGRect?
+  {
+    let bytesPerRow = 4 * width
+    var minX = width
+    var minY = height
+    var maxX = -1
+    var maxY = -1
+    for y in 0..<height {
+      let rowStart = y * bytesPerRow
+      for x in 0..<width where pixels[rowStart + x * 4 + 3] > threshold {
+        minX = min(minX, x)
+        maxX = max(maxX, x)
+        minY = min(minY, y)
+        maxY = max(maxY, y)
+      }
+    }
+    guard maxX >= minX, maxY >= minY else { return nil }
+    return CGRect(x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1)
+  }
+
+  /// Crops `image` to its alpha bounding box (see `alphaBoundingBox`),
+  /// trimming a transparent margin such as the backend's cleaned piece
+  /// PNGs. Returns `image` itself (same instance) when there is no alpha
+  /// bbox, or it already covers the whole image, so callers can cheaply
+  /// detect "nothing to trim" via reference identity.
+  static func croppedToAlphaBounds(_ image: UIImage) -> UIImage {
+    guard let cgImage = image.cgImage,
+      let bbox = alphaBoundingBox(of: image),
+      bbox.width > 0, bbox.height > 0,
+      Int(bbox.width) < cgImage.width || Int(bbox.height) < cgImage.height
+    else {
+      return image
+    }
+    guard let cropped = cgImage.cropping(to: bbox) else { return image }
+    return UIImage(cgImage: cropped, scale: image.scale, orientation: image.imageOrientation)
+  }
+
+  private static let pngSignature: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
+
+  /// Crops PNG `data` to its alpha bounding box and re-encodes as PNG.
+  /// Returns `data` unchanged when it isn't PNG (a raw JPEG capture has no
+  /// alpha channel at all, so skip the decode+scan entirely — cheap
+  /// signature check), can't be decoded, or has no transparent margin to
+  /// trim.
+  static func alphaTrimmedPNG(from data: Data) -> Data {
+    guard data.starts(with: pngSignature), let image = UIImage(data: data) else { return data }
+    let cropped = croppedToAlphaBounds(image)
+    guard cropped !== image, let pngData = cropped.pngData() else { return data }
+    return pngData
+  }
 }

@@ -17,7 +17,7 @@ from PIL import Image, ImageDraw
 
 from app.config import settings
 from app.main import app
-from app.models.puzzle_model import PieceResponse, Position
+from app.models.puzzle_model import PieceResponse, PieceSpan, Position
 from app.services import classical_matcher as cm_module
 from app.services.classical_matcher import ClassicalMatcher, PuzzleFeatures, get_classical_matcher
 
@@ -32,6 +32,13 @@ CROP_X2, CROP_Y2 = CROP_X1 + CROP_SIZE, CROP_Y1 + CROP_SIZE
 EXPECTED_NX = (CROP_X1 + CROP_X2) / 2 / PUZZLE_SIZE
 EXPECTED_NY = (CROP_Y1 + CROP_Y2) / 2 / PUZZLE_SIZE
 POSITION_TOLERANCE = 0.15
+
+# make_piece_canvas pads the crop with a black border on each side; the full
+# piece frame (crop + padding) is what piece_span should describe.
+CANVAS_PAD = 20
+CANVAS_SIDE = CROP_SIZE + 2 * CANVAS_PAD
+EXPECTED_SPAN = CANVAS_SIDE / PUZZLE_SIZE
+SPAN_TOLERANCE = 0.3  # generous: SIFT/NCC scale estimation is approximate
 
 
 def make_synthetic_puzzle(size: int = PUZZLE_SIZE, seed: int = 42) -> Image.Image:
@@ -115,6 +122,9 @@ def test_sift_happy_path(matcher: ClassicalMatcher, puzzle_id: str) -> None:
     assert result.rotation == 0
     assert result.position_confidence > 0
     assert result.rotation_confidence > 0
+    assert result.piece_span is not None
+    assert abs(result.piece_span.width - EXPECTED_SPAN) < SPAN_TOLERANCE
+    assert abs(result.piece_span.height - EXPECTED_SPAN) < SPAN_TOLERANCE
 
 
 def test_sift_rotation(matcher: ClassicalMatcher, puzzle_id: str) -> None:
@@ -147,6 +157,12 @@ def test_sift_fail_falls_back_to_ncc(
     assert result.position_confidence > 0
     assert result.rotation_confidence > 0
     assert not (result.position.x == 0.5 and result.position.y == 0.5 and result.position_confidence == 0.0)
+    # The NCC template is square in overview pixel space, so the span should be
+    # square-ish even when the puzzle overview itself isn't perfectly square.
+    assert result.piece_span is not None
+    assert result.piece_span.width > 0
+    assert result.piece_span.height > 0
+    assert abs(result.piece_span.width - result.piece_span.height) < 0.05
 
 
 def test_both_fail_returns_neutral(matcher: ClassicalMatcher, puzzle_id: str) -> None:
@@ -163,6 +179,7 @@ def test_both_fail_returns_neutral(matcher: ClassicalMatcher, puzzle_id: str) ->
     assert result.rotation == 0
     assert result.rotation_confidence == 0.0
     assert result.cleaned_image is None
+    assert result.piece_span is None
 
 
 def test_unexpected_exception_returns_neutral_fallback(
@@ -181,6 +198,7 @@ def test_unexpected_exception_returns_neutral_fallback(
     assert result.rotation == 0
     assert result.rotation_confidence == 0.0
     assert result.cleaned_image is None
+    assert result.piece_span is None
 
 
 def test_cache_populated_after_process_piece(matcher: ClassicalMatcher, puzzle_id: str) -> None:
@@ -275,7 +293,11 @@ def test_endpoint_uses_classical_matcher_when_configured(upload_dir: Path, monke
     mock_matcher = MagicMock()
     mock_matcher.process_piece = AsyncMock(
         return_value=PieceResponse(
-            position=Position(x=0.1, y=0.2), position_confidence=0.5, rotation=90, rotation_confidence=0.5
+            position=Position(x=0.1, y=0.2),
+            position_confidence=0.5,
+            rotation=90,
+            rotation_confidence=0.5,
+            piece_span=PieceSpan(width=0.3, height=0.35),
         )
     )
 
@@ -292,7 +314,10 @@ def test_endpoint_uses_classical_matcher_when_configured(upload_dir: Path, monke
     assert response.status_code == 200
     mock_get_classical.assert_called_once()
     mock_get_cnn.assert_not_called()
-    assert response.json()["rotation"] == 90
+    body = response.json()
+    assert body["rotation"] == 90
+    # Confirms the wire shape: snake_case "piece_span" with "width"/"height" sub-keys.
+    assert body["piece_span"] == {"width": 0.3, "height": 0.35}
 
 
 def test_endpoint_uses_cnn_processor_when_configured(upload_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:

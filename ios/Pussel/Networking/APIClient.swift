@@ -46,9 +46,13 @@ final class APIClient {
     return try await sendDecoding(request)
   }
 
-  func uploadPuzzle(jpegData: Data) async throws -> PuzzleUploadResponse {
+  func uploadPuzzle(jpegData: Data, pieceCount: Int) async throws -> PuzzleUploadResponse {
     let request = makeMultipartRequest(
-      path: "api/v1/puzzle/upload", jpegData: jpegData, filename: "puzzle.jpg")
+      path: "api/v1/puzzle/upload",
+      jpegData: jpegData,
+      filename: "puzzle.jpg",
+      fields: ["piece_count": String(pieceCount)]
+    )
     return try await sendDecoding(request)
   }
 
@@ -67,7 +71,8 @@ final class APIClient {
   // MARK: - Request building & sending
 
   func makeMultipartRequest(
-    path: String, queryItems: [URLQueryItem] = [], jpegData: Data, filename: String
+    path: String, queryItems: [URLQueryItem] = [], jpegData: Data, filename: String,
+    fields: [String: String] = [:]
   )
     -> URLRequest
   {
@@ -76,6 +81,9 @@ final class APIClient {
       url.append(queryItems: queryItems)
     }
     var form = MultipartFormData()
+    for (name, value) in fields {
+      form.appendField(name: name, value: value)
+    }
     form.appendFile(name: "file", filename: filename, mimeType: "image/jpeg", data: jpegData)
     var request = URLRequest(url: url)
     request.httpMethod = "POST"
