@@ -31,6 +31,17 @@ private struct QueueTile: View {
   let onRetry: () -> Void
   let onDelete: () -> Void
 
+  /// The model reports how far the piece is turned from its place in the
+  /// puzzle, so undoing it shows the piece as it will sit there — the same
+  /// counter-clockwise correction PuzzleOverlayView applies to its markers.
+  /// Normalized to (-180, 180] so the tile animates the short way round
+  /// rather than spinning three quarter turns to reach the same place.
+  private var uprightRotation: Double {
+    guard let piece = entry.result else { return 0 }
+    let degrees = (360 - piece.rotation % 360) % 360
+    return Double(degrees > 180 ? degrees - 360 : degrees)
+  }
+
   var body: some View {
     VStack(spacing: 6) {
       ZStack {
@@ -39,7 +50,9 @@ private struct QueueTile: View {
             .resizable()
             .scaledToFill()
             .frame(width: 84, height: 84)
+            .rotationEffect(.degrees(uprightRotation))
             .clipShape(RoundedRectangle(cornerRadius: 10))
+            .animation(.easeInOut(duration: 0.25), value: uprightRotation)
         }
         if entry.status == .predicting {
           RoundedRectangle(cornerRadius: 10)
