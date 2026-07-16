@@ -21,9 +21,21 @@ extension AppModel {
     flow.errorMessage = nil
     flow.isBusy = true
     defer { flow.isBusy = false }
+    // Kept alongside the upload-size copy so the accepted trim can be re-warped
+    // sharply for the zoom viewer. Encoded off the main actor and in parallel
+    // with the detection round-trip, so a big photo neither freezes the screen
+    // nor delays the trim. Best-effort: a nil here costs zoom detail, not the
+    // capture.
+    async let zoomSourceJPEG = Task.detached(priority: .userInitiated) {
+      ImageUtilities.normalizedJPEG(
+        from: image, maxDimension: ImageUtilities.zoomSourceMaxDimension, quality: 0.85)
+    }.value
     do {
       let detection = try await api.detectFrame(jpegData: jpeg)
-      flow.phase = .confirmTrim(TrimCandidate(rawJPEG: jpeg, detection: detection, source: source))
+      flow.phase = .confirmTrim(
+        TrimCandidate(
+          rawJPEG: jpeg, zoomSourceJPEG: await zoomSourceJPEG, detection: detection, source: source)
+      )
     } catch {
       flow.errorMessage = error.localizedDescription
     }
@@ -56,12 +68,18 @@ extension AppModel {
     flow.errorMessage = nil
     flow.isBusy = true
     defer { flow.isBusy = false }
+    // Started alongside the upload rather than before it: the warp is pure
+    // local CPU and the upload is pure waiting, so overlapping them hides the
+    // zoom copy's cost behind the network entirely. Nothing downstream needs
+    // it until the session is built.
+    async let displayJPEG = zoomCopy(of: candidate, quarterTurns: quarterTurns)
     do {
       let response = try await api.uploadPuzzle(jpegData: trimmed, pieceCount: pieceCount)
       let session = SolveSession(
         name: Self.puzzleNameFormatter.string(from: Date()),
         puzzleId: response.puzzleId,
         trimmedJPEG: trimmed,
+        displayJPEG: await displayJPEG,
         targetPieceCount: pieceCount,
         rows: grid.rows,
         cols: grid.cols,
@@ -74,6 +92,39 @@ extension AppModel {
     } catch {
       flow.errorMessage = error.localizedDescription
     }
+  }
+
+  /// Re-warps the kept zoom-quality photo to the accepted trim, so the solve
+  /// screen can zoom into real detail instead of magnifying the
+  /// upload-resolution crop the backend returned.
+  ///
+  /// Uses the corners from the same detect-frame response the accepted
+  /// preview came from, so both copies frame the same region; `quarterTurns`
+  /// is the user's rotation, baked in here exactly as it is for the uploaded
+  /// image so the two stay in the same orientation.
+  ///
+  /// Best-effort throughout: every failure returns nil, leaving the session to
+  /// fall back to `trimmedJPEG` rather than blocking a working capture over a
+  /// display nicety.
+  ///
+  /// Runs off the main actor: decoding a multi-megapixel photo, warping it and
+  /// encoding the result takes long enough that doing it inline would freeze
+  /// the screen — including the very spinner meant to cover it.
+  private func zoomCopy(of candidate: TrimCandidate, quarterTurns: Int) async -> Data? {
+    guard let source = candidate.zoomSourceJPEG else { return nil }
+    let corners = candidate.detection.corners
+    return await Task.detached(priority: .userInitiated) {
+      guard let image = UIImage(data: source),
+        let corrected = ImageUtilities.perspectiveCorrected(from: image, corners: corners)
+      else {
+        return nil
+      }
+      // Rotate before encoding, so the copy is compressed once rather than
+      // decoded and re-encoded to turn it.
+      return ImageUtilities.normalizedJPEG(
+        from: ImageUtilities.rotated(corrected, quarterTurns: quarterTurns),
+        maxDimension: ImageUtilities.zoomMaxDimension, quality: 0.85)
+    }.value
   }
 
   /// Queues a captured piece photo for prediction in the current session.
