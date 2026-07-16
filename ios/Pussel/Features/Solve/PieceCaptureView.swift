@@ -25,6 +25,7 @@ struct PieceCaptureView: View {
           .onDisappear {
             camera.stop()
           }
+          .keepsScreenAwake()
       }
       PhotosPicker(selection: $photoItem, matching: .images) {
         Label(
