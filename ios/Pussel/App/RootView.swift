@@ -57,7 +57,7 @@ struct AppFlowView: View {
 
 /// The account menu icon: the user's Google profile picture when available
 /// (fetched via AsyncImage), otherwise the generic person symbol.
-struct ProfileIconView: View {
+private struct ProfileIconView: View {
   let pictureURL: URL?
 
   private static let iconSize: CGFloat = 28
