@@ -1,6 +1,6 @@
-# exp28 Handoff — M1 (contour extraction) + M2 (corner detection) + M3 (edge classification)
+# exp28 Handoff — M1 (contours) + M2 (corners) + M3 (edge types) + M4 (edge matching)
 
-Date: 2026-07-16 · Status: **all three milestone success criteria met** · Plan: [docs/piece-geometry-scanning.html](../../../docs/piece-geometry-scanning.html)
+Date: 2026-07-16 · Status: **M1–M3 criteria met; M4 numbers reported (its deliverable)** · Plan: [docs/piece-geometry-scanning.html](../../../docs/piece-geometry-scanning.html)
 
 ## M1 — High-fidelity contour extraction
 
@@ -118,13 +118,56 @@ Failure taxonomy (visually verified on review sheets in `outputs/review_edges/`)
 3. Residual tab↔blank flips across backgrounds trace to occasional corner mis-snaps rotating an
    arc's chord — revisit only if M4 edge matching turns out sensitive to it.
 
-## Recommendation going into M4 (edge complementarity matching)
+## M4 — Edge complementarity matching (the column's first payoff number)
 
-- Match on the per-edge 100-point polylines already stored in the piece records; gray_fabric
-  records are the cleanest development set (99.7% edge types, 99.4% complementarity).
-- Exclude records with `corner_disagreement` from the first matching benchmark (135/916), then
-  measure how much including them hurts — that quantifies the quality gate's value for the scan UX.
-- True-neighbor ranking GT comes from grid adjacency, same as the complementarity check.
+`edge_match.py` (canonical chord-normalized edge frames, mate-flip transform verified against a
+`puzzle_shapes` shared-edge pair: distance(edge, flip(mate)) = 0.0000 exactly) +
+`eval_matching.py` (protocol: every interior edge queries ALL type-compatible edges of other
+pieces in the same puzzle × background — no orientation leak; true mate known from grid
+adjacency; 1878 queries, mean pool ≈ 25 candidates).
+
+**Metric bake-off (top-1 / top-3 / top-5, corner_disagreement records excluded):**
+
+| Metric | Top-1 | Top-3 | Top-5 |
+|---|---|---|---|
+| **pointwise L2** (canonical 100-pt polylines) | **67.4%** | **85.2%** | **90.5%** |
+| symmetric chamfer | 61.9% | 82.3% | 88.7% |
+| 6-scalar descriptor | 29.3% | 51.3% | 62.6% |
+| L2 + chord-length penalty | 28.2% | 48.3% | 61.1% |
+
+Per background (L2 top-1): gray_fabric **77.4%**, red_carpet 69.6%, cardboard 61.7%, wood 57.6% —
+matching accuracy tracks upstream segmentation quality, as expected. Median rank of the true mate
+is 1 on every puzzle × gray_fabric; per-puzzle top-1 ranges 54.5–100%.
+
+Key findings:
+
+1. **Index-aligned L2 beats chamfer** — arc-length correspondence carries information; chamfer's
+   nearest-point freedom lets impostors cheat. The 6-scalar descriptor loses too much shape detail.
+2. **The chord-length penalty actively hurts** (67.4% → 28.2%): camera distance varies between
+   photos, so pixel chord length is unreliable — the scale-free decision from the plan is
+   empirically confirmed.
+3. **The corner_disagreement gate is worth ~8 top-1 points** (67.4% excluded vs 59.4% included) —
+   it is a genuinely useful quality signal for the future scan-lock UX.
+4. **Die-cut shape collisions are real on these puzzles** (the jigsawlutioner warning, now
+   quantified on our data): median margin between best impostor and true mate is only **1.22×**,
+   and 74% of genuine distances exceed the impostor 5th percentile. Visual review confirms
+   failures are mostly *near-identical competing tabs*, not matcher errors. Consequence:
+   **geometry ranks candidates well but cannot serve as a sole accept/reject threshold — color
+   must join for identity (M6/M7), exactly as the plan anticipated.**
+
+Review sheets: `outputs/review_matching/*.png` (query vs flipped mate vs best impostor, canonical
+frame). Full numbers: `outputs/matching_eval.json`.
+
+## Recommendation going into M6 (piece fingerprint + re-identification)
+
+- Phases A's outputs are all in place: piece records with corners, edge types, canonical edge
+  polylines, and a proven L2 edge distance. (M5, TabParameters fitting, is optional/parallel and
+  can be skipped or done later — nothing downstream hard-depends on it.)
+- Fingerprint = 4 canonical edge polylines (rotation-normalized ordering) + a LAB color histogram
+  of the piece face; nearest-neighbor over enrolled pieces; north_star's 4 backgrounds per piece
+  are the natural enroll/query split.
+- Given M4's thin geometric margins, expect color to carry much of the identity signal — the M6
+  ablation (shape only vs color only vs combined) is the important table.
 
 ## Reproduce
 
@@ -137,6 +180,8 @@ uv run python experiments/exp28_piece_geometry/debug_synth_failures.py      # re
 uv run python experiments/exp28_piece_geometry/eval_corners.py              # corner sheets (+ eval if labels exist)
 uv run python experiments/exp28_piece_geometry/edge_split.py                # M3: piece records + edge_summary.csv
 uv run python experiments/exp28_piece_geometry/eval_edges.py                # M3: eval + edge-type sheets
+uv run python experiments/exp28_piece_geometry/edge_match.py                # M4: synthetic self-check
+uv run python experiments/exp28_piece_geometry/eval_matching.py             # M4: neighbor-ranking eval + sheets
 ```
 
 Dataset: `network/datasets/north_star/v1` (local only, regenerate via `experiments/north_star/ingest.py`).
