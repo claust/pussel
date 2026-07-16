@@ -46,7 +46,7 @@ struct AppFlowView: View {
               model.flow.reset()
             }
           } label: {
-            ProfileIconView(pictureURL: model.auth.user?.picture.flatMap(URL.init(string:)))
+            ProfileIconView(pictureURL: model.auth.avatarURL)
           }
           .accessibilityLabel("Account")
         }
