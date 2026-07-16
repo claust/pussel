@@ -38,7 +38,7 @@ final class PuzzleStoreTests: XCTestCase {
       name: name,
       puzzleId: "server-123",
       trimmedJPEG: tinyJPEG(),
-      pieceCount: 48,
+      targetPieceCount: 48,
       rows: 6,
       cols: 8,
       store: store
@@ -82,7 +82,7 @@ final class PuzzleStoreTests: XCTestCase {
     XCTAssertEqual(reloaded.name, "Frosty field")
     XCTAssertEqual(reloaded.puzzleId, "server-123")
     XCTAssertEqual(reloaded.trimmedJPEG, session.trimmedJPEG)
-    XCTAssertEqual(reloaded.pieceCount, 48)
+    XCTAssertEqual(reloaded.targetPieceCount, 48)
     XCTAssertEqual(reloaded.rows, 6)
     XCTAssertEqual(reloaded.cols, 8)
     XCTAssertEqual(reloaded.entries.count, 1)

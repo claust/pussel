@@ -46,11 +46,43 @@ struct AppFlowView: View {
               model.flow.reset()
             }
           } label: {
-            Image(systemName: "person.crop.circle")
+            ProfileIconView(pictureURL: model.auth.user?.picture.flatMap(URL.init(string:)))
           }
           .accessibilityLabel("Account")
         }
       }
     }
+  }
+}
+
+/// The account menu icon: the user's Google profile picture when available
+/// (fetched via AsyncImage), otherwise the generic person symbol.
+private struct ProfileIconView: View {
+  let pictureURL: URL?
+
+  private static let iconSize: CGFloat = 28
+
+  var body: some View {
+    Group {
+      if let pictureURL {
+        AsyncImage(url: pictureURL) { image in
+          image
+            .resizable()
+            .scaledToFill()
+        } placeholder: {
+          fallbackIcon
+        }
+      } else {
+        fallbackIcon
+      }
+    }
+    .frame(width: Self.iconSize, height: Self.iconSize)
+    .clipShape(Circle())
+  }
+
+  private var fallbackIcon: some View {
+    Image(systemName: "person.crop.circle")
+      .resizable()
+      .scaledToFit()
   }
 }

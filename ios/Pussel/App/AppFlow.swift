@@ -61,9 +61,11 @@ final class SolveSession {
   let createdAt: Date
   var puzzleId: String
   let trimmedJPEG: Data
-  /// Total piece count entered by the user when the puzzle was added.
-  let pieceCount: Int
-  /// Grid estimated by `GridEstimator` from `pieceCount` and `trimmedJPEG`'s
+  /// Total piece count entered by the user when the puzzle was added —
+  /// the puzzle's target size, not the number of captured pieces (which
+  /// `PuzzleSummary.pieceCount` reports).
+  let targetPieceCount: Int
+  /// Grid estimated by `GridEstimator` from `targetPieceCount` and `trimmedJPEG`'s
   /// pixel dimensions; drives the overlay's marker sizing.
   let rows: Int
   let cols: Int
@@ -79,7 +81,7 @@ final class SolveSession {
     name: String,
     puzzleId: String,
     trimmedJPEG: Data,
-    pieceCount: Int,
+    targetPieceCount: Int,
     rows: Int,
     cols: Int,
     createdAt: Date = Date(),
@@ -89,7 +91,7 @@ final class SolveSession {
     self.name = name
     self.puzzleId = puzzleId
     self.trimmedJPEG = trimmedJPEG
-    self.pieceCount = pieceCount
+    self.targetPieceCount = targetPieceCount
     self.rows = rows
     self.cols = cols
     self.createdAt = createdAt
@@ -167,7 +169,7 @@ final class SolveSession {
   func reupload(api: APIClient) async {
     errorMessage = nil
     do {
-      let response = try await api.uploadPuzzle(jpegData: trimmedJPEG, pieceCount: pieceCount)
+      let response = try await api.uploadPuzzle(jpegData: trimmedJPEG, pieceCount: targetPieceCount)
       puzzleId = response.puzzleId
       puzzleExpired = false
       for index in entries.indices where entries[index].status == .expired {

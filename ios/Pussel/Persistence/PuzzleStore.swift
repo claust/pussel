@@ -146,7 +146,7 @@ final class PuzzleStore {
           }
         )
       },
-      pieceCount: session.pieceCount,
+      pieceCount: session.targetPieceCount,
       rows: session.rows,
       cols: session.cols
     )
@@ -173,7 +173,7 @@ final class PuzzleStore {
         // Counts reflect what was persisted, matching the manifest.
         pieceCount: persistedEntries.count,
         placedCount: persistedEntries.filter { $0.result != nil }.count,
-        targetPieceCount: session.pieceCount,
+        targetPieceCount: session.targetPieceCount,
         rows: session.rows,
         cols: session.cols,
         thumbnail: thumbnailData
@@ -221,7 +221,7 @@ final class PuzzleStore {
       name: manifest.name,
       puzzleId: manifest.serverPuzzleId,
       trimmedJPEG: trimmed,
-      pieceCount: manifest.pieceCount,
+      targetPieceCount: manifest.pieceCount,
       rows: manifest.rows,
       cols: manifest.cols,
       createdAt: manifest.createdAt,

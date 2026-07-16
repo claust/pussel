@@ -60,7 +60,7 @@ extension AppModel {
         name: Self.puzzleNameFormatter.string(from: Date()),
         puzzleId: response.puzzleId,
         trimmedJPEG: trimmed,
-        pieceCount: pieceCount,
+        targetPieceCount: pieceCount,
         rows: grid.rows,
         cols: grid.cols,
         store: store
