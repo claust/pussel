@@ -25,4 +25,10 @@ struct DetectFrameResponse: Codable, Equatable {
 struct PuzzleUploadResponse: Codable, Equatable {
   let puzzleId: String
   let imageUrl: String?
+  /// Backend-computed grid, decoded for parity but not used for display —
+  /// the app always sizes the overlay from its own local `GridEstimator`
+  /// estimate (see `AppActions.acceptTrim`).
+  let pieceCount: Int?
+  let rows: Int?
+  let cols: Int?
 }

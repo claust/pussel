@@ -83,12 +83,25 @@ final class APIClientTests: XCTestCase {
     XCTAssertTrue(body.contains("Content-Type: image/jpeg"))
   }
 
+  func testMultipartRequestBuildingIncludesTextFields() throws {
+    let request = client.makeMultipartRequest(
+      path: "api/v1/puzzle/upload",
+      jpegData: Data("JPEG".utf8),
+      filename: "puzzle.jpg",
+      fields: ["piece_count": "500"]
+    )
+    let body = try XCTUnwrap(String(bytes: request.httpBody ?? Data(), encoding: .utf8))
+    XCTAssertTrue(
+      body.contains("Content-Disposition: form-data; name=\"piece_count\"\r\n\r\n500\r\n"))
+    XCTAssertTrue(body.contains("name=\"file\"; filename=\"puzzle.jpg\""))
+  }
+
   func testAuthorizationHeaderAttached() async throws {
     authStore.backendToken = "token123"
     StubURLProtocol.handler = { _ in
       (200, Data(#"{"puzzle_id": "p1", "image_url": null}"#.utf8))
     }
-    _ = try await client.uploadPuzzle(jpegData: Data("JPEG".utf8))
+    _ = try await client.uploadPuzzle(jpegData: Data("JPEG".utf8), pieceCount: 48)
     let auth = StubURLProtocol.receivedRequests.first?.value(forHTTPHeaderField: "Authorization")
     XCTAssertEqual(auth, "Bearer token123")
   }
@@ -120,7 +133,7 @@ final class APIClientTests: XCTestCase {
       authStore?.backendToken = "fresh"
       return true
     }
-    let response = try await client.uploadPuzzle(jpegData: Data("J".utf8))
+    let response = try await client.uploadPuzzle(jpegData: Data("J".utf8), pieceCount: 48)
     XCTAssertEqual(response.puzzleId, "p2")
     // The lock-guarded request log stands in for a hand-rolled counter,
     // which would race with URLSession's internal threads.
@@ -129,18 +142,23 @@ final class APIClientTests: XCTestCase {
 
   func test401WithoutReauthSurfacesError() async {
     authStore.backendToken = "stale"
+    authStore.user = UserDTO(
+      id: "u1", email: "u@example.com", name: "U", picture: nil, createdAt: nil)
+    authStore.avatarURL = URL(string: "https://lh3.googleusercontent.com/a/avatar=s96")
     StubURLProtocol.handler = { _ in
       (401, Data(#"{"detail": "Invalid or expired token"}"#.utf8))
     }
     do {
-      _ = try await client.uploadPuzzle(jpegData: Data("J".utf8))
+      _ = try await client.uploadPuzzle(jpegData: Data("J".utf8), pieceCount: 48)
       XCTFail("Expected APIError")
     } catch let error as APIError {
       XCTAssertEqual(error.status, 401)
       XCTAssertEqual(error.message, "Authentication required. Please sign in.")
-      // The dead session must be dropped so the UI returns to sign-in.
+      // The dead session must be dropped in full so the UI returns to
+      // sign-in with nothing of the old session left behind.
       XCTAssertNil(authStore.backendToken)
       XCTAssertNil(authStore.user)
+      XCTAssertNil(authStore.avatarURL)
     } catch {
       XCTFail("Unexpected error type: \(error)")
     }

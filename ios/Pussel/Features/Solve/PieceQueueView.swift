@@ -1,11 +1,16 @@
+import PhotosUI
 import SwiftUI
 
-/// Horizontal strip of captured pieces with their prediction status,
-/// mirroring frontend/src/components/puzzle/piece-queue.tsx.
+/// Horizontal strip of captured pieces with their prediction status, led by an
+/// "add piece" tile that opens the camera full screen. Mirrors
+/// frontend/src/components/puzzle/piece-queue.tsx.
 struct PieceQueueView: View {
   @Environment(AppModel.self) private var model
   let session: SolveSession
   @State private var isDeleteMode = false
+  @State private var showCamera = false
+  @State private var showLibrary = false
+  @State private var photoItem: PhotosPickerItem?
 
   /// Slack around the tile strip, sized to clear the delete badge's tappable
   /// box (the widest thing that spills past a tile) plus a little for the tilt
@@ -26,7 +31,10 @@ struct PieceQueueView: View {
         }
       }
       ScrollView(.horizontal, showsIndicators: false) {
-        HStack(spacing: 12) {
+        // Top-aligned so the plus square lines up with the piece thumbnails
+        // rather than centering against their taller status labels.
+        HStack(alignment: .top, spacing: 12) {
+          AddPieceTile(action: addPiece)
           ForEach(session.entries) { entry in
             QueueTile(
               entry: entry,
@@ -49,8 +57,52 @@ struct PieceQueueView: View {
       .padding(.horizontal, -Self.stripSpill)
       .padding(.top, -Self.stripSpill)
     }
-    // No need to leave delete mode when the last piece goes: SolvingView drops
-    // this view once `entries` is empty, which resets `isDeleteMode` with it.
+    // The strip outlives the pieces — it always shows the add tile — so delete
+    // mode has to be left explicitly once the last piece goes, or the Done
+    // button strands itself above an empty strip.
+    .onChange(of: session.entries.isEmpty) { _, isEmpty in
+      if isEmpty { isDeleteMode = false }
+    }
+    .fullScreenCover(isPresented: $showCamera) {
+      PieceCaptureView()
+    }
+    // Simulator path: no camera, so the tile picks from the library directly.
+    .photosPicker(isPresented: $showLibrary, selection: $photoItem, matching: .images)
+    .onChange(of: photoItem) { _, item in
+      guard let item else { return }
+      Task {
+        await model.addPiece(from: item)
+        photoItem = nil
+      }
+    }
+  }
+
+  private func addPiece() {
+    if PieceCameraSession.isCameraAvailable {
+      showCamera = true
+    } else {
+      showLibrary = true
+    }
+  }
+}
+
+/// Leading tile in the strip: a big plus that starts a new piece capture.
+private struct AddPieceTile: View {
+  let action: () -> Void
+
+  var body: some View {
+    Button(action: action) {
+      RoundedRectangle(cornerRadius: 10)
+        .strokeBorder(.tint, style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
+        .frame(width: 84, height: 84)
+        .overlay {
+          Image(systemName: "plus")
+            .font(.system(size: 34, weight: .light))
+            .foregroundStyle(.tint)
+        }
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel("Add piece")
   }
 }
 
@@ -83,6 +135,17 @@ private struct QueueTile: View {
   /// `PieceQueueView`'s strip padding has to clear or the ScrollView clips it.
   static let badgeCornerOffset = badgeHitSize / 2 - badgeCircleInset
 
+  /// The model reports how far the piece is turned from its place in the
+  /// puzzle, so undoing it shows the piece as it will sit there — the same
+  /// counter-clockwise correction PuzzleOverlayView applies to its markers.
+  /// Normalized to (-180, 180] so the tile animates the short way round
+  /// rather than spinning three quarter turns to reach the same place.
+  private var uprightRotation: Double {
+    guard let piece = entry.result else { return 0 }
+    let degrees = (360 - piece.rotation % 360) % 360
+    return Double(degrees > 180 ? degrees - 360 : degrees)
+  }
+
   var body: some View {
     VStack(spacing: 6) {
       ZStack {
@@ -91,7 +154,9 @@ private struct QueueTile: View {
             .resizable()
             .scaledToFill()
             .frame(width: 84, height: 84)
+            .rotationEffect(.degrees(uprightRotation))
             .clipShape(RoundedRectangle(cornerRadius: 10))
+            .animation(.easeInOut(duration: 0.25), value: uprightRotation)
         }
         if entry.status == .predicting {
           RoundedRectangle(cornerRadius: 10)
