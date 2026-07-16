@@ -12,10 +12,7 @@ struct SolvingView: View {
           expiredBanner
         }
         PuzzleOverlayView(session: session)
-        PieceCaptureView()
-        if !session.entries.isEmpty {
-          PieceQueueView(session: session)
-        }
+        PieceQueueView(session: session)
         if let error = session.errorMessage {
           Text(error)
             .font(.footnote)

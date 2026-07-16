@@ -1,17 +1,25 @@
+import PhotosUI
 import SwiftUI
 
-/// Horizontal strip of captured pieces with their prediction status,
-/// mirroring frontend/src/components/puzzle/piece-queue.tsx.
+/// Horizontal strip of captured pieces with their prediction status, led by an
+/// "add piece" tile that opens the camera full screen. Mirrors
+/// frontend/src/components/puzzle/piece-queue.tsx.
 struct PieceQueueView: View {
   @Environment(AppModel.self) private var model
   let session: SolveSession
+  @State private var showCamera = false
+  @State private var showLibrary = false
+  @State private var photoItem: PhotosPickerItem?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
       Text("Pieces (\(session.entries.count))")
         .font(.headline)
       ScrollView(.horizontal, showsIndicators: false) {
-        HStack(spacing: 12) {
+        // Top-aligned so the plus square lines up with the piece thumbnails
+        // rather than centering against their taller status labels.
+        HStack(alignment: .top, spacing: 12) {
+          AddPieceTile(action: addPiece)
           ForEach(session.entries) { entry in
             QueueTile(
               entry: entry,
@@ -23,6 +31,50 @@ struct PieceQueueView: View {
         .padding(.vertical, 2)
       }
     }
+    .fullScreenCover(isPresented: $showCamera) {
+      PieceCaptureView()
+    }
+    // Simulator path: no camera, so the tile picks from the library directly.
+    .photosPicker(isPresented: $showLibrary, selection: $photoItem, matching: .images)
+    .onChange(of: photoItem) { _, item in
+      guard let item else { return }
+      Task {
+        if let data = try? await item.loadTransferable(type: Data.self),
+          let image = UIImage(data: data)
+        {
+          model.addPiece(image: image)
+        }
+        photoItem = nil
+      }
+    }
+  }
+
+  private func addPiece() {
+    if PieceCameraSession.isCameraAvailable {
+      showCamera = true
+    } else {
+      showLibrary = true
+    }
+  }
+}
+
+/// Leading tile in the strip: a big plus that starts a new piece capture.
+private struct AddPieceTile: View {
+  let action: () -> Void
+
+  var body: some View {
+    Button(action: action) {
+      RoundedRectangle(cornerRadius: 10)
+        .strokeBorder(.tint, style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
+        .frame(width: 84, height: 84)
+        .overlay {
+          Image(systemName: "plus")
+            .font(.system(size: 34, weight: .light))
+            .foregroundStyle(.tint)
+        }
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel("Add piece")
   }
 }
 
