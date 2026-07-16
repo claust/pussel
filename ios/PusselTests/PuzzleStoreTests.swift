@@ -9,10 +9,12 @@ import XCTest
 @MainActor
 final class PuzzleStoreTests: XCTestCase {
   /// A real (decodable) JPEG so thumbnail generation exercises ImageIO.
-  private func tinyJPEG() -> Data {
+  /// `color` distinguishes one image's bytes from another's, so a test can tell
+  /// which file it got back.
+  private func tinyJPEG(_ color: UIColor = .systemBlue) -> Data {
     let renderer = UIGraphicsImageRenderer(size: CGSize(width: 8, height: 8))
     return renderer.image { context in
-      UIColor.systemBlue.setFill()
+      color.setFill()
       context.fill(CGRect(x: 0, y: 0, width: 8, height: 8))
     }.jpegData(compressionQuality: 0.9)!
   }
@@ -56,15 +58,22 @@ final class PuzzleStoreTests: XCTestCase {
 
   func testZoomCopyIsPersistedAndReloaded() throws {
     let store = PuzzleStore()
-    let displayJPEG = Data("zoom-quality-copy".utf8)
+    // Real JPEG bytes, as the zoom viewer decodes these for display — and a
+    // different colour from the trimmed image the session is built with, so
+    // the assertions below can tell the two files apart rather than passing on
+    // a fallback.
+    let displayJPEG = tinyJPEG(.systemRed)
     let session = makeSession(store: store, displayJPEG: displayJPEG)
+    XCTAssertNotEqual(displayJPEG, session.trimmedJPEG)
     addTeardownBlock { @MainActor in store.delete(session.id) }
 
     session.persist()
     XCTAssertTrue(FileManager.default.fileExists(atPath: displayFile(session.id).path))
 
     let reloaded = try XCTUnwrap(store.loadSession(id: session.id))
+    // Byte-for-byte: the copy is stored as given, never re-encoded.
     XCTAssertEqual(reloaded.displayJPEG, displayJPEG)
+    XCTAssertNotNil(UIImage(data: try XCTUnwrap(reloaded.displayJPEG)))
     // The viewer draws the sharp copy when there is one.
     XCTAssertEqual(reloaded.zoomJPEG, displayJPEG)
   }
