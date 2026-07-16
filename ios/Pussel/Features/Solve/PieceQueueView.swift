@@ -38,7 +38,7 @@ struct PieceQueueView: View {
       LazyVGrid(columns: Self.columns, alignment: .leading, spacing: 12) {
         AddPieceTile(action: addPiece)
         // Newest first, so a piece appears next to the plus that captured it
-        // and the strip ages away from there. The stored order stays oldest
+        // and the grid ages away from there. The stored order stays oldest
         // first — the prediction queue works through it front to back.
         ForEach(session.entries.reversed()) { entry in
           QueueTile(
@@ -53,9 +53,9 @@ struct PieceQueueView: View {
       }
       .padding(.vertical, 2)
     }
-    // The strip outlives the pieces — it always shows the add tile — so delete
+    // The grid outlives the pieces — it always shows the add tile — so delete
     // mode has to be left explicitly once the last piece goes, or the Done
-    // button strands itself above an empty strip.
+    // button strands itself above an empty grid.
     .onChange(of: session.entries.isEmpty) { _, isEmpty in
       if isEmpty { isDeleteMode = false }
     }
@@ -82,7 +82,7 @@ struct PieceQueueView: View {
   }
 }
 
-/// Leading tile in the strip: a big plus that starts a new piece capture.
+/// Leading tile in the grid: a big plus that starts a new piece capture.
 private struct AddPieceTile: View {
   let action: () -> Void
 
@@ -250,7 +250,7 @@ private struct QueueTile: View {
 
 extension View {
   /// Home-screen style jiggle. `seed` desynchronises neighbouring tiles so the
-  /// strip doesn't rock in unison.
+  /// grid doesn't rock in unison.
   fileprivate func wiggle(isActive: Bool, seed: Int) -> some View {
     modifier(WiggleModifier(isActive: isActive, seed: seed))
   }
