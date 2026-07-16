@@ -47,6 +47,13 @@ class Settings(BaseSettings):
     CLASSICAL_GRID_ROWS: int = Field(default=4, ge=1)
     CLASSICAL_GRID_COLS: int = Field(default=4, ge=1)
 
+    # Piece geometry (M8) scan-lock thresholds on the combined shape+spatial-color
+    # z-score (exp28 M7, frozen on north_star): accept as a match below
+    # PIECE_GEOMETRY_T_ACCEPT, declare a new piece above PIECE_GEOMETRY_T_NEW, and
+    # treat anything in between as a gray zone (ask the user to rescan).
+    PIECE_GEOMETRY_T_ACCEPT: float = -4.78
+    PIECE_GEOMETRY_T_NEW: float = -0.80
+
     # Environment setting (used for validation)
     ENVIRONMENT: str = "development"  # development, test, or production
 

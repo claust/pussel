@@ -4,8 +4,9 @@ import base64
 import io
 import os
 import uuid
-from typing import Annotated, Dict, Optional, Tuple
+from typing import Annotated, Dict, List, Literal, Optional, Tuple
 
+import numpy as np
 from fastapi import Depends, FastAPI, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image, ImageOps, UnidentifiedImageError
@@ -14,6 +15,15 @@ from pydantic import ValidationError
 from app.auth.dependencies import get_current_user
 from app.auth.service import AuthService, get_auth_service
 from app.config import settings
+from app.models.piece_geometry_model import (
+    GeometryEdge,
+    GeometryPoint,
+    GeometryQuality,
+    PieceGeometryListResponse,
+    PieceGeometryRecordResponse,
+    PieceGeometrySummary,
+    PieceGeometryUploadResponse,
+)
 from app.models.puzzle_model import (
     BoundingBox,
     Corner,
@@ -31,6 +41,12 @@ from app.models.user_model import GoogleAuthRequest, TokenResponse, User
 from app.services.classical_matcher import get_classical_matcher
 from app.services.image_processor import get_image_processor
 from app.services.piece_detector import get_piece_detector
+from app.services.piece_geometry.service import (
+    PieceGeometryRecord,
+    get_piece_geometry_service,
+    quick_quality_from_polygon,
+)
+from app.services.piece_geometry.store import get_piece_geometry_store
 from app.services.piece_shape import PieceShapeGenerator, calculate_grid_dimensions
 from app.services.puzzle_cutter import get_puzzle_cutter
 from app.services.puzzle_detector import get_puzzle_detector
@@ -274,6 +290,15 @@ async def detect_frame(
 async def preview_piece(
     current_user: Annotated[User, Depends(get_current_user)],
     file: Optional[UploadFile] = None,
+    include_quality: Annotated[
+        bool,
+        Query(
+            description=(
+                "Also run a quick corner-detection pass on the detected region and add "
+                "lockable/corner_disagreement flags. Default response shape is unchanged when omitted."
+            )
+        ),
+    ] = False,
 ) -> PiecePreviewResponse:
     """Detect the puzzle piece region in a live camera frame.
 
@@ -284,6 +309,12 @@ async def preview_piece(
     Args:
         current_user: The authenticated user.
         file: A downscaled camera frame.
+        include_quality: When true, adds best-effort `lockable` and
+            `corner_disagreement` piece-geometry flags computed from the
+            detected region's polygon (see
+            `app.services.piece_geometry.service.quick_quality_from_polygon`).
+            Omitted/false leaves the response unchanged from before this flag
+            existed.
 
     Returns:
         PiecePreviewResponse with the detected region outline and a confidence
@@ -315,12 +346,19 @@ async def preview_piece(
     if region is None:
         return PiecePreviewResponse(found=False)
 
+    lockable: Optional[bool] = None
+    corner_disagreement: Optional[bool] = None
+    if include_quality:
+        lockable, corner_disagreement = quick_quality_from_polygon(region.polygon)
+
     x, y, w, h = region.bbox
     return PiecePreviewResponse(
         found=True,
         polygon=[Corner(x=px, y=py) for px, py in region.polygon],
         bbox=BoundingBox(x=x, y=y, width=w, height=h),
         confidence=region.confidence,
+        lockable=lockable,
+        corner_disagreement=corner_disagreement,
     )
 
 
@@ -360,6 +398,206 @@ async def process_piece(
     grid_hint = puzzle_grids.get(puzzle_id)
     return await get_classical_matcher().process_piece(
         file, puzzle_id, remove_background=remove_bg, grid_hint=grid_hint
+    )
+
+
+def _normalize_points(points: np.ndarray, width: int, height: int) -> List[GeometryPoint]:
+    """Normalize Nx2 pixel points to a list of [0, 1] GeometryPoint.
+
+    Args:
+        points: Nx2 array of pixel coordinates.
+        width: The source image's width in pixels.
+        height: The source image's height in pixels.
+
+    Returns:
+        The normalized, clamped points.
+    """
+    return [
+        GeometryPoint(x=float(np.clip(x / width, 0.0, 1.0)), y=float(np.clip(y / height, 0.0, 1.0))) for x, y in points
+    ]
+
+
+def _geometry_quality_response(record: PieceGeometryRecord) -> GeometryQuality:
+    """Build the GeometryQuality response model from a PieceGeometryRecord.
+
+    Args:
+        record: The pipeline's output record.
+
+    Returns:
+        The corresponding `GeometryQuality` response model.
+    """
+    quality = record.quality
+    return GeometryQuality(
+        is_clean=quality.is_clean,
+        corner_disagreement=record.corner_disagreement,
+        n_large_components=quality.n_large_components,
+        border_touching=quality.border_touching,
+        area_ratio=quality.area_ratio,
+        solidity=quality.solidity,
+    )
+
+
+def _geometry_record_response(
+    record: PieceGeometryRecord, width: int, height: int, include_contour: bool
+) -> PieceGeometryRecordResponse:
+    """Build the PieceGeometryRecordResponse from a PieceGeometryRecord.
+
+    Args:
+        record: The pipeline's output record.
+        width: The uploaded photo's width in pixels (for normalization).
+        height: The uploaded photo's height in pixels (for normalization).
+        include_contour: Whether to include the (large) full contour polyline.
+
+    Returns:
+        The corresponding `PieceGeometryRecordResponse` response model.
+    """
+    corners = _normalize_points(record.corners, width, height) if record.corners is not None else []
+    edges = (
+        [
+            GeometryEdge(
+                type=edge.edge_type,  # type: ignore[arg-type]
+                dominant_dev=edge.dominant_dev,
+                polyline=_normalize_points(edge.polyline, width, height),
+            )
+            for edge in record.edges
+        ]
+        if record.edges is not None
+        else []
+    )
+    contour = (
+        _normalize_points(record.contour, width, height) if include_contour and record.contour is not None else None
+    )
+    return PieceGeometryRecordResponse(
+        corners=corners,
+        corner_confidences=record.corner_confidences or [],
+        edges=edges,
+        contour=contour,
+    )
+
+
+@app.post("/api/v1/puzzle/{puzzle_id}/piece/geometry", response_model=PieceGeometryUploadResponse)
+async def upload_piece_geometry(
+    puzzle_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    file: Optional[UploadFile] = None,
+    include_contour: Annotated[
+        bool, Query(description="Include the full contour polyline in the response (large)")
+    ] = False,
+    on_uncertain: Annotated[
+        Literal["report", "enroll"],
+        Query(
+            description=(
+                "How to resolve a gray-zone (uncertain) verdict: 'report' returns status=uncertain without "
+                "enrolling (default); 'enroll' enrolls the photo as a NEW piece and returns status=new. Use "
+                "'enroll' after the client's own confirmation UX — most genuinely-new pieces land in the "
+                "gray zone (M7), so a session needs this to enroll beyond its first piece."
+            )
+        ),
+    ] = "report",
+) -> PieceGeometryUploadResponse:
+    """Extract piece geometry from a photo and dedupe it against this puzzle's piece store.
+
+    Runs the exp28 pipeline (background removal -> contour -> corners ->
+    edges -> fingerprint) on the uploaded photo, then compares the resulting
+    fingerprint against every piece already enrolled for this puzzle to
+    decide whether the photo is a piece seen before, a new piece, or an
+    uncertain (gray-zone) match.
+
+    Args:
+        puzzle_id: ID of the puzzle this piece photo belongs to.
+        current_user: The authenticated user.
+        file: The puzzle piece photo.
+        include_contour: Whether to include the full (large) contour polyline.
+        on_uncertain: Gray-zone resolution: "report" (default) keeps the
+            current conservative behavior; "enroll" enrolls a gray-zone
+            photo as a new piece. Matched/new verdicts are unaffected.
+
+    Returns:
+        PieceGeometryUploadResponse with the dedupe verdict, quality flags,
+        and the extracted geometric record.
+
+    Raises:
+        HTTPException: If no/invalid file is provided, the file is too
+            large, or the puzzle does not exist.
+    """
+    _ = current_user  # Acknowledge the parameter is intentionally unused for now
+    if file is None:
+        raise HTTPException(status_code=400, detail="No file provided")
+
+    if puzzle_id not in puzzle_images:
+        raise HTTPException(status_code=404, detail="Puzzle not found")
+
+    if file.size and file.size > settings.MAX_UPLOAD_SIZE:
+        raise HTTPException(status_code=413, detail="File too large")
+
+    contents = await file.read()
+    if len(contents) > settings.MAX_UPLOAD_SIZE:
+        raise HTTPException(status_code=413, detail="File too large")
+
+    try:
+        probe = Image.open(io.BytesIO(contents))
+        width, height = probe.size
+        probe.load()
+    except (UnidentifiedImageError, OSError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail="Invalid image file") from exc
+
+    record = get_piece_geometry_service().process(contents)
+    # A record with a fingerprint always has a measured (non-None) disagreement
+    # flag; without a fingerprint the store ignores the flag entirely, so
+    # coercing None to False here is safe.
+    match = get_piece_geometry_store().add_or_match(
+        puzzle_id,
+        record.fingerprint,
+        record.quality.is_clean,
+        bool(record.corner_disagreement),
+        enroll_uncertain=on_uncertain == "enroll",
+    )
+
+    return PieceGeometryUploadResponse(
+        piece_id=match.piece_id,
+        status=match.verdict.value,
+        match_piece_id=match.match_piece_id,
+        z_score=match.z_score,
+        lockable=record.lockable,
+        quality=_geometry_quality_response(record),
+        record=_geometry_record_response(record, width, height, include_contour),
+    )
+
+
+@app.get("/api/v1/puzzle/{puzzle_id}/piece/geometry", response_model=PieceGeometryListResponse)
+async def list_piece_geometry(
+    puzzle_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> PieceGeometryListResponse:
+    """List the pieces enrolled in a puzzle's piece-geometry store.
+
+    Args:
+        puzzle_id: ID of the puzzle to list.
+        current_user: The authenticated user.
+
+    Returns:
+        PieceGeometryListResponse with one summary (id, edge types, quality
+        flags — no polylines) per enrolled piece.
+
+    Raises:
+        HTTPException: If the puzzle does not exist.
+    """
+    _ = current_user  # Acknowledge the parameter is intentionally unused for now
+    if puzzle_id not in puzzle_images:
+        raise HTTPException(status_code=404, detail="Puzzle not found")
+
+    enrolled = get_piece_geometry_store().list_pieces(puzzle_id)
+    return PieceGeometryListResponse(
+        puzzle_id=puzzle_id,
+        pieces=[
+            PieceGeometrySummary(
+                piece_id=piece.piece_id,
+                edge_types=list(piece.fingerprint.edge_types),  # type: ignore[arg-type]
+                is_clean=piece.is_clean,
+                corner_disagreement=piece.corner_disagreement,
+            )
+            for piece in enrolled
+        ],
     )
 
 
