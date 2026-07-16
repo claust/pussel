@@ -1,4 +1,4 @@
-# exp28 Handoff — Phase A+B complete: M1–M4, M6, M7 (M5 deferred)
+# exp28 Handoff — Phases A+B+C complete: M1–M4, M6, M7, M8 (M5 deferred)
 
 Date: 2026-07-16 · Status: **M1–M3 criteria met; M4 reported; M6's ≥95% criterion missed by its frozen scorer (91.5%) but retroactively met by M7's simpler z-sum scorer (95.2% on the same leakage-free cells, independently verified); M7 delivered thresholds + zero die-cut collisions** · Plan: [docs/piece-geometry-scanning.html](../../../docs/piece-geometry-scanning.html)
 
@@ -252,17 +252,55 @@ test-selected hyperparameters of its own (its two components were validation-cho
 this is an honest number: **the M6 ≥95% criterion is met by the M7 scorer** — production should
 use this single score for both ranking and thresholding, and the RRF machinery can be retired.
 
-## Recommendation going into Phase C (M8: backend geometry endpoint)
+## M8 — Backend geometry endpoint + session piece store (Phase C)
 
-- The production scoring stack is now settled: rembg contour → polydp corners (curvature
-  cross-check flag) → 4 typed edges + canonical polylines → fingerprint = shape polylines +
-  3×3 gray-world a\*b\* spatial histograms → z-sum score with per-gallery impostor normalization,
-  `t_accept`/`t_new` from M7.
-- The piece-record JSON from M3 is the natural API response shape; add the fingerprint fields and
-  the quality flags (is_clean, corner_disagreement, gray-zone verdicts).
-- Remaining open risk for production is capture-time exposure/white-balance on dark surfaces —
-  mitigate with the gray-mat protocol and consider a same-background repeat-capture set to
-  measure true same-session accuracy (expected >95%).
+The exp28 stack is now production code in `backend/app/services/piece_geometry/` (contour,
+corners, edges, fingerprint, scoring, service, store — each module carries a provenance note
+back to its exp28 source; keep algorithm changes in sync). Production adaptations: no scipy
+(numpy circular-Gaussian + exact brute-force 4-corner assignment, equivalence-tested), no N/E/S/W
+grid mapping (orientation unknown in production — edges stay contour-ordered, identity uses the
+rotation-invariant mode), shitomasi dropped per M2.
+
+**API:**
+- `POST /api/v1/puzzle/{id}/piece/geometry[?include_contour=true][&on_uncertain=report|enroll]` —
+  multipart photo → `{piece_id, status: new|matched|uncertain, match_piece_id, z_score, lockable,
+  quality{is_clean, corner_disagreement (null = not measured), …}, record{corners, edges[{type,
+  dominant_dev, polyline}], contour?}}`. Dedupe via the M7 z-sum: gallery impostor stats when ≥12
+  pieces enrolled, else the M7 fallback constants; `t_accept`/`t_new` configurable in Settings.
+  Gray-zone results are NOT auto-enrolled; the client resolves them with `on_uncertain=enroll`
+  after its own confirmation UX (per M7: 97.9% of new pieces land in the gray zone, so
+  "not accepted" is the practical new-piece signal).
+- `GET /api/v1/puzzle/{id}/piece/geometry` — enrolled pieces (id, edge types, quality).
+- `/api/v1/piece/preview?include_quality=true` — adds `{lockable, corner_disagreement}` for the
+  scan-lock UX; default response unchanged for the existing web client.
+
+**Two integration gaps found only by real-photo E2E** (the synthetic tests all passed):
+1. exp28 was calibrated on bbox *crops*; the service initially ran on full frames, so a stray
+   object (the north_star arrow) failed `n_large_components` and diluted `area_ratio`. Fixed:
+   service now crops to the largest alpha component + 15% margin and runs the calibrated pipeline
+   in that frame (coordinates mapped back to full-image space).
+2. The gray zone was a dead end — a genuinely new second piece could never be enrolled. Fixed with
+   the explicit `on_uncertain=enroll` escape hatch.
+
+**E2E acceptance (real north_star photos, port-8001 instance, all passed):**
+piece r00c00 on gray_fabric → `new p001`, lockable, edge types `flat/tab/blank/flat`; same
+physical piece on red_carpet → `matched p001` (z=−5.77); different piece r02c02 → `uncertain`
+(z=−2.0, correctly conservative); with `on_uncertain=enroll` → `new p002`; r02c02 on cardboard →
+`matched p002` (z=−4.90). Store lists `[p001, p002]`. Both cross-background matches cleared the
+strict accept threshold — production same-mat scans have more margin than this.
+
+Tests: 212 backend tests pass (new-package coverage 87–96%); `make check-backend` clean.
+
+## Recommendation going into Phase D (M9: iOS live outline overlay)
+
+- iOS catches up to the web client first: stream downscaled `AVCaptureVideoDataOutput` frames to
+  `/api/v1/piece/preview?include_quality=true`, draw the polygon + lockable state over the preview
+  layer. The backend side is fully ready.
+- M10 (scan-and-lock) then drives the geometry endpoint on a stable, quality-gated frame and uses
+  `status`/`on_uncertain` for the enroll flow; M7's gray-zone rates predict the confirmation-UX
+  frequency.
+- Still open (unchanged): capture-time exposure/white-balance on dark surfaces; a same-background
+  repeat-capture set would measure true same-session accuracy (expected >95%).
 
 ## Reproduce
 

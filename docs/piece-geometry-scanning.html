@@ -176,13 +176,14 @@
   <span class="kicker">Pussel · brainstorm &amp; living results log · 2026-07-16</span>
   <h1>The Second Column: Scanning Exact Piece Geometry</h1>
   <p class="subtitle" style="margin-top:0.5rem">
-    <strong>Status: Phase A + Phase B complete</strong> (M1–M4, M6, M7 in
-    <code>network/experiments/exp28_piece_geometry/</code>; detailed log: <code>HANDOFF.md</code> there;
-    M5 deferred, optional). Result blocks (◆) below record what each milestone actually found.
-    The production scoring stack is settled: rembg contour → polydp corners → typed edges +
-    canonical polylines → shape+spatial-color fingerprint → one z-sum score for both ranking
-    (95.2% top-1 cross-background) and thresholding (M7 recipe). Next: Phase C (M8, backend
-    endpoint).
+    <strong>Status: Phases A, B, and C complete</strong> (M1–M4, M6, M7 researched in
+    <code>network/experiments/exp28_piece_geometry/</code> — detailed log: <code>HANDOFF.md</code> there;
+    M5 deferred, optional; M8 shipped the stack as production backend code in
+    <code>backend/app/services/piece_geometry/</code> with E2E verification on real photos).
+    Result blocks (◆) below record what each milestone actually found. The scoring stack:
+    rembg contour → polydp corners → typed edges + canonical polylines → shape+spatial-color
+    fingerprint → one z-sum score for ranking (95.2% top-1 cross-background) and thresholding
+    (M7 recipe). Next: Phase D (M9, iOS live overlay).
   </p>
   <p class="subtitle">
     Today Pussel answers <em>"where in the picture does this piece go?"</em> by matching surface
@@ -586,7 +587,7 @@
 <p class="phasedesc">Package Phase A+B as an API — one focused milestone, since the service plumbing pattern already exists.</p>
 
 <div class="milestone">
-  <h4><span class="mtag c">M8</span> <code>/api/v1/piece/geometry</code> endpoint + session piece store <span class="badge next">NEXT ▶</span></h4>
+  <h4><span class="mtag c">M8</span> <code>/api/v1/piece/geometry</code> endpoint + session piece store <span class="badge done">DONE ✓</span></h4>
   <div class="meta">~2–3 sessions · mirrors the existing preview/process endpoints</div>
   <ul>
     <li>Photo in → piece record out (contour, corners, edge types, descriptors, fingerprint, quality score).</li>
@@ -594,13 +595,28 @@
     <li>Extend the existing <code>/piece/preview</code> response with contour quality + a "lockable" flag, so a live client can drive the scan UX without a new streaming protocol.</li>
   </ul>
   <div class="success">curl a north_star photo → correct structured record; posting the same piece on two backgrounds returns the same piece id.</div>
+  <div class="outcome">
+    <strong>Criterion met, verified end-to-end with real photos against a running backend.</strong> The
+    exp28 stack now lives in <code>backend/app/services/piece_geometry/</code> (scipy-free port with
+    equivalence tests; edges contour-ordered since production orientation is unknown). The acceptance
+    sequence: piece → <code>new p001</code> (lockable, correct edge types); same physical piece on a
+    different background → <code>matched p001</code> at z=−5.77; a different piece → <code>uncertain</code>
+    (z=−2.0, correctly conservative per M7); resolved via the new <code>on_uncertain=enroll</code> param →
+    <code>p002</code>; that piece on a third background → <code>matched p002</code> at z=−4.90. Both
+    cross-background matches cleared the strict threshold — same-mat production scans have more margin.
+    Two gaps that only real-photo E2E caught (synthetic tests all passed): the service had to crop to
+    the largest alpha component before the calibrated pipeline (exp28's frame of reference), and the
+    gray zone needed an explicit client-resolvable enroll path — M7's "97.9% of new pieces land in the
+    gray zone" finding, now baked into the API contract. The preview endpoint gained an opt-in
+    <code>lockable</code> flag for M9/M10. 212 backend tests pass.
+  </div>
 </div>
 
 <p class="phasehead d">Phase D · iOS live scanning experience</p>
 <p class="phasedesc">Only now touch Swift — with a proven algorithm behind a stable API. Split into three small steps so each is demoable on-device.</p>
 
 <div class="milestone">
-  <h4><span class="mtag d">M9</span> Live outline overlay in the iOS preview</h4>
+  <h4><span class="mtag d">M9</span> Live outline overlay in the iOS preview <span class="badge next">NEXT ▶</span></h4>
   <div class="meta">~2–3 sessions · iOS catches up to what the web frontend already does</div>
   <ul>
     <li>Add an <code>AVCaptureVideoDataOutput</code> frame tap to the existing <code>PieceCameraSession</code>; throttle-stream downscaled frames to the (extended) preview endpoint; draw the returned polygon over the preview layer.</li>
