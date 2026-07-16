@@ -2,59 +2,91 @@ import AVFoundation
 import PhotosUI
 import SwiftUI
 
-/// Manual piece capture: a persistent live camera view with a shutter button
-/// on device, and a PhotosPicker path that also serves as the only option on
-/// the Simulator.
+/// Full-screen piece capture, presented when the "+" tile in the piece list is
+/// tapped. The camera only runs while this is on screen. Device-only — on the
+/// Simulator `PieceCameraSession.isCameraAvailable` is false and the "+" tile
+/// opens a PhotosPicker instead of this view.
 struct PieceCaptureView: View {
   @Environment(AppModel.self) private var model
+  @Environment(\.dismiss) private var dismiss
   @State private var camera = PieceCameraSession()
   @State private var photoItem: PhotosPickerItem?
+  @State private var isCapturing = false
 
   var body: some View {
-    VStack(spacing: 12) {
-      if PieceCameraSession.isCameraAvailable {
-        CameraPreview(session: camera.session)
-          .frame(height: 280)
-          .clipShape(RoundedRectangle(cornerRadius: 12))
-          .overlay(alignment: .bottom) {
-            shutterButton.padding(.bottom, 14)
-          }
-          .task {
-            await camera.start()
-          }
-          .onDisappear {
-            camera.stop()
-          }
-          .keepsScreenAwake()
-      }
-      PhotosPicker(selection: $photoItem, matching: .images) {
-        Label(
-          PieceCameraSession.isCameraAvailable ? "Add Piece from Library" : "Pick Piece Photo",
-          systemImage: "photo.on.rectangle"
-        )
-        .frame(maxWidth: .infinity)
-      }
-      .buttonStyle(.bordered)
+    ZStack {
+      Color.black.ignoresSafeArea()
+      CameraPreview(session: camera.session)
+        .ignoresSafeArea()
     }
+    .overlay(alignment: .top) {
+      Button("Cancel") { dismiss() }
+        .padding()
+        .foregroundStyle(.white)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+    // Two overlays rather than one HStack: the shutter centers on the screen
+    // itself, so it stays put no matter how wide the library button is.
+    .overlay(alignment: .bottom) {
+      shutterButton.padding(.bottom, 24)
+    }
+    .overlay(alignment: .bottomLeading) {
+      libraryButton
+        .padding(.leading, 32)
+        .padding(.bottom, 40)
+    }
+    .task {
+      let started = await camera.start()
+      // Dismissed while the permission prompt was up — the user left on
+      // purpose, so there is nothing to complain about.
+      guard !Task.isCancelled else { return }
+      guard started else {
+        model.reportPieceError("Pussel cannot use the camera. Check camera access in Settings.")
+        dismiss()
+        return
+      }
+    }
+    .onDisappear {
+      camera.stop()
+    }
+    .keepsScreenAwake()
     .onChange(of: photoItem) { _, item in
       guard let item else { return }
       Task {
-        if let data = try? await item.loadTransferable(type: Data.self),
-          let image = UIImage(data: data)
-        {
-          model.addPiece(image: image)
-        }
+        await model.addPiece(from: item)
         photoItem = nil
+        // Dismiss either way: a failure sets an error on the solve screen,
+        // which stays hidden behind this cover.
+        dismiss()
       }
     }
   }
 
+  private var libraryButton: some View {
+    PhotosPicker(selection: $photoItem, matching: .images) {
+      Image(systemName: "photo.on.rectangle")
+        .font(.title2)
+        .foregroundStyle(.white)
+    }
+    .accessibilityLabel("Add piece from library")
+  }
+
   private var shutterButton: some View {
     Button {
+      // Ignore taps while a shot is developing, so a nil result below means
+      // the capture itself failed rather than a double tap.
+      guard !isCapturing else { return }
+      isCapturing = true
       Task {
-        if let image = await camera.capturePhoto() {
-          model.addPiece(image: image)
+        let image = await camera.capturePhoto()
+        isCapturing = false
+        guard let image else {
+          model.reportPieceError("Could not take that photo. Try again.")
+          dismiss()
+          return
         }
+        model.addPiece(image: image)
+        dismiss()
       }
     } label: {
       ZStack {

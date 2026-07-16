@@ -20,6 +20,7 @@ from typing_extensions import TypeAlias
 from app.main import app, settings
 from app.models.puzzle_model import PieceResponse, Position
 from app.services.piece_detector import DetectedRegion
+from app.services.piece_shape import calculate_grid_dimensions
 
 # Add the backend directory to the Python path
 backend_dir = Path(__file__).parent.parent
@@ -94,6 +95,114 @@ def test_upload_puzzle() -> None:
         # Cleanup test image
         if os.path.exists(test_image_path):
             os.remove(test_image_path)
+
+
+def test_upload_puzzle_with_piece_count() -> None:
+    """Uploading with piece_count estimates and returns the grid (rows x cols)."""
+    response = client.post(
+        "/api/v1/puzzle/upload",
+        files=photo_files(make_photo_jpeg()),
+        data={"piece_count": "24"},
+        headers=get_auth_header(),
+    )
+
+    assert response.status_code == 200
+    result = response.json()
+    assert result["piece_count"] == 24
+    # make_photo_jpeg() produces an 800x600 image.
+    expected_rows, expected_cols = calculate_grid_dimensions(800, 600, 24)
+    assert result["rows"] == expected_rows
+    assert result["cols"] == expected_cols
+
+
+def test_upload_puzzle_without_piece_count_is_backwards_compatible() -> None:
+    """Uploading without piece_count leaves piece_count/rows/cols null."""
+    response = client.post(
+        "/api/v1/puzzle/upload",
+        files=photo_files(make_photo_jpeg()),
+        headers=get_auth_header(),
+    )
+
+    assert response.status_code == 200
+    result = response.json()
+    assert result["piece_count"] is None
+    assert result["rows"] is None
+    assert result["cols"] is None
+
+
+@pytest.mark.parametrize("piece_count", ["2", "3", "2001", "3000"])
+def test_upload_puzzle_rejects_out_of_range_piece_count(piece_count: str) -> None:
+    """piece_count outside [4, 2000] is rejected with a 4xx, not a crash."""
+    response = client.post(
+        "/api/v1/puzzle/upload",
+        files=photo_files(make_photo_jpeg()),
+        data={"piece_count": piece_count},
+        headers=get_auth_header(),
+    )
+    assert 400 <= response.status_code < 500
+
+
+def test_upload_puzzle_rejects_non_integer_piece_count() -> None:
+    """A non-integer piece_count is rejected with a 4xx, not a crash."""
+    response = client.post(
+        "/api/v1/puzzle/upload",
+        files=photo_files(make_photo_jpeg()),
+        data={"piece_count": "not-a-number"},
+        headers=get_auth_header(),
+    )
+    assert 400 <= response.status_code < 500
+
+
+def test_upload_puzzle_with_piece_count_and_invalid_image_bytes() -> None:
+    """piece_count with undecodable image bytes returns 400 rather than crashing."""
+    response = client.post(
+        "/api/v1/puzzle/upload",
+        files=photo_files(b"fake image content"),
+        data={"piece_count": "16"},
+        headers=get_auth_header(),
+    )
+    assert response.status_code == 400
+
+
+def test_piece_grid_hint_reaches_classical_matcher() -> None:
+    """The grid estimated at upload time is forwarded to the classical matcher."""
+    mock_response = PieceResponse(
+        position=Position(x=0.5, y=0.5),
+        position_confidence=0.5,
+        rotation=0,
+        rotation_confidence=0.5,
+    )
+    mock_matcher = MagicMock()
+    mock_matcher.process_piece = AsyncMock(return_value=mock_response)
+
+    upload_response = client.post(
+        "/api/v1/puzzle/upload",
+        files=photo_files(make_photo_jpeg()),
+        data={"piece_count": "24"},
+        headers=get_auth_header(),
+    )
+    puzzle_id = upload_response.json()["puzzle_id"]
+    expected_grid = calculate_grid_dimensions(800, 600, 24)
+
+    with (
+        patch.object(settings, "MATCHER", "classical"),
+        patch("app.main.get_classical_matcher", return_value=mock_matcher),
+    ):
+        with tempfile.NamedTemporaryFile(suffix=".jpg") as temp_file:
+            temp_file.write(b"fake piece content")
+            temp_file.seek(0)
+            file_tuple = cast(FileUpload, ("test_piece.jpg", temp_file, "image/jpeg"))
+            files = {"file": file_tuple}
+            response = client.post(
+                f"/api/v1/puzzle/{puzzle_id}/piece",
+                files=files,
+                headers=get_auth_header(),
+            )
+
+    assert response.status_code == 200
+    mock_matcher.process_piece.assert_awaited_once()
+    _, kwargs = mock_matcher.process_piece.call_args
+    assert kwargs["grid_hint"] == expected_grid
 
 
 def test_process_piece_invalid_puzzle() -> None:
@@ -173,6 +282,7 @@ def test_process_piece() -> None:
         assert result["position_confidence"] == 0.85
         assert result["rotation"] == 90
         assert result["rotation_confidence"] == 0.90
+        assert result["piece_span"] is None
 
     finally:
         # Cleanup test image

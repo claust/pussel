@@ -14,6 +14,7 @@ from app.services.piece_detector import (
     _band_score,
     crop_to_alpha_region,
     get_piece_detector,
+    harden_alpha,
     largest_alpha_component,
     skin_fraction,
 )
@@ -39,6 +40,37 @@ def make_rgba_with_region(
     left, top, right, bottom = region
     rgba[top:bottom, left:right] = (*color, 255)
     return Image.fromarray(rgba, mode="RGBA")
+
+
+class TestHardenAlpha:
+    """Tests for harden_alpha."""
+
+    def test_clears_faint_halo_and_keeps_subject(self) -> None:
+        """Alpha at or below the threshold is zeroed; higher alpha is preserved."""
+        rgba = np.zeros((10, 10, 4), dtype=np.uint8)
+        rgba[..., :3] = 200
+        rgba[..., 3] = 60  # faint background ghost everywhere
+        rgba[2:8, 2:8, 3] = 230  # the subject
+
+        hardened = np.array(harden_alpha(Image.fromarray(rgba, mode="RGBA")))
+
+        assert hardened[0, 0, 3] == 0
+        assert hardened[5, 5, 3] == 230
+
+    def test_soft_edges_above_threshold_survive(self) -> None:
+        """Partially transparent pixels above the threshold keep their alpha."""
+        rgba = np.zeros((4, 4, 4), dtype=np.uint8)
+        rgba[..., 3] = 150
+
+        hardened = np.array(harden_alpha(Image.fromarray(rgba, mode="RGBA")))
+
+        assert (hardened[..., 3] == 150).all()
+
+    def test_non_rgba_image_is_unchanged(self) -> None:
+        """Images without an alpha channel pass through untouched."""
+        rgb = Image.new("RGB", (10, 10), (5, 5, 5))
+
+        assert harden_alpha(rgb) is rgb
 
 
 class TestCropToAlphaRegion:

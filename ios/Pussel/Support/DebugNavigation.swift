@@ -7,7 +7,7 @@
   /// promptless path is a Darwin notification plus a command file:
   ///   echo "pusseldebug://trim?puzzle=/host/path.jpg" > /tmp/pussel-debug-command
   ///   xcrun simctl spawn booted notifyutil -p dk.delectosoft.pussel.debug
-  /// Commands: trim?puzzle=, accept, piece?path=, reupload, reset,
+  /// Commands: trim?puzzle=, accept[?pieces=], piece?path=, reupload, reset,
   ///   open?index=, delete?index= (index into the saved-puzzles list).
   /// Simulator apps can read host file paths directly. Compiled out of
   /// Release builds; the handler runs the same actions as the real UI.
@@ -72,7 +72,7 @@
       case "trim":
         await debugTrim(path: value("puzzle"))
       case "accept":
-        await debugAccept()
+        await debugAccept(pieces: value("pieces"))
       case "piece":
         debugAddPiece(path: value("path"))
       case "reupload":
@@ -92,9 +92,12 @@
       }
     }
 
-    private func debugAccept() async {
+    /// `pieces` is an optional `?pieces=<n>` query value; the debug driver
+    /// has no UI to enter a count, so it defaults to a plausible test value.
+    private func debugAccept(pieces: String?) async {
       if case .confirmTrim(let candidate) = flow.phase {
-        await acceptTrim(candidate)
+        let pieceCount = pieces.flatMap(Int.init) ?? 100
+        await acceptTrim(candidate, pieceCount: pieceCount)
       }
     }
 

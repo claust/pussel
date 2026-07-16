@@ -10,25 +10,42 @@ final class PieceCameraSession: NSObject, AVCapturePhotoCaptureDelegate {
   }
 
   let session = AVCaptureSession()
+  /// Serializes startRunning/stopRunning so they cannot interleave.
+  private let sessionQueue = DispatchQueue(label: "dk.delectosoft.pussel.piece-camera")
   private let photoOutput = AVCapturePhotoOutput()
   private var isConfigured = false
   private var captureContinuation: CheckedContinuation<UIImage?, Never>?
+  /// Whether the view still wants the camera. `start()` awaits the permission
+  /// prompt, which can outlive the screen that asked, so the last caller's
+  /// intent decides — not how far along the awaits happen to be.
+  private var wantsRunning = false
 
-  func start() async {
-    guard await AVCaptureDevice.requestAccess(for: .video) else { return }
+  /// Returns false when the camera cannot run — access denied, or no usable
+  /// device — so the caller can report it rather than show a dead preview.
+  func start() async -> Bool {
+    wantsRunning = true
+    guard await AVCaptureDevice.requestAccess(for: .video) else { return false }
     configureIfNeeded()
-    guard isConfigured, !session.isRunning else { return }
+    guard isConfigured else { return false }
+    // The screen was dismissed while the permission prompt was up: stop() has
+    // already run, and starting now would strand the camera with no one left
+    // to stop it. Not a failure — nothing to report, nothing to run.
+    guard wantsRunning else { return true }
     let session = self.session
-    Task.detached {
-      // startRunning blocks, so keep it off the main thread.
+    // startRunning/stopRunning both block, so they run off the main thread —
+    // through one serial queue so a stop queued behind a start runs after it.
+    sessionQueue.async {
+      guard !session.isRunning else { return }
       session.startRunning()
     }
+    return true
   }
 
   func stop() {
-    guard session.isRunning else { return }
+    wantsRunning = false
     let session = self.session
-    Task.detached {
+    sessionQueue.async {
+      guard session.isRunning else { return }
       session.stopRunning()
     }
   }

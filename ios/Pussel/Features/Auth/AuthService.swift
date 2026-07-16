@@ -60,7 +60,7 @@ final class AuthService {
       guard let idToken = result.user.idToken?.tokenString else {
         throw APIError(message: "Google did not return an ID token.", status: nil)
       }
-      try await exchange(idToken: idToken)
+      try await exchange(idToken: idToken, googleUser: result.user)
     } catch let error as GIDSignInError where error.code == .canceled {
       // User dismissed the sheet.
     } catch {
@@ -70,14 +70,22 @@ final class AuthService {
 
   func signOut() {
     GIDSignIn.sharedInstance.signOut()
-    authStore.user = nil
-    authStore.backendToken = nil
+    authStore.clearSession()
   }
 
-  private func exchange(idToken: String) async throws {
+  /// Avatar pixel size: the 28pt icon on a 3x screen, rounded up.
+  private static let avatarDimension: UInt = 96
+
+  private func exchange(idToken: String, googleUser: GIDGoogleUser) async throws {
     let response = try await apiClient.signInWithGoogle(idToken: idToken)
     authStore.backendToken = response.accessToken
     authStore.user = response.user
+    // Google omits the `picture` claim from ID tokens, so the backend's
+    // UserDTO.picture is null even for accounts that have an avatar. The
+    // Sign-In SDK resolves the profile separately and does have the URL.
+    authStore.avatarURL =
+      googleUser.profile?.imageURL(withDimension: Self.avatarDimension)
+      ?? response.user.picture.flatMap(URL.init(string:))
   }
 
   /// Silent re-auth used on launch and after 401s.
@@ -87,7 +95,7 @@ final class AuthService {
       let user = try await restorePreviousSignIn()
       let refreshed = try await refreshTokens(for: user)
       guard let idToken = refreshed.idToken?.tokenString else { return false }
-      try await exchange(idToken: idToken)
+      try await exchange(idToken: idToken, googleUser: refreshed)
       return true
     } catch {
       return false
