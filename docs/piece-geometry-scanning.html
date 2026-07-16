@@ -176,9 +176,11 @@
   <span class="kicker">Pussel · brainstorm &amp; living results log · 2026-07-16</span>
   <h1>The Second Column: Scanning Exact Piece Geometry</h1>
   <p class="subtitle" style="margin-top:0.5rem">
-    <strong>Status:</strong> M1–M4 completed in <code>network/experiments/exp28_piece_geometry/</code>
+    <strong>Status:</strong> M1–M4 and M6 completed in <code>network/experiments/exp28_piece_geometry/</code>
     (detailed log: <code>HANDOFF.md</code> there). Result blocks (◆) below record what each milestone
-    actually found. M5 deferred (optional). M6 is next.
+    actually found. M5 deferred (optional). M6's ≥95% criterion was not met on the harsh
+    cross-background benchmark (91.5%) but the gap is isolated to wood-query capture quality.
+    M7 is next.
   </p>
   <p class="subtitle">
     Today Pussel answers <em>"where in the picture does this piece go?"</em> by matching surface
@@ -521,7 +523,7 @@
 <p class="phasedesc">From "an edge matches an edge" to "I recognize this specific piece" — the prerequisite for the scan-and-lock UX.</p>
 
 <div class="milestone">
-  <h4><span class="mtag b">M6</span> Piece fingerprint + re-identification benchmark <span class="badge next">NEXT ▶</span></h4>
+  <h4><span class="mtag b">M6</span> Piece fingerprint + re-identification benchmark <span class="badge done">DONE — CRITERION NOT MET</span></h4>
   <div class="meta">~3–4 sessions · north_star's 4-backgrounds-per-piece design was made for this</div>
   <ul>
     <li>Fingerprint = rotation-invariant shape descriptor (canonically ordered 4-edge descriptors) + LAB color histogram (+ optionally a small patch embedding).</li>
@@ -529,10 +531,27 @@
     <li>Ablate: shape only vs. color only vs. combined.</li>
   </ul>
   <div class="success">Top-1 re-ID ≥95% combined, with the ablation quantifying how much each signal contributes.</div>
+  <div class="outcome">
+    <strong>Criterion not met on the deliberately-harsh cross-background benchmark: 91.5% top-1 /
+    97.5% top-5</strong> (enroll on one background, query on the other three, 236-piece cross-puzzle
+    gallery, hyperparameters frozen on validation cells only; progression across three iterations
+    81.5% → 86.1% → 91.5%). The ablation was full of lessons: <em>fusion style matters more than
+    features</em> — a z-normalized linear blend degenerated to shape-only even though failures were
+    gross color mismatches, while reciprocal-rank fusion worked; gray-world normalization more than
+    doubled color-only accuracy (22.8% → 50.7%); and the milestone's discovery is the
+    <strong>3×3 spatial color layout, which alone beats shape</strong> (85.2% vs 81.5%) and dissolves
+    same-palette sibling confusion — RRF(shape, spatial) reached 94.3%. The entire remaining gap is
+    <strong>wood-query capture quality</strong> (underexposed, warm-cast photos of dark artwork):
+    excluding wood queries, cells run 94.8–97.5%. Within-puzzle ("which of my 24 pieces is this"):
+    up to 96.2% top-1 / 99.6% top-5. Production outlook: the app's same-mat, same-session scenario
+    is strictly easier than every benchmarked cell — ≥95% looks realistic on the gray mat, but
+    proving it needs a same-background repeat-capture set. Fix path: capture-time exposure/WB
+    control, not more descriptor engineering.
+  </div>
 </div>
 
 <div class="milestone">
-  <h4><span class="mtag b">M7</span> Uniqueness / collision study</h4>
+  <h4><span class="mtag b">M7</span> Uniqueness / collision study <span class="badge next">NEXT ▶</span></h4>
   <div class="meta">~1–2 sessions · mostly analysis on M6's data</div>
   <ul>
     <li>Genuine-vs-impostor similarity distributions; per-brand shape collision rates (do our kids' puzzles reuse die-cut shapes like jigsawlutioner warns?).</li>

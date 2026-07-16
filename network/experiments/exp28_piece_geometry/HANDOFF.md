@@ -1,6 +1,6 @@
-# exp28 Handoff — M1 (contours) + M2 (corners) + M3 (edge types) + M4 (edge matching)
+# exp28 Handoff — M1 (contours) + M2 (corners) + M3 (edge types) + M4 (edge matching) + M6 (re-ID)
 
-Date: 2026-07-16 · Status: **M1–M3 criteria met; M4 numbers reported (its deliverable)** · Plan: [docs/piece-geometry-scanning.html](../../../docs/piece-geometry-scanning.html)
+Date: 2026-07-16 · Status: **M1–M3 criteria met; M4 reported; M6 criterion not met (91.5% vs ≥95%) with the gap isolated to wood-query capture quality** · Plan: [docs/piece-geometry-scanning.html](../../../docs/piece-geometry-scanning.html)
 
 ## M1 — High-fidelity contour extraction
 
@@ -158,16 +158,66 @@ Key findings:
 Review sheets: `outputs/review_matching/*.png` (query vs flipped mate vs best impostor, canonical
 frame). Full numbers: `outputs/matching_eval.json`.
 
-## Recommendation going into M6 (piece fingerprint + re-identification)
+## M6 — Piece fingerprint + re-identification (M5 deferred: optional, nothing depends on it)
 
-- Phases A's outputs are all in place: piece records with corners, edge types, canonical edge
-  polylines, and a proven L2 edge distance. (M5, TabParameters fitting, is optional/parallel and
-  can be skipped or done later — nothing downstream hard-depends on it.)
-- Fingerprint = 4 canonical edge polylines (rotation-normalized ordering) + a LAB color histogram
-  of the piece face; nearest-neighbor over enrolled pieces; north_star's 4 backgrounds per piece
-  are the natural enroll/query split.
-- Given M4's thin geometric margins, expect color to carry much of the identity signal — the M6
-  ablation (shape only vs color only vs combined) is the important table.
+`fingerprint.py` + `eval_reid.py`. Protocol: enroll all 236 physical pieces from one background,
+query with the other three (12 enroll×query cells), nearest-neighbor over the full **cross-puzzle**
+gallery; rotation-invariant shape (min over 4 cyclic edge shifts, edge-type-signature gated); all
+hyperparameters frozen on cardboard-as-query validation cells, headline = the 9 leakage-free cells.
+This is deliberately **harsher than production**: enrollment and query differ in background,
+lighting, and exposure, while the real scan-and-lock UX enrolls and queries on the same mat in the
+same session.
+
+**Headline (9 leakage-free cells, top-1 / top-5):**
+
+| Fingerprint | Top-1 | Top-5 |
+|---|---|---|
+| shape only (4 canonical edge polylines) | 81.5% | 92.2% |
+| global color histogram (LAB) | 19.0% | 35.8% |
+| global color (a\*b\*, gray-world normalized) | 50.7% | 71.5% |
+| **spatial color (3×3 grid of gray-world a\*b\* hists)** | **85.2%** | 93.9% |
+| RRF(shape, global color) | 86.1% | 96.6% |
+| RRF(shape, spatial color) | 94.3% | 98.9% |
+| **frozen winner: RRF(shape, global, spatial)** | **91.5%** | **97.5%** |
+
+**Criterion (≥95% top-1 combined): NOT MET** — 91.5% (progression across three iterations:
+81.5% → 86.1% → 91.5%; genuine/impostor overlap 70.4% → 28.7% → 20.3%).
+
+What M6 taught us (each verified on failure sheets):
+
+1. **Naive color fails; fusion style is everything.** A z-normalized linear blend degenerated to
+   shape-only (the weight sweep chose w=1.0) even though the failures were gross color mismatches.
+   Reciprocal-rank fusion fixed it: rank space is robust where distance space is not.
+2. **Illumination is the enemy of color**: plain a\*b\* histograms scored 22.8% top-1; gray-world
+   normalization more than doubled that (50.7%).
+3. **The spatial color layout (3×3 grid) is the discovery of the milestone**: alone it beats shape
+   (85.2% vs 81.5%), and it dissolved the same-palette sibling confusion that global histograms
+   cannot see. RRF(shape, spatial) reached 94.3% on the headline cells — it lost the frozen-winner
+   selection by ~1 validation query, an honest selection-discipline artifact worth revisiting with
+   a larger validation set.
+4. **The remaining gap is wood-query capture, not the descriptor**: wood queries are underexposed
+   with a strong warm cast (dark artwork reads as umber; wrong matches are consistently tan pieces
+   from other puzzles). Wood accounts for 77 of 156 misses; **excluding wood-as-query, the frozen
+   winner hits 94.8% and RRF(shape, spatial) runs 95.3–97.5% per cell.** Fix is at capture time
+   (exposure/white-balance, mat choice) or an M1 segmentation pass targeted at dark-art-on-wood —
+   not more descriptor engineering.
+5. Fixed-orientation beats rotation-invariant by ~1 point throughout — rotation invariance is
+   cheap but not free; keep both modes.
+6. Within-puzzle gallery (the "which of MY 24 pieces is this" setting): winner 94.5% top-1 /
+   99.3% top-5; RRF(shape, spatial) 96.2% / 99.6%.
+
+**Production outlook**: same-session, same-mat re-ID (the actual app scenario) is strictly easier
+than every number above; the non-wood cells and within-puzzle numbers suggest ≥95% is realistic
+with the planned gray mat, but north_star cannot prove it (one photo per piece per background) —
+a same-background repeat-capture set would close that evidence gap.
+
+## Recommendation going into M7 (uniqueness / collision study)
+
+- Most of M7's raw material already exists in `outputs/reid_eval.json` (genuine/impostor
+  distributions per metric). Remaining work: per-brand collision analysis, ROC curves, and choosing
+  the scan-UX "locked" threshold from the impostor tail.
+- Do it with RRF(shape, spatial) as the primary metric, and consider re-freezing the fusion choice
+  on a bigger validation split first.
 
 ## Reproduce
 
@@ -182,6 +232,8 @@ uv run python experiments/exp28_piece_geometry/edge_split.py                # M3
 uv run python experiments/exp28_piece_geometry/eval_edges.py                # M3: eval + edge-type sheets
 uv run python experiments/exp28_piece_geometry/edge_match.py                # M4: synthetic self-check
 uv run python experiments/exp28_piece_geometry/eval_matching.py             # M4: neighbor-ranking eval + sheets
+uv run python experiments/exp28_piece_geometry/fingerprint.py               # M6: build fingerprints per background
+uv run python experiments/exp28_piece_geometry/eval_reid.py                 # M6: 12-cell re-ID eval + failure sheets
 ```
 
 Dataset: `network/datasets/north_star/v1` (local only, regenerate via `experiments/north_star/ingest.py`).
