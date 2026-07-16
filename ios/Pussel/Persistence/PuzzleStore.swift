@@ -10,6 +10,11 @@ struct PuzzleSummary: Identifiable, Equatable {
   let updatedAt: Date
   let pieceCount: Int
   let placedCount: Int
+  /// Total piece count entered by the user for this puzzle (distinct from
+  /// `pieceCount`, which counts captured pieces).
+  let targetPieceCount: Int
+  let rows: Int
+  let cols: Int
   /// Bytes of the small downsampled thumbnail (thumb.jpg), used as the card
   /// image — not the full-size trimmed puzzle JPEG.
   let thumbnail: Data?
@@ -25,6 +30,10 @@ private struct PuzzleManifest: Codable {
   let createdAt: Date
   var updatedAt: Date
   var pieces: [StoredPiece]
+  /// Total piece count entered by the user, and the grid estimated from it.
+  var pieceCount: Int
+  var rows: Int
+  var cols: Int
 }
 
 private struct StoredPiece: Codable {
@@ -38,6 +47,7 @@ private struct StoredResult: Codable {
   let positionConfidence: Double
   let rotation: Int
   let rotationConfidence: Double
+  let pieceSpan: PieceSpan?
 }
 
 /// Local, on-device persistence for solved/in-progress puzzles. Everything is
@@ -130,11 +140,15 @@ final class PuzzleStore {
               position: $0.position,
               positionConfidence: $0.positionConfidence,
               rotation: $0.rotation,
-              rotationConfidence: $0.rotationConfidence
+              rotationConfidence: $0.rotationConfidence,
+              pieceSpan: $0.pieceSpan
             )
           }
         )
-      }
+      },
+      pieceCount: session.pieceCount,
+      rows: session.rows,
+      cols: session.cols
     )
     do {
       let data = try encoder.encode(manifest)
@@ -159,6 +173,9 @@ final class PuzzleStore {
         // Counts reflect what was persisted, matching the manifest.
         pieceCount: persistedEntries.count,
         placedCount: persistedEntries.filter { $0.result != nil }.count,
+        targetPieceCount: session.pieceCount,
+        rows: session.rows,
+        cols: session.cols,
         thumbnail: thumbnailData
       )
     )
@@ -204,6 +221,9 @@ final class PuzzleStore {
       name: manifest.name,
       puzzleId: manifest.serverPuzzleId,
       trimmedJPEG: trimmed,
+      pieceCount: manifest.pieceCount,
+      rows: manifest.rows,
+      cols: manifest.cols,
       createdAt: manifest.createdAt,
       store: self
     )
@@ -216,7 +236,8 @@ final class PuzzleStore {
           positionConfidence: $0.positionConfidence,
           rotation: $0.rotation,
           rotationConfidence: $0.rotationConfidence,
-          cleanedImage: nil
+          cleanedImage: nil,
+          pieceSpan: $0.pieceSpan
         )
       }
       return CaptureEntry(
@@ -268,6 +289,9 @@ final class PuzzleStore {
         updatedAt: manifest.updatedAt,
         pieceCount: manifest.pieces.count,
         placedCount: manifest.pieces.filter { $0.result != nil }.count,
+        targetPieceCount: manifest.pieceCount,
+        rows: manifest.rows,
+        cols: manifest.cols,
         thumbnail: thumbnail
       )
     }

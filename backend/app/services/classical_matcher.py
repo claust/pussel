@@ -26,9 +26,9 @@ from fastapi import UploadFile
 from PIL import Image
 
 from app.config import settings
-from app.models.puzzle_model import PieceResponse, Position
+from app.models.puzzle_model import PieceResponse, PieceSpan, Position
 from app.services.background_remover import get_background_remover
-from app.services.piece_detector import crop_to_alpha_region
+from app.services.piece_detector import crop_to_alpha_region, harden_alpha
 
 # Pixels whose grayscale value is above this count as piece content (the
 # segmented crops have pure-black backgrounds).
@@ -65,6 +65,17 @@ def _resize_max_side(rgb: "np.ndarray", side: int) -> "np.ndarray":
     if scale >= 1.0:
         return rgb
     return cv2.resize(rgb, (int(round(w * scale)), int(round(h * scale))), interpolation=cv2.INTER_AREA)
+
+
+@dataclass
+class MatchResult:
+    """Result of a classical (SIFT or NCC) piece match."""
+
+    nx: float
+    ny: float
+    rotation_degrees: int
+    confidence: float
+    piece_span: Optional[PieceSpan] = None
 
 
 @dataclass
@@ -148,17 +159,15 @@ class ClassicalMatcher:
         else:
             self._puzzle_cache.clear()
 
-    def _predict_sift(
-        self, piece_rgb: "np.ndarray", features: PuzzleFeatures
-    ) -> Optional[tuple[float, float, int, float]]:
-        """Predict (position, rotation, confidence) via SIFT + FLANN + partial-affine RANSAC.
+    def _predict_sift(self, piece_rgb: "np.ndarray", features: PuzzleFeatures) -> Optional[MatchResult]:
+        """Predict (position, rotation, confidence, span) via SIFT + FLANN + partial-affine RANSAC.
 
         Args:
             piece_rgb: Observed piece image, RGB uint8, black background.
             features: Cached puzzle features.
 
         Returns:
-            (nx, ny, rotation_degrees, confidence), or None when matching fails.
+            A MatchResult, or None when matching fails.
         """
         piece_resized = _resize_max_side(piece_rgb, SIFT_PIECE_SIDE)
         gray = cv2.cvtColor(piece_resized, cv2.COLOR_RGB2GRAY)
@@ -187,12 +196,25 @@ class ClassicalMatcher:
         nx = float(centroid[0]) / puz_w
         ny = float(centroid[1]) / puz_h
         confidence = min(1.0, int(inliers.sum()) / 30.0)
-        return nx, ny, rotation_idx * 90, confidence
+
+        # Uniform scale of the partial-affine transform maps the SIFT-resized piece
+        # image into the SIFT-resized puzzle overview; apply it to the piece frame's
+        # own pixel size to get the full piece frame's span on the puzzle.
+        scale = float(np.sqrt(transform[0, 0] ** 2 + transform[1, 0] ** 2))
+        piece_resized_h, piece_resized_w = piece_resized.shape[:2]
+        span = PieceSpan(
+            width=piece_resized_w * scale / puz_w,
+            height=piece_resized_h * scale / puz_h,
+        )
+        return MatchResult(nx=nx, ny=ny, rotation_degrees=rotation_idx * 90, confidence=confidence, piece_span=span)
 
     def _predict_ncc(
-        self, piece_rgb: "np.ndarray", features: PuzzleFeatures
-    ) -> Optional[tuple[float, float, int, float]]:
-        """Predict (position, rotation, confidence) via masked multi-scale NCC.
+        self,
+        piece_rgb: "np.ndarray",
+        features: PuzzleFeatures,
+        grid_hint: Optional[tuple[int, int]] = None,
+    ) -> Optional[MatchResult]:
+        """Predict (position, rotation, confidence, span) via masked multi-scale NCC.
 
         Tries all 4 candidate un-rotations of the piece x each of NCC_SCALES,
         matched against the NCC overview with a content mask.
@@ -200,16 +222,27 @@ class ClassicalMatcher:
         Args:
             piece_rgb: Observed piece image, RGB uint8, black background.
             features: Cached puzzle features.
+            grid_hint: Optional (rows, cols) for this puzzle, e.g. estimated from a
+                client-supplied piece count at upload time. When absent, falls back
+                to the ``CLASSICAL_GRID_ROWS``/``CLASSICAL_GRID_COLS`` settings.
 
         Returns:
-            (nx, ny, rotation_degrees, confidence), or None when no scale/rotation
-            candidate produced a usable template (e.g. an all-black piece).
+            A MatchResult, or None when no scale/rotation candidate produced a
+            usable template (e.g. an all-black piece).
         """
         puzzle_bgr = features.ncc_overview_bgr
         puz_h, puz_w = puzzle_bgr.shape[:2]
-        nominal = max(puz_w / settings.CLASSICAL_GRID_COLS, puz_h / settings.CLASSICAL_GRID_ROWS)
+        grid_rows, grid_cols = (
+            grid_hint
+            if grid_hint is not None
+            else (
+                settings.CLASSICAL_GRID_ROWS,
+                settings.CLASSICAL_GRID_COLS,
+            )
+        )
+        nominal = max(puz_w / grid_cols, puz_h / grid_rows)
         best_score = -np.inf
-        best: Optional[tuple[float, float, int]] = None
+        best: Optional[tuple[float, float, int, int]] = None
         for candidate_idx in range(4):
             unrot = np.rot90(piece_rgb, k=candidate_idx)
             for scale in NCC_SCALES:
@@ -227,18 +260,23 @@ class ClassicalMatcher:
                     best_score = max_val
                     nx = (max_loc[0] + side / 2) / puz_w
                     ny = (max_loc[1] + side / 2) / puz_h
-                    best = (nx, ny, candidate_idx)
+                    best = (nx, ny, candidate_idx, side)
         if best is None:
             return None
-        nx, ny, candidate_idx = best
+        nx, ny, candidate_idx, side = best
         confidence = max(0.0, min(1.0, float(best_score)))
-        return nx, ny, candidate_idx * 90, confidence
+        # The winning template is the whole piece image squashed to a `side`x`side`
+        # square matched against the overview, so the span is square in overview
+        # pixel space; it's an aspect-squashed, scale-quantized approximation.
+        span = PieceSpan(width=side / puz_w, height=side / puz_h)
+        return MatchResult(nx=nx, ny=ny, rotation_degrees=candidate_idx * 90, confidence=confidence, piece_span=span)
 
     async def process_piece(
         self,
         piece_file: UploadFile,
         puzzle_id: str,
         remove_background: bool = True,
+        grid_hint: Optional[tuple[int, int]] = None,
     ) -> PieceResponse:
         """Process a puzzle piece image and predict its position and rotation.
 
@@ -250,6 +288,9 @@ class ClassicalMatcher:
             piece_file: The puzzle piece image file.
             puzzle_id: The ID of the puzzle to match against.
             remove_background: Whether to remove background from piece image.
+            grid_hint: Optional (rows, cols) for this puzzle, used to size the NCC
+                fallback's nominal template instead of the CLASSICAL_GRID_ROWS/COLS
+                settings defaults. See ``_predict_ncc``.
 
         Returns:
             PieceResponse with predicted position, confidence, rotation, and optionally cleaned image.
@@ -263,6 +304,10 @@ class ClassicalMatcher:
 
                 # Get RGBA image with transparent background for frontend display
                 rgba_image = remover.remove_background(contents)
+
+                # Drop the matte's faint background ghost before cropping so
+                # neither the client nor the crop sees it.
+                rgba_image = harden_alpha(rgba_image)
 
                 # Crop to the segmented subject so the piece fills the frame,
                 # matching the deployed preview path.
@@ -289,16 +334,16 @@ class ClassicalMatcher:
             features = self._load_puzzle_features(puzzle_id)
 
             sift_result = self._predict_sift(piece_rgb, features)
-            result = sift_result if sift_result is not None else self._predict_ncc(piece_rgb, features)
+            result = sift_result if sift_result is not None else self._predict_ncc(piece_rgb, features, grid_hint)
 
             if result is not None:
-                nx, ny, rotation_degrees, confidence = result
                 return PieceResponse(
-                    position=Position(x=nx, y=ny),
-                    position_confidence=confidence,
-                    rotation=rotation_degrees,
-                    rotation_confidence=confidence,
+                    position=Position(x=result.nx, y=result.ny),
+                    position_confidence=result.confidence,
+                    rotation=result.rotation_degrees,
+                    rotation_confidence=result.confidence,
                     cleaned_image=cleaned_image_b64,
+                    piece_span=result.piece_span,
                 )
 
             # Both SIFT and NCC failed to find a usable match.

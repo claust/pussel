@@ -4,7 +4,7 @@ import base64
 import io
 import os
 import uuid
-from typing import Annotated, Dict, Optional
+from typing import Annotated, Dict, Optional, Tuple
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -31,7 +31,7 @@ from app.models.user_model import GoogleAuthRequest, TokenResponse, User
 from app.services.classical_matcher import get_classical_matcher
 from app.services.image_processor import get_image_processor
 from app.services.piece_detector import get_piece_detector
-from app.services.piece_shape import PieceShapeGenerator
+from app.services.piece_shape import PieceShapeGenerator, calculate_grid_dimensions
 from app.services.puzzle_cutter import get_puzzle_cutter
 from app.services.puzzle_detector import get_puzzle_detector
 
@@ -49,6 +49,15 @@ app.add_middleware(
 
 # Store puzzle images in memory for demo
 puzzle_images: Dict[str, str] = {}
+# Grid (rows, cols) estimated from an optional client-supplied piece count at
+# upload time; used to size the classical matcher's NCC template. Only present
+# for puzzles uploaded with piece_count.
+puzzle_grids: Dict[str, Tuple[int, int]] = {}
+
+# piece_count must produce a sane grid: a puzzle can't reasonably have fewer
+# than 4 pieces, and this backend isn't tuned for four-digit piece counts.
+MIN_PIECE_COUNT = 4
+MAX_PIECE_COUNT = 2000
 
 
 @app.get("/health")
@@ -129,18 +138,29 @@ async def get_current_user_profile(
 async def upload_puzzle(
     current_user: Annotated[User, Depends(get_current_user)],
     file: Optional[UploadFile] = None,
+    piece_count: Annotated[
+        Optional[int],
+        Form(description="Total number of pieces in the puzzle; used to estimate the grid (rows x cols)"),
+    ] = None,
 ) -> PuzzleResponse:
     """Upload a complete puzzle image.
 
     Args:
         current_user: The authenticated user.
         file: The puzzle image file.
+        piece_count: Optional total piece count supplied by the client (e.g. the
+            iOS app). When provided, the grid is estimated from this count and
+            the image's aspect ratio and stored alongside the puzzle.
 
     Returns:
-        PuzzleResponse: Response containing the puzzle ID.
+        PuzzleResponse: Response containing the puzzle ID, and — when
+        piece_count was provided — the echoed piece_count and estimated
+        rows/cols.
 
     Raises:
-        HTTPException: If file size exceeds limit or file type is invalid.
+        HTTPException: If file size exceeds limit, piece_count is out of
+            range, or (when piece_count is given) the file isn't a decodable
+            image.
     """
     # Note: current_user can be used to associate puzzles with users in the future
     _ = current_user  # Acknowledge the parameter is intentionally unused for now
@@ -150,14 +170,35 @@ async def upload_puzzle(
     if file.size and file.size > settings.MAX_UPLOAD_SIZE:
         raise HTTPException(status_code=413, detail="File too large")
 
+    if piece_count is not None and not (MIN_PIECE_COUNT <= piece_count <= MAX_PIECE_COUNT):
+        raise HTTPException(
+            status_code=400,
+            detail=f"piece_count must be between {MIN_PIECE_COUNT} and {MAX_PIECE_COUNT}",
+        )
+
+    contents = await file.read()
+
+    rows: Optional[int] = None
+    cols: Optional[int] = None
+    if piece_count is not None:
+        try:
+            image = Image.open(io.BytesIO(contents))
+            image.load()
+        except (UnidentifiedImageError, OSError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail="Invalid image file") from exc
+        rows, cols = calculate_grid_dimensions(image.width, image.height, piece_count)
+
     puzzle_id = str(uuid.uuid4())
     file_path = os.path.join(settings.UPLOAD_DIR, f"{puzzle_id}.jpg")
 
     with open(file_path, "wb") as f:
-        f.write(await file.read())
+        f.write(contents)
 
     puzzle_images[puzzle_id] = file_path
-    return PuzzleResponse(puzzle_id=puzzle_id)
+    if rows is not None and cols is not None:
+        puzzle_grids[puzzle_id] = (rows, cols)
+
+    return PuzzleResponse(puzzle_id=puzzle_id, piece_count=piece_count, rows=rows, cols=cols)
 
 
 @app.post("/api/v1/puzzle/detect-frame", response_model=DetectFrameResponse)
@@ -311,8 +352,15 @@ async def process_piece(
     if puzzle_id not in puzzle_images:
         raise HTTPException(status_code=404, detail="Puzzle not found")
 
-    processor = get_image_processor() if settings.MATCHER == "cnn" else get_classical_matcher()
-    return await processor.process_piece(file, puzzle_id, remove_background=remove_bg)
+    if settings.MATCHER == "cnn":
+        return await get_image_processor().process_piece(file, puzzle_id, remove_background=remove_bg)
+
+    # Pass along the grid estimated at upload time (if any) so the NCC fallback's
+    # nominal template size uses the puzzle's real grid instead of the defaults.
+    grid_hint = puzzle_grids.get(puzzle_id)
+    return await get_classical_matcher().process_piece(
+        file, puzzle_id, remove_background=remove_bg, grid_hint=grid_hint
+    )
 
 
 @app.post("/api/v1/puzzle/{puzzle_id}/generate-piece", response_model=GeneratePieceResponse)

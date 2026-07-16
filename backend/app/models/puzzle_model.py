@@ -12,6 +12,13 @@ class Position(BaseModel):
     y: float
 
 
+class PieceSpan(BaseModel):
+    """Normalized size of the piece image frame on the puzzle, in [0,1] of puzzle width/height."""
+
+    width: float
+    height: float
+
+
 class PieceResponse(BaseModel):
     """Response model for puzzle piece processing."""
 
@@ -20,6 +27,14 @@ class PieceResponse(BaseModel):
     rotation: int
     rotation_confidence: float
     cleaned_image: Optional[str] = None  # Base64 encoded PNG with background removed
+    piece_span: Optional[PieceSpan] = Field(
+        default=None,
+        description=(
+            "Normalized size of the full piece image frame (as sent by the client, in its own "
+            "orientation) as a fraction of the puzzle's width/height. Null when no measurement "
+            "exists (CNN path, or matcher failure fallback)."
+        ),
+    )
 
 
 class PuzzleResponse(BaseModel):
@@ -27,6 +42,11 @@ class PuzzleResponse(BaseModel):
 
     puzzle_id: str
     image_url: Optional[str] = None
+    piece_count: Optional[int] = Field(
+        default=None, description="Client-supplied total piece count, echoed back when provided"
+    )
+    rows: Optional[int] = Field(default=None, description="Estimated grid rows, present when piece_count was given")
+    cols: Optional[int] = Field(default=None, description="Estimated grid cols, present when piece_count was given")
 
 
 # Models for puzzle frame detection (real mode)
