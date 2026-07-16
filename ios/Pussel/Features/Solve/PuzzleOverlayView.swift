@@ -27,7 +27,7 @@ struct PuzzleOverlayView: View {
         .onTapGesture(perform: onTap)
         .accessibilityElement()
         .accessibilityLabel("Puzzle with \(session.placedEntries.count) placed pieces")
-        .accessibilityHint("Double tap to zoom in.")
+        .accessibilityHint("Opens the puzzle in a zoomable full-screen view.")
         .accessibilityAddTraits(.isButton)
         .accessibilityAction(.default, onTap)
     }
