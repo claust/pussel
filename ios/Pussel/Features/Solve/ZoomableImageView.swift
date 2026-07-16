@@ -129,20 +129,28 @@ struct ZoomableImageView<Overlay: View>: UIViewRepresentable {
 
     func viewForZooming(in scrollView: UIScrollView) -> UIView? { imageView }
 
-    /// Adopts a new image, keyed on its pixel size rather than on the instance.
+    /// Adopts a new image: always shows the given pixels, but only re-seats the
+    /// zoom when the picture's size changes.
     ///
-    /// SwiftUI hands a fresh `UIImage` down whenever the enclosing body
-    /// re-runs — a piece prediction landing while the viewer is open is enough,
-    /// since the image is built from the session each time. Those instances are
-    /// the same picture, so reacting to identity would re-seat the content and
-    /// throw the user's zoom away mid-inspection. A different size is what
-    /// actually means a different picture, and it's the only case that needs
-    /// the fit scale recomputed.
+    /// The two halves answer different questions and can't share a condition.
+    /// Whether to *display* it is about identity — the input must never be
+    /// silently dropped, or the view shows something other than what it was
+    /// handed. Whether to *re-seat* it is about size, because that alone
+    /// invalidates the fit scale and the content size.
+    ///
+    /// Keying both on identity would be the bug: SwiftUI hands a fresh
+    /// `UIImage` down whenever the enclosing body re-runs — a piece prediction
+    /// landing while the viewer is open is enough, since the image is rebuilt
+    /// from the session each time — and re-seating on those would throw the
+    /// user's zoom away mid-inspection. Keying both on size is the opposite
+    /// bug: a same-size replacement would never appear.
     func updateImage(_ image: UIImage, in scrollView: UIScrollView) {
       let size = CGSize(
         width: image.size.width * image.scale, height: image.size.height * image.scale)
-      guard size.width > 0, size.height > 0, size != baseSize else { return }
+      guard size.width > 0, size.height > 0 else { return }
+      guard imageView.image !== image else { return }
       imageView.image = image
+      guard size != baseSize else { return }
       imageView.frame = CGRect(origin: .zero, size: size)
       baseSize = size
       scrollView.contentSize = size
