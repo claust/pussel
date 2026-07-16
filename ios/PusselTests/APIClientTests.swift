@@ -142,6 +142,9 @@ final class APIClientTests: XCTestCase {
 
   func test401WithoutReauthSurfacesError() async {
     authStore.backendToken = "stale"
+    authStore.user = UserDTO(
+      id: "u1", email: "u@example.com", name: "U", picture: nil, createdAt: nil)
+    authStore.avatarURL = URL(string: "https://lh3.googleusercontent.com/a/avatar=s96")
     StubURLProtocol.handler = { _ in
       (401, Data(#"{"detail": "Invalid or expired token"}"#.utf8))
     }
@@ -151,9 +154,11 @@ final class APIClientTests: XCTestCase {
     } catch let error as APIError {
       XCTAssertEqual(error.status, 401)
       XCTAssertEqual(error.message, "Authentication required. Please sign in.")
-      // The dead session must be dropped so the UI returns to sign-in.
+      // The dead session must be dropped in full so the UI returns to
+      // sign-in with nothing of the old session left behind.
       XCTAssertNil(authStore.backendToken)
       XCTAssertNil(authStore.user)
+      XCTAssertNil(authStore.avatarURL)
     } catch {
       XCTFail("Unexpected error type: \(error)")
     }
