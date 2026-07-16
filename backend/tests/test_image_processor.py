@@ -3,8 +3,10 @@
 import asyncio
 import base64
 import io
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Tuple, cast
+from typing import cast
 from unittest.mock import patch
 
 import pytest
@@ -15,7 +17,10 @@ from torch import Tensor
 
 from app.services import image_processor as ip_module
 from app.services.image_processor import (
+    PIECE_SIZE,
+    PUZZLE_SIZE,
     ImageProcessor,
+    _bound_longest_side,
     _composite_on_black,
     _extract_state_dict,
     _load_checkpoint,
@@ -143,16 +148,65 @@ def test_pad_to_square_returns_square_input_unchanged() -> None:
     assert _pad_to_square(img) is img
 
 
+def test_bound_longest_side_downscales_preserving_aspect() -> None:
+    """An oversized image is shrunk to the limit with its aspect ratio intact."""
+    img = Image.new("RGB", (8000, 500), (255, 255, 255))
+
+    bounded = _bound_longest_side(img, limit=PIECE_SIZE)
+
+    assert max(bounded.size) == PIECE_SIZE
+    assert bounded.size == (128, 8)  # 500 * 128/8000 = 8
+
+
+def test_bound_longest_side_leaves_small_image_unchanged() -> None:
+    """An image already within the limit passes through untouched.
+
+    Upscaling small crops stays with the inference resize, so this must not
+    enlarge anything.
+    """
+    img = Image.new("RGB", (40, 20), (9, 9, 9))
+
+    assert _bound_longest_side(img, limit=PIECE_SIZE) is img
+
+
 class _FakeModel:
     """Stand-in model returning fixed predictions for pipeline tests."""
 
-    def __call__(self, piece_tensor: Tensor, puzzle_tensor: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
+    def __call__(self, piece_tensor: Tensor, puzzle_tensor: Tensor) -> tuple[Tensor, Tensor, Tensor]:
         """Return a fixed (position, rotation_logits, attention_map) triple."""
         return (
             torch.tensor([[0.25, 0.75]]),
             torch.tensor([[5.0, 0.0, 0.0, 0.0]]),
             torch.tensor([[0.9]]),
         )
+
+
+@contextmanager
+def capture_model_input(processor: ImageProcessor) -> Iterator[list[Image.Image]]:
+    """Run process_piece against a fake model, capturing the image it is fed.
+
+    Yields a list that receives the image handed to ``piece_transform`` — the
+    prepared model input — for any process_piece call made inside the block.
+
+    Args:
+        processor: The processor whose model input should be captured.
+
+    Yields:
+        The list of captured model inputs.
+    """
+    captured: list[Image.Image] = []
+    original_transform = processor.piece_transform
+
+    def spy_transform(img: Image.Image) -> Tensor:
+        captured.append(img)
+        return cast(Tensor, original_transform(img))
+
+    with (
+        patch.object(processor, "model", _FakeModel()),
+        patch.object(processor, "piece_transform", spy_transform),
+        patch.object(processor, "_load_puzzle_tensor", return_value=torch.zeros(3, PUZZLE_SIZE, PUZZLE_SIZE)),
+    ):
+        yield captured
 
 
 def test_process_piece_model_input_is_black_composited_square() -> None:
@@ -177,19 +231,10 @@ def test_process_piece_model_input_is_black_composited_square() -> None:
             """Return the fake rembg output regardless of input."""
             return rgba
 
-    captured: list[Image.Image] = []
-    original_transform = processor.piece_transform
-
-    def spy_transform(img: Image.Image) -> Tensor:
-        captured.append(img)
-        return cast(Tensor, original_transform(img))
-
     with (
         patch.object(ip_module, "get_background_remover", return_value=FakeRemover()),
         patch.object(ip_module.settings, "ENABLE_BACKGROUND_REMOVAL", True),
-        patch.object(processor, "model", _FakeModel()),
-        patch.object(processor, "piece_transform", spy_transform),
-        patch.object(processor, "_load_puzzle_tensor", return_value=torch.zeros(3, 256, 256)),
+        capture_model_input(processor) as captured,
     ):
         result = asyncio.run(processor.process_piece(make_upload(make_jpeg()), "some-puzzle-id"))
 
@@ -222,24 +267,34 @@ def test_process_piece_without_background_removal_pads_to_square() -> None:
     buffer = io.BytesIO()
     Image.new("RGB", (90, 30), (0, 255, 0)).save(buffer, format="JPEG")
 
-    captured: list[Image.Image] = []
-    original_transform = processor.piece_transform
-
-    def spy_transform(img: Image.Image) -> Tensor:
-        captured.append(img)
-        return cast(Tensor, original_transform(img))
-
-    with (
-        patch.object(processor, "model", _FakeModel()),
-        patch.object(processor, "piece_transform", spy_transform),
-        patch.object(processor, "_load_puzzle_tensor", return_value=torch.zeros(3, 256, 256)),
-    ):
+    with capture_model_input(processor) as captured:
         asyncio.run(processor.process_piece(make_upload(buffer.getvalue()), "some-puzzle-id", remove_background=False))
 
     assert len(captured) == 1
     model_input = captured[0]
     assert model_input.size == (90, 90)
     assert model_input.getpixel((45, 0)) == (0, 0, 0)  # black padding row
+
+
+def test_process_piece_bounds_pad_canvas_for_elongated_upload() -> None:
+    """An elongated upload is downscaled before padding, bounding the canvas.
+
+    MAX_UPLOAD_SIZE caps bytes, not pixels, so a small file can decode to
+    extreme dimensions; padding those to square unbounded would allocate a
+    canvas of max(width, height) per side.
+    """
+    with patch.object(ip_module, "CHECKPOINT_PATH", "/nonexistent/checkpoint.pt"):
+        processor = ImageProcessor()
+
+    buffer = io.BytesIO()
+    Image.new("RGB", (4000, 200), (0, 0, 255)).save(buffer, format="JPEG")
+
+    with capture_model_input(processor) as captured:
+        asyncio.run(processor.process_piece(make_upload(buffer.getvalue()), "some-puzzle-id", remove_background=False))
+
+    assert len(captured) == 1
+    # Without the bound this canvas would be 4000x4000 (~48MB) instead of 128x128
+    assert captured[0].size == (PIECE_SIZE, PIECE_SIZE)
 
 
 def test_load_puzzle_tensor_rejects_non_uuid_puzzle_id() -> None:

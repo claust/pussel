@@ -89,6 +89,50 @@ def _pad_to_square(image: Image.Image) -> Image.Image:
     return canvas
 
 
+def _bound_longest_side(image: Image.Image, limit: int = PIECE_SIZE) -> Image.Image:
+    """Shrink an image so its longest side is at most ``limit``.
+
+    ``_pad_to_square`` allocates a canvas of ``max(width, height)`` per side, so
+    an elongated upload (8000x500) would expand into an 8000x8000 canvas — a
+    huge allocation driven by a small file, since MAX_UPLOAD_SIZE caps bytes and
+    not pixels. Inference resizes to ``PIECE_SIZE`` regardless, so bounding the
+    longest side first costs no fidelity: the scale factor and centering are the
+    same either way. Images already within the limit pass through untouched, so
+    upscaling stays with the inference resize.
+
+    Args:
+        image: The RGB image to bound.
+        limit: Maximum length of the longest side.
+
+    Returns:
+        The downscaled image, or the input unchanged when already within limit.
+    """
+    side = max(image.width, image.height)
+    if side <= limit:
+        return image
+    scale = limit / side
+    width = max(1, round(image.width * scale))
+    height = max(1, round(image.height * scale))
+    # BILINEAR matches the default used by the transforms.Resize below.
+    return image.resize((width, height), Image.Resampling.BILINEAR)
+
+
+def _prepare_model_input(image: Image.Image) -> Image.Image:
+    """Prepare a piece image for model inference.
+
+    Matches the exp20 training pieces and the exp25 north-star eval prep:
+    composite on black, then pad to a square so the fixed-size resize below
+    preserves the piece's aspect ratio instead of squashing it.
+
+    Args:
+        image: The piece image, RGBA from background removal or RGB otherwise.
+
+    Returns:
+        A square RGB image ready for the piece transform.
+    """
+    return _pad_to_square(_bound_longest_side(_composite_on_black(image)))
+
+
 def _extract_state_dict(checkpoint: Any) -> Any:
     """Return the model weights from a loaded checkpoint.
 
@@ -297,11 +341,9 @@ class ImageProcessor:
                 rgba_image.save(buffer, format="PNG")
                 cleaned_image_b64 = f"data:image/png;base64,{base64.b64encode(buffer.getvalue()).decode()}"
 
-                # Model input: composite on black and pad to square, matching
-                # the exp20 training pieces and the exp25 north-star eval prep
-                piece_img = _pad_to_square(_composite_on_black(rgba_image))
+                piece_img = _prepare_model_input(rgba_image)
             else:
-                piece_img = _pad_to_square(Image.open(io.BytesIO(contents)).convert("RGB"))
+                piece_img = _prepare_model_input(Image.open(io.BytesIO(contents)).convert("RGB"))
 
             # No model available (e.g. checkpoint not present): return a neutral
             # prediction but still hand back the cleaned cutout for display.
