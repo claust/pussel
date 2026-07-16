@@ -68,6 +68,13 @@ private struct QueueTile: View {
   /// well under the 44pt guideline — but deliberately short of a full 44pt,
   /// which would turn much of the tile's corner into a delete zone for an
   /// action that has no undo.
+  ///
+  /// Note the *effective* target is smaller than this: hit testing is bounded
+  /// by the tile's 84pt frame, so the part of this box hanging outside the
+  /// tile is drawn but never tapped. This buys the corner region inside the
+  /// tile (~19pt square, up from ~14pt), and raising the number further only
+  /// grows the untappable spill — a real 44pt target would need the badge
+  /// re-parented outside the tile, not a bigger box here.
   private static let badgeHitSize: CGFloat = 32
   /// How far the circle's centre sits inside the tile's corner.
   private static let badgeCircleInset: CGFloat = 3
