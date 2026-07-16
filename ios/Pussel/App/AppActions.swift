@@ -30,7 +30,10 @@ extension AppModel {
   /// Uploads the accepted trimmed image and starts a solve session. Any
   /// user-applied rotation (`quarterTurns` × 90° clockwise) is baked into the
   /// uploaded and stored image so the puzzle appears upright everywhere.
-  func acceptTrim(_ candidate: TrimCandidate, quarterTurns: Int = 0) async {
+  /// `pieceCount` is the user-entered total piece count; the grid (rows,
+  /// cols) is estimated from it and the final rotated image's pixel
+  /// dimensions, then persisted on the session for overlay marker sizing.
+  func acceptTrim(_ candidate: TrimCandidate, quarterTurns: Int = 0, pieceCount: Int) async {
     // Ignore repeat taps (e.g. a double-tap on "Use This") while an upload
     // is already in flight so we don't start concurrent uploads/sessions.
     guard !flow.isBusy else { return }
@@ -42,15 +45,24 @@ extension AppModel {
       flow.errorMessage = "Could not rotate the trimmed image."
       return
     }
+    guard let trimmedSize = UIImage(data: trimmed)?.size else {
+      flow.errorMessage = "Could not measure the trimmed image."
+      return
+    }
+    let grid = GridEstimator.estimate(
+      pieceCount: pieceCount, imageWidth: trimmedSize.width, imageHeight: trimmedSize.height)
     flow.errorMessage = nil
     flow.isBusy = true
     defer { flow.isBusy = false }
     do {
-      let response = try await api.uploadPuzzle(jpegData: trimmed)
+      let response = try await api.uploadPuzzle(jpegData: trimmed, pieceCount: pieceCount)
       let session = SolveSession(
         name: Self.puzzleNameFormatter.string(from: Date()),
         puzzleId: response.puzzleId,
         trimmedJPEG: trimmed,
+        targetPieceCount: pieceCount,
+        rows: grid.rows,
+        cols: grid.cols,
         store: store
       )
       // Persist immediately so the puzzle survives even before any pieces

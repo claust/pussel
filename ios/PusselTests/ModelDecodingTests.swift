@@ -60,6 +60,19 @@ final class ModelDecodingTests: XCTestCase {
     let response = try decoder.decode(PuzzleUploadResponse.self, from: Data(json.utf8))
     XCTAssertEqual(response.puzzleId, "3f2b9c")
     XCTAssertNil(response.imageUrl)
+    XCTAssertNil(response.pieceCount)
+    XCTAssertNil(response.rows)
+    XCTAssertNil(response.cols)
+  }
+
+  func testDecodePuzzleUploadResponseWithGrid() throws {
+    let json = """
+      {"puzzle_id": "3f2b9c", "image_url": null, "piece_count": 500, "rows": 22, "cols": 22}
+      """
+    let response = try decoder.decode(PuzzleUploadResponse.self, from: Data(json.utf8))
+    XCTAssertEqual(response.pieceCount, 500)
+    XCTAssertEqual(response.rows, 22)
+    XCTAssertEqual(response.cols, 22)
   }
 
   func testDecodePieceResponse() throws {
@@ -91,6 +104,36 @@ final class ModelDecodingTests: XCTestCase {
       """
     let response = try decoder.decode(PieceResponse.self, from: Data(json.utf8))
     XCTAssertNil(response.cleanedImage)
+  }
+
+  func testDecodePieceResponseWithPieceSpan() throws {
+    let json = """
+      {
+        "position": {"x": 0.25, "y": 0.75},
+        "position_confidence": 0.91,
+        "rotation": 270,
+        "rotation_confidence": 0.66,
+        "cleaned_image": null,
+        "piece_span": {"width": 0.34, "height": 0.25}
+      }
+      """
+    let response = try decoder.decode(PieceResponse.self, from: Data(json.utf8))
+    XCTAssertEqual(response.pieceSpan, PieceSpan(width: 0.34, height: 0.25))
+  }
+
+  func testDecodePieceResponseWithNullPieceSpan() throws {
+    let json = """
+      {
+        "position": {"x": 0.25, "y": 0.75},
+        "position_confidence": 0.91,
+        "rotation": 270,
+        "rotation_confidence": 0.66,
+        "cleaned_image": null,
+        "piece_span": null
+      }
+      """
+    let response = try decoder.decode(PieceResponse.self, from: Data(json.utf8))
+    XCTAssertNil(response.pieceSpan)
   }
 
   func testDecodeBareBase64DataURL() {

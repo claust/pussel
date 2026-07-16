@@ -3,10 +3,15 @@ import SwiftUI
 struct ConfirmTrimView: View {
   /// Mirrors LOW_CONFIDENCE_THRESHOLD in frontend/src/app/real/page.tsx.
   private static let lowConfidence = 0.4
+  /// Piece-count quick-pick presets shown as chips above the numeric field.
+  private static let pieceCountPresets = [12, 24, 48, 100, 500, 1000]
+  private static let pieceCountRange = 4...2000
 
   @Environment(AppModel.self) private var model
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var quarterTurns = 0
+  @State private var pieceCountText = ""
+  @FocusState private var pieceCountFieldFocused: Bool
   @State private var hintOpacity = 0.0
   @State private var hintTurns = 0
   @State private var didPlayHint = false
@@ -19,6 +24,26 @@ struct ConfirmTrimView: View {
   init(candidate: TrimCandidate) {
     self.candidate = candidate
     self.previewImage = candidate.trimmedJPEG.flatMap(UIImage.init(data:))
+  }
+
+  /// The entered piece count, or nil while the field is empty/out of range.
+  private var pieceCount: Int? {
+    guard let value = Int(pieceCountText), Self.pieceCountRange.contains(value) else {
+      return nil
+    }
+    return value
+  }
+
+  /// Grid estimate from the current piece count and the preview image's
+  /// aspect ratio, accounting for the rotation applied so far (a 90°/270°
+  /// turn swaps width and height).
+  private var estimatedGrid: (rows: Int, cols: Int)? {
+    guard let pieceCount, let image = previewImage else { return nil }
+    let turns = ((quarterTurns % 4) + 4) % 4
+    let swapped = turns == 1 || turns == 3
+    let width = swapped ? image.size.height : image.size.width
+    let height = swapped ? image.size.width : image.size.height
+    return GridEstimator.estimate(pieceCount: pieceCount, imageWidth: width, imageHeight: height)
   }
 
   var body: some View {
@@ -62,6 +87,7 @@ struct ConfirmTrimView: View {
       Text("Detection confidence: \(Int(candidate.detection.confidence * 100))%")
         .font(.footnote)
         .foregroundStyle(.secondary)
+      pieceCountSection
       Spacer()
       if model.flow.isBusy {
         ProgressView("Uploading puzzle…")
@@ -79,7 +105,10 @@ struct ConfirmTrimView: View {
           .controlSize(.large)
 
           Button {
-            Task { await model.acceptTrim(candidate, quarterTurns: quarterTurns) }
+            guard let pieceCount else { return }
+            Task {
+              await model.acceptTrim(candidate, quarterTurns: quarterTurns, pieceCount: pieceCount)
+            }
           } label: {
             Label("Use This", systemImage: "checkmark")
               .frame(maxWidth: .infinity)
@@ -89,8 +118,9 @@ struct ConfirmTrimView: View {
           // Gate on the cached preview (not the base64-decoding
           // `trimmedJPEG` computed property) so this doesn't re-decode
           // on every rotate tap and stays disabled exactly when the
-          // preview can't be shown.
-          .disabled(previewImage == nil)
+          // preview can't be shown — and on a valid piece count, since the
+          // grid estimate (and thus overlay marker sizing) depends on it.
+          .disabled(previewImage == nil || pieceCount == nil)
         }
       }
       if let error = model.flow.errorMessage {
@@ -101,6 +131,50 @@ struct ConfirmTrimView: View {
       }
     }
     .padding(24)
+  }
+
+  private var pieceCountSection: some View {
+    VStack(spacing: 10) {
+      Text("How many pieces?")
+        .font(.subheadline.bold())
+      ScrollView(.horizontal, showsIndicators: false) {
+        HStack(spacing: 8) {
+          ForEach(Self.pieceCountPresets, id: \.self) { preset in
+            Button {
+              pieceCountText = String(preset)
+              pieceCountFieldFocused = false
+            } label: {
+              Text("\(preset)")
+                .font(.subheadline.weight(.medium))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(
+                  pieceCount == preset ? Color.accentColor : Color.secondary.opacity(0.15),
+                  in: Capsule()
+                )
+                .foregroundStyle(pieceCount == preset ? Color.white : Color.primary)
+            }
+            .buttonStyle(.plain)
+          }
+        }
+        .padding(.horizontal, 1)
+      }
+      TextField("Piece count (4–2000)", text: $pieceCountText)
+        .keyboardType(.numberPad)
+        .multilineTextAlignment(.center)
+        .textFieldStyle(.roundedBorder)
+        .focused($pieceCountFieldFocused)
+        .frame(maxWidth: 220)
+      if let grid = estimatedGrid, let pieceCount {
+        Text("\(pieceCount) pieces → \(grid.rows) × \(grid.cols) grid")
+          .font(.footnote)
+          .foregroundStyle(.secondary)
+      } else if !pieceCountText.isEmpty {
+        Text("Enter a piece count between 4 and 2000.")
+          .font(.footnote)
+          .foregroundStyle(.red)
+      }
+    }
   }
 
   /// One-shot "tap here to rotate" demo drawn over the photo: a tapping finger

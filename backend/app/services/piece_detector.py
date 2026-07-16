@@ -81,6 +81,30 @@ def largest_alpha_component(rgba: Image.Image, alpha_threshold: int = 128) -> Op
     return max(contours, key=cv2.contourArea)
 
 
+def harden_alpha(rgba: Image.Image, alpha_threshold: int = 128) -> Image.Image:
+    """Zero out low-alpha pixels left behind by soft segmentation mattes.
+
+    rembg's matte keeps a faint semi-transparent ghost of the background
+    (alpha well below the subject's) across much of the frame; rendered over a
+    bright surface it shows up as visible background imagery. Pixels at or
+    below the threshold become fully transparent; pixels above it keep their
+    alpha, preserving soft subject edges.
+
+    Args:
+        rgba: RGBA image, e.g. rembg output.
+        alpha_threshold: Alpha value at or below which a pixel is cleared.
+
+    Returns:
+        The hardened image, or the input unchanged when it has no alpha channel.
+    """
+    if rgba.mode != "RGBA":
+        return rgba
+    arr = np.array(rgba)
+    alpha = arr[..., 3]
+    arr[..., 3] = np.where(alpha > alpha_threshold, alpha, 0)
+    return Image.fromarray(arr)
+
+
 def crop_to_alpha_region(rgba: Image.Image, margin: float = 0.08) -> Image.Image:
     """Crop an RGBA image to the bounding box of its largest opaque region.
 

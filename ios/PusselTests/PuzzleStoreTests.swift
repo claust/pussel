@@ -38,6 +38,9 @@ final class PuzzleStoreTests: XCTestCase {
       name: name,
       puzzleId: "server-123",
       trimmedJPEG: tinyJPEG(),
+      targetPieceCount: 48,
+      rows: 6,
+      cols: 8,
       store: store
     )
   }
@@ -58,7 +61,8 @@ final class PuzzleStoreTests: XCTestCase {
           positionConfidence: 0.77,
           rotation: 90,
           rotationConfidence: 0.77,
-          cleanedImage: nil
+          cleanedImage: nil,
+          pieceSpan: PieceSpan(width: 0.34, height: 0.25)
         )
       )
     ]
@@ -68,6 +72,9 @@ final class PuzzleStoreTests: XCTestCase {
     XCTAssertEqual(summary.name, "Frosty field")
     XCTAssertEqual(summary.pieceCount, 1)
     XCTAssertEqual(summary.placedCount, 1)
+    XCTAssertEqual(summary.targetPieceCount, 48)
+    XCTAssertEqual(summary.rows, 6)
+    XCTAssertEqual(summary.cols, 8)
     XCTAssertNotNil(summary.thumbnail)
 
     // A brand-new store instance reads purely from disk.
@@ -75,12 +82,16 @@ final class PuzzleStoreTests: XCTestCase {
     XCTAssertEqual(reloaded.name, "Frosty field")
     XCTAssertEqual(reloaded.puzzleId, "server-123")
     XCTAssertEqual(reloaded.trimmedJPEG, session.trimmedJPEG)
+    XCTAssertEqual(reloaded.targetPieceCount, 48)
+    XCTAssertEqual(reloaded.rows, 6)
+    XCTAssertEqual(reloaded.cols, 8)
     XCTAssertEqual(reloaded.entries.count, 1)
     let entry = try XCTUnwrap(reloaded.entries.first)
     XCTAssertEqual(entry.status, .done)
     XCTAssertEqual(entry.displayImage, Data("piece-display".utf8))
     XCTAssertEqual(entry.result?.position, NormalizedPoint(x: 0.34, y: 0.4))
     XCTAssertEqual(entry.result?.rotation, 90)
+    XCTAssertEqual(entry.result?.pieceSpan, PieceSpan(width: 0.34, height: 0.25))
   }
 
   func testUnpredictedPieceReloadsAsQueued() throws {
