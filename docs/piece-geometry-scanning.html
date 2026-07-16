@@ -143,6 +143,18 @@
     background: var(--good-soft); color: var(--good); border-radius: 6px;
   }
   .milestone .success::before { content: "✓ Done when: "; font-weight: 700; }
+  .milestone .outcome {
+    margin-top: 0.6rem; font-size: 0.88rem; padding: 0.55rem 0.75rem;
+    background: var(--accent-soft); border-left: 3px solid var(--accent); border-radius: 6px;
+  }
+  .milestone .outcome::before { content: "◆ Result (2026-07-16): "; font-weight: 700; color: var(--accent); }
+  .badge {
+    font-size: 0.7rem; font-weight: 700; padding: 0.1rem 0.5rem; border-radius: 999px;
+    letter-spacing: 0.05em;
+  }
+  .badge.done { background: var(--good-soft); color: var(--good); }
+  .badge.next { background: var(--accent-soft); color: var(--accent); }
+  .badge.skip { background: var(--warn-soft); color: var(--warn); }
   .phasehead {
     margin: 2.25rem 0 0.25rem; font-size: 0.8rem; font-weight: 700;
     letter-spacing: 0.1em; text-transform: uppercase;
@@ -161,8 +173,13 @@
 <div class="wrap">
 
 <header>
-  <span class="kicker">Pussel · brainstorm · 2026-07-16</span>
+  <span class="kicker">Pussel · brainstorm &amp; living results log · 2026-07-16</span>
   <h1>The Second Column: Scanning Exact Piece Geometry</h1>
+  <p class="subtitle" style="margin-top:0.5rem">
+    <strong>Status:</strong> M1–M4 completed in <code>network/experiments/exp28_piece_geometry/</code>
+    (detailed log: <code>HANDOFF.md</code> there). Result blocks (◆) below record what each milestone
+    actually found. M5 deferred (optional). M6 is next.
+  </p>
   <p class="subtitle">
     Today Pussel answers <em>"where in the picture does this piece go?"</em> by matching surface
     texture (SIFT→NCC hybrid, 76.7% on real photos). This document explores the complementary
@@ -383,7 +400,7 @@
 <p class="phasedesc">Prove we can turn an existing real photo into four labeled edges. Everything runs as scripts in <code>network/experiments/</code>, evaluated with contact sheets like exp25.</p>
 
 <div class="milestone">
-  <h4><span class="mtag a">M1</span> High-fidelity contour extraction</h4>
+  <h4><span class="mtag a">M1</span> High-fidelity contour extraction <span class="badge done">DONE ✓</span></h4>
   <div class="meta">~2–4 sessions · builds on <code>piece_detector.py</code> + <code>background_remover.py</code></div>
   <ul>
     <li>Upgrade the existing rembg pipeline from "≤60-point UI polygon" to a full-resolution, smoothed, closed contour (mask → morphological cleanup → <code>findContours</code> → light smoothing).</li>
@@ -391,10 +408,22 @@
     <li>Note which backgrounds fail (the red carpet will be the stress test) — this <em>defines the capture protocol</em> for the eventual scanning mat.</li>
   </ul>
   <div class="success">≥95% of pieces yield a single clean closed contour on at least the 2 friendly backgrounds; failure modes are catalogued.</div>
+  <div class="outcome">
+    <strong>Criterion met on all four backgrounds, not just two.</strong> rembg (u2net) clean rates over
+    944 photos: gray_fabric 98.7%, red_carpet 97.9%, wood 96.2%, cardboard 95.3%. The Otsu-threshold
+    baseline is dead on textured real backgrounds (0.8–22.5%) — rembg is the extraction method, full stop.
+    Gate-failure taxonomy (28 cases): 17 multi-component segmentations, 8 border-touching crops, 3
+    implausible shapes. Visual review found what the gate cannot: on <em>wood</em>, a few pieces per sheet
+    pass the gate but the contour follows dark <em>artwork</em> boundaries instead of the piece edge
+    (dark art blends into wood tones); gray fabric and red carpet sheets are essentially flawless, with
+    drop shadows correctly excluded. <strong>Capture-protocol consequence: the scanning mat should be
+    neutral gray fabric.</strong> These wood "silent failures" resurface as the dominant error source in
+    M3 and M4 — segmentation quality upper-bounds the whole column.
+  </div>
 </div>
 
 <div class="milestone">
-  <h4><span class="mtag a">M2</span> Corner detection bake-off</h4>
+  <h4><span class="mtag a">M2</span> Corner detection bake-off <span class="badge done">DONE ✓</span></h4>
   <div class="meta">~3–5 sessions · the known-fragile step, so measure it properly</div>
   <ul>
     <li>Hand-label 4 corners on a ~60-piece subset (tiny matplotlib click tool — an afternoon).</li>
@@ -402,43 +431,97 @@
     <li>Benchmark corner error (as % of piece size) per method per background.</li>
   </ul>
   <div class="success">Best method places all 4 corners within 3% of piece size on ≥90% of the subset; we know its failure modes well enough to design the manual-nudge fallback.</div>
+  <div class="outcome">
+    <strong>Criterion met — polydp 98.5% and curvature 97.0%</strong> of 200 synthetic pieces (known
+    ground-truth corners, random rotation + blur + noise) within 3% worst-corner error, median ~0.7%.
+    The literature's warning proved exact: naïve subset scoring picked <em>tab-bulb tips</em> (bigger
+    quadrilaterals) — initial rates were just 68% / 29.5%. Three changes fixed it: (1) a
+    <em>cornerness prior</em> — true corners have locally straight contour shoulders on both sides,
+    tab tips curve away immediately (PCA line fits + angle-near-90° score per candidate);
+    (2) quad area normalized by hull area so it can't dominate; (3) corners refined as the
+    <em>intersection of the shoulder lines</em>, recovering the un-rounded corner that corner_radius
+    hides (p97 error 3.6% → 0.8%). Shi-Tomasi is structurally unusable (13.5%): goodFeaturesToTrack
+    never even proposes rounded true corners (~33% missing from its pool). On real photos the corner
+    overlays look excellent; synthetic random pieces are <em>harder</em> than real ones (more extreme
+    tabs), so these numbers are conservative. Quantitative real-photo eval awaits optional hand labels
+    (<code>label_corners.py</code> click tool is ready). Working recipe: <strong>polydp primary,
+    curvature as cross-check</strong> — their disagreement (&gt;3% of bbox diagonal) is the per-piece
+    quality flag.
+  </div>
 </div>
 
 <div class="milestone">
-  <h4><span class="mtag a">M3</span> Edge splitting + tab/blank/flat classification</h4>
+  <h4><span class="mtag a">M3</span> Edge splitting + tab/blank/flat classification <span class="badge done">DONE ✓</span></h4>
   <div class="meta">~1–2 sessions · literature says this is the easy part</div>
   <ul>
     <li>Split contour at corners into 4 arcs; chord-midpoint-vs-centroid test per arc.</li>
     <li>Ground truth is nearly free: north_star grid positions tell us which edges are flat (border pieces), and interlocking neighbors constrain tab/blank parity — hand-verify the remainder on contact sheets.</li>
   </ul>
   <div class="success">≥98% edge-type accuracy across all cleanly-contoured pieces. Output: every north_star piece stored as a draft piece record (contour + corners + 4 typed edges).</div>
+  <div class="outcome">
+    <strong>Criterion met: flat-edge accuracy vs grid ground truth 99.68% (gray_fabric), 98.38%
+    (red_carpet)</strong>; wood 97.25%, cardboard 98.0%. The chord-deviation distribution is strongly
+    bimodal exactly as the literature promised — flat edges deviate &lt;4% of chord length, tabs/blanks
+    11–42% — so FLAT_THRESHOLD=0.07 sits in a wide safe gap; classification itself is genuinely the
+    easy step. Neighbor tab↔blank complementarity: 99.4% of adjacent pairs on gray_fabric.
+    Cross-background signature consistency 80.5%, dragged down by two things that are <em>not</em>
+    classifier errors: (1) wood segmentation leaks from M1 corrupting corners (the corner_disagreement
+    flags concentrate exactly there), and (2) <strong>toddler puzzles (peppa_kitchen 90.2%,
+    peppa_aquarium 94.1%) have genuinely figural border edges</strong> — physically shaped cutouts on
+    "flat" borders, verified visually — so the "border ⇒ flat" ground-truth assumption is what's wrong;
+    standard die-cut puzzles score 99.5–100%. Output achieved: 916 piece records (corners + 4 typed
+    edges + 100-pt polyline per edge), 0 splitting failures.
+  </div>
 </div>
 
 <div class="milestone">
-  <h4><span class="mtag a">M4</span> Edge complementarity matching — the first payoff</h4>
+  <h4><span class="mtag a">M4</span> Edge complementarity matching — the first payoff <span class="badge done">DONE ✓</span></h4>
   <div class="meta">~3–4 sessions · the milestone that proves the column's core value</div>
   <ul>
     <li>Normalize each edge (rotate to axis, arc-length resample to 100 points); match edge A against flipped edge B via chamfer distance. Also try the ~6-scalar descriptor variant.</li>
     <li>Evaluation is beautiful here: north_star grid positions give every true neighbor pair. For each interior edge, rank all candidate mating edges in the same puzzle — where does the true neighbor rank?</li>
   </ul>
   <div class="success">Report: true mating edge ranked #1 for X% of edges, top-5 for Y% — per puzzle brand. This number tells us how strong the geometry signal is on our actual puzzles (the jigsawlutioner brand-dependence question, answered with our data).</div>
+  <div class="outcome">
+    <strong>Reported: true mate top-1 = 67.4%, top-3 = 85.2%, top-5 = 90.5%</strong> over 1,878
+    interior-edge queries against ~25-candidate pools (all type-compatible edges of other pieces,
+    no orientation leak); gray_fabric top-1 = 77.4%, and median rank of the true mate is 1 on every
+    gray_fabric puzzle. Metric bake-off: <strong>plain pointwise L2 on canonical chord-normalized
+    100-pt polylines wins</strong> — chamfer loses (61.9% — arc-length index alignment carries
+    information; nearest-point freedom lets impostors cheat), the 6-scalar descriptor collapses too
+    much shape (29.3%), and the chord-length penalty <em>actively hurts</em> (28.2% — camera distance
+    varies per photo, empirically confirming the scale-free design decision). The corner_disagreement
+    quality gate is worth ~8 top-1 points (67.4% vs 59.4% including flagged records). The mate-flip
+    transform was verified exactly (distance 0.0) on a puzzle_shapes shared-edge pair.
+    <strong>The jigsawlutioner question, answered on our data: die-cut shape collisions are real</strong> —
+    median best-impostor/true-mate margin is only 1.22×, and failures are visibly <em>near-identical
+    competing tabs</em>, not matcher errors. Geometry is a strong ranker but cannot be a sole
+    accept/reject threshold: <strong>color must join the fingerprint (→ M6/M7)</strong>, exactly as
+    §3 predicted.
+  </div>
 </div>
 
 <div class="milestone">
-  <h4><span class="mtag a">M5</span> Fit TabParameters to real edges (optional, parallel)</h4>
+  <h4><span class="mtag a">M5</span> Fit TabParameters to real edges (optional, parallel) <span class="badge skip">DEFERRED</span></h4>
   <div class="meta">~2–3 sessions · reuses <code>optimize_torch.py</code> nearly as-is</div>
   <ul>
     <li>Wire M3's edge arcs into the existing chamfer/Hausdorff parameter fitter; record fit residuals.</li>
     <li>Compare real fitted parameter distributions against the synthetic generator's <code>TabParameters.random()</code> ranges — a free realism audit of the synthetic pipeline.</li>
   </ul>
   <div class="success">Median fit residual below an agreed IoU/chamfer threshold on tab/blank edges; a plot of real vs. synthetic parameter distributions (feeds back into the CNN column).</div>
+  <div class="outcome">
+    Deferred after M4: nothing downstream hard-depends on the parametric fit (matching works directly
+    on polylines, and the corner_disagreement flag covers the quality-gate role that fit residuals
+    were meant to play). Revisit if/when (a) compact hashable descriptors are needed at scale, or
+    (b) the synthetic generator's realism audit becomes a priority for the CNN column.
+  </div>
 </div>
 
 <p class="phasehead b">Phase B · Piece identity</p>
 <p class="phasedesc">From "an edge matches an edge" to "I recognize this specific piece" — the prerequisite for the scan-and-lock UX.</p>
 
 <div class="milestone">
-  <h4><span class="mtag b">M6</span> Piece fingerprint + re-identification benchmark</h4>
+  <h4><span class="mtag b">M6</span> Piece fingerprint + re-identification benchmark <span class="badge next">NEXT ▶</span></h4>
   <div class="meta">~3–4 sessions · north_star's 4-backgrounds-per-piece design was made for this</div>
   <ul>
     <li>Fingerprint = rotation-invariant shape descriptor (canonically ordered 4-edge descriptors) + LAB color histogram (+ optionally a small patch embedding).</li>
@@ -511,13 +594,13 @@
   <tr><th>Risk</th><th>Likelihood</th><th>Mitigation</th></tr>
   <tr>
     <td>Corner detection unreliable on real photos (the field's universal pain point)</td>
-    <td>High</td>
-    <td>M2 measures it before anything depends on it; design the piece record to carry corner confidence; plan a one-tap manual nudge in the app as the escape hatch.</td>
+    <td>High → <strong>retired by M2</strong></td>
+    <td>Confirmed as the hard step (naïve scoring hit only 29–68%), then solved with the shoulder-straightness cornerness prior + line-intersection refinement: 97–98.5% within 3% error. The polydp/curvature disagreement flag is the per-piece confidence signal (worth ~8 top-1 matching points in M4).</td>
   </tr>
   <tr>
     <td>Shape collisions — our puzzle brands reuse die-cut tab shapes, weakening geometry-only matching</td>
-    <td>Medium–high (kids' puzzles are rarely Ravensburger-grade)</td>
-    <td>Exactly why the fingerprint is shape <em>+ color</em> from day one; M4/M7 quantify the problem per brand instead of discovering it in production.</td>
+    <td><strong>Confirmed by M4</strong></td>
+    <td>Median best-impostor margin just 1.22×; failures are visibly near-identical competing tabs. Geometry ranks (top-5 90.5%) but cannot threshold — shape <em>+ color</em> fingerprints (M6/M7) carry identity, as planned.</td>
   </tr>
   <tr>
     <td>Perspective tilt distorts tab geometry from handheld capture</td>
@@ -536,8 +619,8 @@
   </tr>
   <tr>
     <td>rembg (u2net) too slow or imprecise for full-res contour work</td>
-    <td>Low–medium</td>
-    <td>On a controlled mat, classical thresholding may beat it — M1 compares both. rembg stays the fallback for messy backgrounds.</td>
+    <td><strong>Resolved by M1 — inverted</strong></td>
+    <td>rembg is the winner (95–99% clean); Otsu thresholding is unusable on textured real surfaces (0.8–22.5%). Remaining rembg weakness: dark artwork against wood — solved by mat choice (gray fabric), not by algorithm.</td>
   </tr>
 </table>
 </div>
