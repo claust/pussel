@@ -10,6 +10,8 @@ final class PieceCameraSession: NSObject, AVCapturePhotoCaptureDelegate {
   }
 
   let session = AVCaptureSession()
+  /// Serializes startRunning/stopRunning so they cannot interleave.
+  private let sessionQueue = DispatchQueue(label: "dk.delectosoft.pussel.piece-camera")
   private let photoOutput = AVCapturePhotoOutput()
   private var isConfigured = false
   private var captureContinuation: CheckedContinuation<UIImage?, Never>?
@@ -20,19 +22,23 @@ final class PieceCameraSession: NSObject, AVCapturePhotoCaptureDelegate {
     guard await AVCaptureDevice.requestAccess(for: .video) else { return false }
     configureIfNeeded()
     guard isConfigured else { return false }
-    guard !session.isRunning else { return true }
     let session = self.session
-    Task.detached {
-      // startRunning blocks, so keep it off the main thread.
+    // start/stop both block, so they run off the main thread — and both go
+    // through one serial queue so a stop that lands while a start is still
+    // queued runs after it. Checking `isRunning` on the caller's thread
+    // instead would let a quick open-then-close leave the camera running:
+    // the stop would see a session that had not flipped to running yet.
+    sessionQueue.async {
+      guard !session.isRunning else { return }
       session.startRunning()
     }
     return true
   }
 
   func stop() {
-    guard session.isRunning else { return }
     let session = self.session
-    Task.detached {
+    sessionQueue.async {
+      guard session.isRunning else { return }
       session.stopRunning()
     }
   }
