@@ -116,8 +116,7 @@ final class APIClient {
         // Silent re-auth failed or the retry 401ed again — drop the
         // session so RootView falls back to SignInView instead of
         // leaving an "authenticated" UI whose every call fails.
-        authStore.backendToken = nil
-        authStore.user = nil
+        authStore.clearSession()
       }
       throw APIError.from(data: data, status: http.statusCode)
     }

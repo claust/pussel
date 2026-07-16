@@ -15,4 +15,13 @@ final class AuthStore {
   var errorMessage: String?
 
   var isAuthenticated: Bool { backendToken != nil }
+
+  /// Drops every part of the signed-in session at once. Both the explicit
+  /// sign-out and the 401 session-drop go through here so neither can miss a
+  /// field as the session gains state.
+  func clearSession() {
+    user = nil
+    avatarURL = nil
+    backendToken = nil
+  }
 }
