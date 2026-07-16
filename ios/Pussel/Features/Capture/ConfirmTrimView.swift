@@ -135,13 +135,15 @@ struct ConfirmTrimView: View {
     withAnimation(.easeOut(duration: 0.45)) { hintOpacity = 0 }
   }
 
-  /// Sleeps, reporting whether the wait finished — a cancelled `.task` (the
-  /// view went away mid-demo) must stop the sequence rather than run the rest
-  /// of its animation steps back to back.
+  /// Sleeps between demo steps, reporting whether the sequence should carry on.
+  /// It stops when the `.task` is cancelled (the view went away mid-demo) or
+  /// once the user has rotated — a tap during an early step would otherwise be
+  /// followed by the demo fading itself back in to advertise a gesture the user
+  /// has already found.
   private func pause(for duration: Duration) async -> Bool {
     do {
       try await Task.sleep(for: duration)
-      return true
+      return quarterTurns == 0
     } catch {
       return false
     }
