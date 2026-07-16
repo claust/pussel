@@ -56,6 +56,16 @@ piece photos, 1024x768 JPEGs.
   grid ground truth (flat accuracy vs border edges, cross-background
   consistency, neighbor tab/blank complementarity), renders color-coded
   review sheets, and writes `edge_eval.json`.
+- `edge_match.py` (**M4**) — canonical edge frames (chord-normalized;
+  outward = negative canonical y), the mate `flip_edge` transform, and the
+  match distances (l2, chamfer, scalar6 feature vector, chord-penalty
+  variants). Its CLI runs a synthetic self-check on a `puzzle_shapes`
+  shared edge.
+- `eval_matching.py` (**M4 evaluation + review**) — ranks each interior
+  edge's true mate among all type-compatible edges of the other pieces in
+  the same puzzle x background; reports top-k / median rank per metric,
+  the corner_disagreement gate delta, genuine-vs-impostor stats, renders
+  query/mate/impostor curve sheets, and writes `matching_eval.json`.
 
 ## Usage
 
@@ -84,6 +94,10 @@ uv run python experiments/exp28_piece_geometry/eval_corners.py \
 # M3: split contours into classified N/E/S/W edges, then evaluate
 uv run python experiments/exp28_piece_geometry/edge_split.py
 uv run python experiments/exp28_piece_geometry/eval_edges.py
+
+# M4: edge-match self-check, then mate-ranking evaluation
+uv run python experiments/exp28_piece_geometry/edge_match.py
+uv run python experiments/exp28_piece_geometry/eval_matching.py
 ```
 
 ## Success criteria
@@ -111,6 +125,8 @@ outputs/
   edge_summary.csv                         # M3: one row per edge
   review_edges/{puzzle}_{background}.png   # M3 review sheets (flat=yellow tab=green blank=red)
   edge_eval.json                           # M3 evaluation numbers
+  review_matching/{puzzle}_{background}.png    # M4: query vs mate vs impostor curves
+  matching_eval.json                       # M4 evaluation numbers
 ```
 
 `outputs/` is gitignored, matching other experiments (e.g. `exp1`,
