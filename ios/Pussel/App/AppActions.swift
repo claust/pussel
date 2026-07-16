@@ -1,3 +1,5 @@
+import PhotosUI
+import SwiftUI
 import UIKit
 
 /// Wizard actions shared by the UI and the debug deep links.
@@ -76,10 +78,35 @@ extension AppModel {
 
   /// Queues a captured piece photo for prediction in the current session.
   func addPiece(image: UIImage) {
-    guard case .solving(let session) = flow.phase,
-      let jpeg = ImageUtilities.normalizedJPEG(from: image, maxDimension: 1600, quality: 0.9)
-    else { return }
+    guard case .solving(let session) = flow.phase else { return }
+    guard let jpeg = ImageUtilities.normalizedJPEG(from: image, maxDimension: 1600, quality: 0.9)
+    else {
+      session.errorMessage = "Could not process the photo."
+      return
+    }
+    session.errorMessage = nil
     session.enqueue(jpeg: jpeg, api: api)
+  }
+
+  /// Surfaces a piece-capture failure on the solve screen. The capture UI
+  /// sits in a full-screen cover, so callers dismiss after reporting.
+  func reportPieceError(_ message: String) {
+    guard case .solving(let session) = flow.phase else { return }
+    session.errorMessage = message
+  }
+
+  /// Adds a piece picked from the photo library. Both piece pickers route
+  /// here so a failed load reports itself on the solve screen instead of
+  /// looking like a dropped tap.
+  func addPiece(from item: PhotosPickerItem) async {
+    guard case .solving(let session) = flow.phase else { return }
+    guard let data = try? await item.loadTransferable(type: Data.self),
+      let image = UIImage(data: data)
+    else {
+      session.errorMessage = "Could not load the selected photo."
+      return
+    }
+    addPiece(image: image)
   }
 
   /// Reopens a stored puzzle from disk and resumes solving it. Pieces that
