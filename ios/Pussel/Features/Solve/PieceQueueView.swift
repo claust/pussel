@@ -34,9 +34,12 @@ private struct QueueTile: View {
   /// The model reports how far the piece is turned from its place in the
   /// puzzle, so undoing it shows the piece as it will sit there — the same
   /// counter-clockwise correction PuzzleOverlayView applies to its markers.
+  /// Normalized to (-180, 180] so the tile animates the short way round
+  /// rather than spinning three quarter turns to reach the same place.
   private var uprightRotation: Double {
     guard let piece = entry.result else { return 0 }
-    return -Double(piece.rotation)
+    let degrees = (360 - piece.rotation % 360) % 360
+    return Double(degrees > 180 ? degrees - 360 : degrees)
   }
 
   var body: some View {
