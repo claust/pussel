@@ -106,6 +106,25 @@ final class ImageUtilitiesTests: XCTestCase {
     XCTAssertEqual(bbox, CGRect(x: 5, y: 5, width: 10, height: 10))
   }
 
+  /// Opaque BLACK content (all color bytes 0, only alpha 255) placed
+  /// off-center in a non-square canvas: fails if the buffer scan reads a
+  /// color byte instead of alpha (channel-order regression) or if rows are
+  /// vertically flipped relative to CGImage pixel space.
+  func testAlphaBoundingBoxScansAlphaChannelNotColor() throws {
+    let size = CGSize(width: 20, height: 30)
+    let format = UIGraphicsImageRendererFormat()
+    format.opaque = false
+    format.scale = 1
+    let image = UIGraphicsImageRenderer(size: size, format: format).image { context in
+      UIColor.clear.setFill()
+      context.fill(CGRect(origin: .zero, size: size))
+      UIColor.black.setFill()
+      context.fill(CGRect(x: 2, y: 3, width: 5, height: 7))
+    }
+    let bbox = try XCTUnwrap(ImageUtilities.alphaBoundingBox(of: image))
+    XCTAssertEqual(bbox, CGRect(x: 2, y: 3, width: 5, height: 7))
+  }
+
   func testAlphaBoundingBoxNilForFullyTransparentImage() {
     XCTAssertNil(ImageUtilities.alphaBoundingBox(of: makeFullyTransparentImage()))
   }

@@ -153,7 +153,10 @@ enum ImageUtilities {
         bitsPerComponent: 8,
         bytesPerRow: bytesPerRow,
         space: CGColorSpaceCreateDeviceRGB(),
-        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        // Explicit big-endian byte order pins the memory layout to R,G,B,A
+        // regardless of host endianness, so index 3 is always alpha.
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+          | CGBitmapInfo.byteOrder32Big.rawValue)
     else { return nil }
     context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
     return pixels
