@@ -4,6 +4,8 @@ struct SolvingView: View {
   @Environment(AppModel.self) private var model
   let session: SolveSession
   @State private var isReuploading = false
+  /// Non-nil while the zoom viewer is up; carries what it opened on.
+  @State private var zoomFocus: PuzzleZoomFocus?
 
   var body: some View {
     ScrollView {
@@ -11,8 +13,12 @@ struct SolvingView: View {
         if session.puzzleExpired {
           expiredBanner
         }
-        PuzzleOverlayView(session: session)
-        PieceQueueView(session: session)
+        PuzzleOverlayView(session: session) {
+          zoomFocus = PuzzleZoomFocus(pieceID: nil)
+        }
+        PieceQueueView(session: session) { pieceID in
+          zoomFocus = PuzzleZoomFocus(pieceID: pieceID)
+        }
         if let error = session.errorMessage {
           Text(error)
             .font(.footnote)
@@ -20,6 +26,9 @@ struct SolvingView: View {
         }
       }
       .padding()
+    }
+    .fullScreenCover(item: $zoomFocus) { focus in
+      PuzzleZoomView(session: session, focus: focus)
     }
     .toolbar {
       // Work is saved locally, so leaving the session keeps it around on
