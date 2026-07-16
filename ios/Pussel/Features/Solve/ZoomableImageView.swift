@@ -57,14 +57,10 @@ struct ZoomableImageView<Overlay: View>: UIViewRepresentable {
       coordinator.refreshLayout(scrollView)
     }
 
-    // Sized in pixels so zoomScale 1 shows one image pixel per point, and the
-    // fit scale computed in `refreshLayout` is relative to the real image.
-    coordinator.baseSize = CGSize(
-      width: image.size.width * image.scale, height: image.size.height * image.scale)
-    coordinator.imageView.image = image
-    coordinator.imageView.frame = CGRect(origin: .zero, size: coordinator.baseSize)
+    // The image itself is installed by `updateImage`, which SwiftUI calls
+    // immediately after this via `updateUIView` — so sizing lives in one place
+    // and handles both the first picture and any later one.
     scrollView.addSubview(coordinator.imageView)
-    scrollView.contentSize = coordinator.baseSize
 
     let host = UIHostingController(rootView: overlay)
     host.view.backgroundColor = .clear
@@ -88,6 +84,7 @@ struct ZoomableImageView<Overlay: View>: UIViewRepresentable {
   func updateUIView(_ scrollView: UIScrollView, context: Context) {
     let coordinator = context.coordinator
     coordinator.host?.rootView = overlay
+    coordinator.updateImage(image, in: scrollView)
     guard coordinator.requestedFocus != focusRect else { return }
     coordinator.requestedFocus = focusRect
     // Deferred when the view has no size yet (the first update lands before
@@ -110,7 +107,10 @@ struct ZoomableImageView<Overlay: View>: UIViewRepresentable {
   final class Coordinator: NSObject, UIScrollViewDelegate {
     let imageView = UIImageView()
     var host: UIHostingController<Overlay>?
-    var baseSize: CGSize = .zero
+    /// The current image's pixel size, which is the zoom content size: at
+    /// zoomScale 1 one image pixel covers one point, so the fit scale computed
+    /// in `refreshLayout` is relative to the real picture.
+    private(set) var baseSize: CGSize = .zero
     /// The focus last handed to us, to detect a change (nil is a meaningful
     /// value, so this can't just be the optional itself).
     var requestedFocus: CGRect??
@@ -128,6 +128,29 @@ struct ZoomableImageView<Overlay: View>: UIViewRepresentable {
     }
 
     func viewForZooming(in scrollView: UIScrollView) -> UIView? { imageView }
+
+    /// Adopts a new image, keyed on its pixel size rather than on the instance.
+    ///
+    /// SwiftUI hands a fresh `UIImage` down whenever the enclosing body
+    /// re-runs — a piece prediction landing while the viewer is open is enough,
+    /// since the image is built from the session each time. Those instances are
+    /// the same picture, so reacting to identity would re-seat the content and
+    /// throw the user's zoom away mid-inspection. A different size is what
+    /// actually means a different picture, and it's the only case that needs
+    /// the fit scale recomputed.
+    func updateImage(_ image: UIImage, in scrollView: UIScrollView) {
+      let size = CGSize(
+        width: image.size.width * image.scale, height: image.size.height * image.scale)
+      guard size.width > 0, size.height > 0, size != baseSize else { return }
+      imageView.image = image
+      imageView.frame = CGRect(origin: .zero, size: size)
+      baseSize = size
+      scrollView.contentSize = size
+      // A new picture gets a fresh fit rather than inheriting the old one's
+      // magnification.
+      hasSized = false
+      refreshLayout(scrollView)
+    }
 
     func scrollViewDidZoom(_ scrollView: UIScrollView) {
       syncOverlay(scrollView)
