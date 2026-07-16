@@ -44,13 +44,11 @@ struct PieceCaptureView: View {
     .onChange(of: photoItem) { _, item in
       guard let item else { return }
       Task {
-        if let data = try? await item.loadTransferable(type: Data.self),
-          let image = UIImage(data: data)
-        {
-          model.addPiece(image: image)
-          dismiss()
-        }
+        await model.addPiece(from: item)
         photoItem = nil
+        // Dismiss either way: a failure sets an error on the solve screen,
+        // which stays hidden behind this cover.
+        dismiss()
       }
     }
   }
