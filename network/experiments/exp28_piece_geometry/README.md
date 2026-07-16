@@ -47,6 +47,15 @@ piece photos, 1024x768 JPEGs.
 - `eval_corners.py` (**M2 evaluation + review**) — runs the detectors on
   real photos, renders corner contact sheets, and (given hand labels) scores
   them the same way as `synth_benchmark.py`.
+- `edge_split.py` (**M3**) — splits each clean contour at the polydp corners
+  (curvature as cross-check -> `corner_disagreement` flag) into 4 arcs,
+  maps them to grid directions N/E/S/W, and classifies each as
+  tab/blank/flat by dominant chord deviation (`FLAT_THRESHOLD`); writes
+  per-piece records + `edge_summary.csv` and prints the deviation histogram.
+- `eval_edges.py` (**M3 evaluation + review**) — scores edge types against
+  grid ground truth (flat accuracy vs border edges, cross-background
+  consistency, neighbor tab/blank complementarity), renders color-coded
+  review sheets, and writes `edge_eval.json`.
 
 ## Usage
 
@@ -71,6 +80,10 @@ uv run python experiments/exp28_piece_geometry/label_corners.py --limit 60
 # M2: evaluate detectors on real photos (with review sheets + optional scoring)
 uv run python experiments/exp28_piece_geometry/eval_corners.py \
     --labels-file outputs/corner_labels.json
+
+# M3: split contours into classified N/E/S/W edges, then evaluate
+uv run python experiments/exp28_piece_geometry/edge_split.py
+uv run python experiments/exp28_piece_geometry/eval_edges.py
 ```
 
 ## Success criteria
@@ -80,6 +93,8 @@ uv run python experiments/exp28_piece_geometry/eval_corners.py \
 - **M2**: the best detector places all 4 corners within 3% of piece size
   (the `synth_benchmark.py` / `eval_corners.py` max-corner-error metric) on
   >=90% of the evaluated subset.
+- **M3**: flat-vs-nonflat edge accuracy >=98% (vs grid-position ground
+  truth) on the 2 friendly backgrounds (gray_fabric, red_carpet).
 
 ## Output layout
 
@@ -92,6 +107,10 @@ outputs/
   synth_benchmark.csv                      # per synthetic piece x method scores
   corner_labels.json                       # hand-labeled ground truth (label_corners.py)
   corner_eval.csv                          # per method x background error stats
+  piece_records/{puzzle_id}/{piece_stem}.json  # M3: corners + 4 classified edges per piece
+  edge_summary.csv                         # M3: one row per edge
+  review_edges/{puzzle}_{background}.png   # M3 review sheets (flat=yellow tab=green blank=red)
+  edge_eval.json                           # M3 evaluation numbers
 ```
 
 `outputs/` is gitignored, matching other experiments (e.g. `exp1`,

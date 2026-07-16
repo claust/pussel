@@ -295,6 +295,87 @@ def resample_contour(contour: np.ndarray, n: int) -> np.ndarray:
     return np.column_stack([resampled_x, resampled_y])
 
 
+def resample_polyline(points: np.ndarray, n: int) -> np.ndarray:
+    """Resample an OPEN polyline to `n` arc-length-equidistant points.
+
+    Unlike `resample_contour`, the polyline is not closed: the first and last
+    output points coincide with the input endpoints.
+
+    Args:
+        points: Mx2 array of polyline points.
+        n: Number of output points (>= 2).
+
+    Returns:
+        Nx2 resampled polyline.
+    """
+    diffs = np.diff(points, axis=0)
+    segment_lengths = np.sqrt((diffs**2).sum(axis=1))
+    cumulative_length = np.concatenate([[0.0], np.cumsum(segment_lengths)])
+    total_length = cumulative_length[-1]
+
+    if total_length == 0:
+        return np.repeat(points[:1], n, axis=0)
+
+    target_lengths = np.linspace(0, total_length, n)
+    resampled_x = np.interp(target_lengths, cumulative_length, points[:, 0])
+    resampled_y = np.interp(target_lengths, cumulative_length, points[:, 1])
+    return np.column_stack([resampled_x, resampled_y])
+
+
+# --- Contact-sheet plumbing (shared by the review scripts) -----------------
+
+SHEET_TITLE_HEIGHT = 18
+
+
+def make_titled_cell(image: np.ndarray, label: str, cell_width: int) -> np.ndarray:
+    """Resize an image to a fixed cell width and stack a title strip on top.
+
+    Args:
+        image: BGR image for the cell body.
+        label: Title text (e.g. "r00c03").
+        cell_width: Output cell width in pixels.
+
+    Returns:
+        BGR cell image of width `cell_width` including the title strip.
+    """
+    scale = cell_width / image.shape[1]
+    resized = cv2.resize(image, (cell_width, max(1, round(image.shape[0] * scale))))
+
+    title = np.full((SHEET_TITLE_HEIGHT, cell_width, 3), 255, dtype=np.uint8)
+    cv2.putText(title, label, (2, SHEET_TITLE_HEIGHT - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 0), 1, cv2.LINE_AA)
+    return np.vstack([title, resized])
+
+
+def assemble_grid_sheet(cells: dict, rows: int, cols: int, cell_width: int) -> np.ndarray:
+    """Assemble per-position cells into one contact-sheet image.
+
+    Missing positions get a gray placeholder; cells in a row are bottom-padded
+    to a common height so rows stack cleanly.
+
+    Args:
+        cells: Dict mapping (row, col) to a BGR cell image of width `cell_width`.
+        rows: Grid row count.
+        cols: Grid column count.
+        cell_width: Cell width in pixels (all cells must match).
+
+    Returns:
+        The assembled BGR contact sheet.
+    """
+    placeholder = np.full((SHEET_TITLE_HEIGHT + cell_width, cell_width, 3), 128, dtype=np.uint8)
+    sheet_rows: List[np.ndarray] = []
+    for row in range(rows):
+        row_cells = [cells.get((row, col), placeholder) for col in range(cols)]
+        row_h = max(cell.shape[0] for cell in row_cells)
+        padded = []
+        for cell in row_cells:
+            if cell.shape[0] < row_h:
+                pad = np.full((row_h - cell.shape[0], cell_width, 3), 255, dtype=np.uint8)
+                cell = np.vstack([cell, pad])
+            padded.append(cell)
+        sheet_rows.append(np.hstack(padded))
+    return np.vstack(sheet_rows)
+
+
 @dataclass(frozen=True)
 class QualityMetrics:
     """Quality signals for a contour extracted from a piece photo.
