@@ -7,6 +7,11 @@ struct PieceQueueView: View {
   let session: SolveSession
   @State private var isDeleteMode = false
 
+  /// Slack around the tile strip, sized to clear the delete badge's tappable
+  /// box (the widest thing that spills past a tile) plus a little for the tilt
+  /// the wiggle adds at the corners.
+  private static let stripSpill = QueueTile.badgeCornerOffset + 2
+
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
       HStack {
@@ -35,11 +40,14 @@ struct PieceQueueView: View {
         }
         .padding(.vertical, 2)
         // Room for the wiggle and the delete badge to spill outside the tiles.
-        .padding(.horizontal, 6)
-        .padding(.top, 6)
+        // The negative padding on the ScrollView widens its bounds by the same
+        // amount, so the spill stays inside the clip region (and stays
+        // tappable) without shifting where the tiles actually sit.
+        .padding(.horizontal, Self.stripSpill)
+        .padding(.top, Self.stripSpill)
       }
-      .padding(.horizontal, -6)
-      .padding(.top, -6)
+      .padding(.horizontal, -Self.stripSpill)
+      .padding(.top, -Self.stripSpill)
     }
     // No need to leave delete mode when the last piece goes: SolvingView drops
     // this view once `entries` is empty, which resets `isDeleteMode` with it.
@@ -53,6 +61,20 @@ private struct QueueTile: View {
   let onDelete: () -> Void
   let onEnterDeleteMode: () -> Void
   let onExitDeleteMode: () -> Void
+
+  /// Diameter of the visible badge circle.
+  private static let badgeCircleSize: CGFloat = 22
+  /// Tappable box around the circle. Bigger than the circle, because 22pt is
+  /// well under the 44pt guideline — but deliberately short of a full 44pt,
+  /// which would turn much of the tile's corner into a delete zone for an
+  /// action that has no undo.
+  private static let badgeHitSize: CGFloat = 32
+  /// How far the circle's centre sits inside the tile's corner.
+  private static let badgeCircleInset: CGFloat = 3
+  /// Distance the badge box is pushed past the corner to land the circle there.
+  /// Also how far the box spills outside the tile, which
+  /// `PieceQueueView`'s strip padding has to clear or the ScrollView clips it.
+  static let badgeCornerOffset = badgeHitSize / 2 - badgeCircleInset
 
   var body: some View {
     VStack(spacing: 6) {
@@ -75,7 +97,10 @@ private struct QueueTile: View {
       .overlay(alignment: .topTrailing) {
         if isDeleteMode {
           deleteBadge
-            .offset(x: 8, y: -8)
+            // The badge's box is `hitSize`, but only the circle inside it is
+            // visible, so offset by half the box to park the circle's centre
+            // `circleInset` in from the tile's corner.
+            .offset(x: Self.badgeCornerOffset, y: -Self.badgeCornerOffset)
             .transition(.scale.combined(with: .opacity))
         }
       }
@@ -112,9 +137,11 @@ private struct QueueTile: View {
       Image(systemName: "xmark")
         .font(.system(size: 10, weight: .bold))
         .foregroundStyle(.white)
-        .frame(width: 22, height: 22)
+        .frame(width: Self.badgeCircleSize, height: Self.badgeCircleSize)
         .background(Circle().fill(.black.opacity(0.7)))
         .overlay(Circle().stroke(.white.opacity(0.9), lineWidth: 1))
+        .frame(width: Self.badgeHitSize, height: Self.badgeHitSize)
+        .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
     .accessibilityLabel("Delete piece")
