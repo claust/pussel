@@ -39,11 +39,7 @@ struct PieceQueueView: View {
     .onChange(of: photoItem) { _, item in
       guard let item else { return }
       Task {
-        if let data = try? await item.loadTransferable(type: Data.self),
-          let image = UIImage(data: data)
-        {
-          model.addPiece(image: image)
-        }
+        await model.addPiece(from: item)
         photoItem = nil
       }
     }
