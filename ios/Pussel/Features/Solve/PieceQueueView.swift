@@ -2,7 +2,7 @@ import PhotosUI
 import SwiftUI
 import UIKit
 
-/// Horizontal strip of captured pieces with their prediction status, led by an
+/// Wrapping grid of captured pieces with their prediction status, led by an
 /// "add piece" tile that opens the camera full screen. Mirrors
 /// frontend/src/components/puzzle/piece-queue.tsx.
 struct PieceQueueView: View {
@@ -12,6 +12,13 @@ struct PieceQueueView: View {
   @State private var showCamera = false
   @State private var showLibrary = false
   @State private var photoItem: PhotosPickerItem?
+
+  /// Tiles take their column's full width rather than a fixed 84pt: pinning the
+  /// maximum to 84 leaves the row's slack as wide gaps between the columns, which
+  /// pushes the newest piece away from the plus it was captured with.
+  private static let columns = [
+    GridItem(.adaptive(minimum: 84), spacing: 12, alignment: .top)
+  ]
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
@@ -26,32 +33,29 @@ struct PieceQueueView: View {
           .font(.subheadline.weight(.semibold))
         }
       }
-      ScrollView(.horizontal, showsIndicators: false) {
-        // Top-aligned so the plus square lines up with the piece thumbnails
-        // rather than centering against their taller status labels.
-        HStack(alignment: .top, spacing: 12) {
-          AddPieceTile(action: addPiece)
-          ForEach(session.entries) { entry in
-            QueueTile(
-              entry: entry,
-              isDeleteMode: isDeleteMode,
-              onRetry: { session.retry(id: entry.id, api: model.api) },
-              onDelete: { withAnimation { session.remove(id: entry.id) } },
-              onEnterDeleteMode: { withAnimation { isDeleteMode = true } },
-              onExitDeleteMode: { withAnimation { isDeleteMode = false } }
-            )
-          }
+      // Top-aligned cells so the plus square lines up with the piece thumbnails
+      // rather than centering against their taller status labels.
+      LazyVGrid(columns: Self.columns, alignment: .leading, spacing: 12) {
+        AddPieceTile(action: addPiece)
+        // Newest first, so a piece appears next to the plus that captured it
+        // and the grid ages away from there. The stored order stays oldest
+        // first — the prediction queue works through it front to back.
+        ForEach(session.entries.reversed()) { entry in
+          QueueTile(
+            entry: entry,
+            isDeleteMode: isDeleteMode,
+            onRetry: { session.retry(id: entry.id, api: model.api) },
+            onDelete: { withAnimation { session.remove(id: entry.id) } },
+            onEnterDeleteMode: { withAnimation { isDeleteMode = true } },
+            onExitDeleteMode: { withAnimation { isDeleteMode = false } }
+          )
         }
-        .padding(.vertical, 2)
       }
-      // The delete badge hangs past its tile's top-right corner. Without this
-      // the scroll view clips it flat; a negative-padding trick would work too
-      // but silently widens the scroll bounds over the header's Done button.
-      .scrollClipDisabled()
+      .padding(.vertical, 2)
     }
-    // The strip outlives the pieces — it always shows the add tile — so delete
+    // The grid outlives the pieces — it always shows the add tile — so delete
     // mode has to be left explicitly once the last piece goes, or the Done
-    // button strands itself above an empty strip.
+    // button strands itself above an empty grid.
     .onChange(of: session.entries.isEmpty) { _, isEmpty in
       if isEmpty { isDeleteMode = false }
     }
@@ -78,7 +82,7 @@ struct PieceQueueView: View {
   }
 }
 
-/// Leading tile in the strip: a big plus that starts a new piece capture.
+/// Leading tile in the grid: a big plus that starts a new piece capture.
 private struct AddPieceTile: View {
   let action: () -> Void
 
@@ -86,7 +90,7 @@ private struct AddPieceTile: View {
     Button(action: action) {
       RoundedRectangle(cornerRadius: 10)
         .strokeBorder(.tint, style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
-        .frame(width: 84, height: 84)
+        .aspectRatio(1, contentMode: .fit)
         .overlay {
           Image(systemName: "plus")
             .font(.system(size: 34, weight: .light))
@@ -114,7 +118,7 @@ private struct QueueTile: View {
   /// action that has no undo.
   ///
   /// Note the *effective* target is smaller than this: hit testing is bounded
-  /// by the tile's 84pt frame, so the part of this box hanging outside the
+  /// by the tile's own frame, so the part of this box hanging outside the
   /// tile is drawn but never tapped. This buys the corner region inside the
   /// tile (~19pt square, up from ~14pt), and raising the number further only
   /// grows the untappable spill — a real 44pt target would need the badge
@@ -123,8 +127,8 @@ private struct QueueTile: View {
   /// How far the circle's centre sits inside the tile's corner.
   private static let badgeCircleInset: CGFloat = 3
   /// Distance the badge box is pushed past the corner to land the circle there.
-  /// The circle spills outside the tile by design, which is why the strip
-  /// disables scroll clipping — otherwise the scroll view slices it flat.
+  /// The circle spills ~8pt outside the tile by design, which the grid's 12pt
+  /// gutter absorbs without the badge landing on the neighbouring tile.
   private static let badgeCornerOffset = badgeHitSize / 2 - badgeCircleInset
 
   /// The model reports how far the piece is turned from its place in the
@@ -140,34 +144,38 @@ private struct QueueTile: View {
 
   var body: some View {
     VStack(spacing: 6) {
-      ZStack {
-        if let image = UIImage(data: entry.displayImage) {
-          Image(uiImage: image)
-            .resizable()
-            .scaledToFill()
-            .frame(width: 84, height: 84)
-            .rotationEffect(.degrees(uprightRotation))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .animation(.easeInOut(duration: 0.25), value: uprightRotation)
+      // A clear square sets the tile's size from the column it lands in; the
+      // thumbnail then fills it and is clipped back to the square, so a piece
+      // photo of any aspect ratio still tiles evenly with its neighbours.
+      Color.clear
+        .aspectRatio(1, contentMode: .fit)
+        .overlay {
+          if let image = UIImage(data: entry.displayImage) {
+            Image(uiImage: image)
+              .resizable()
+              .scaledToFill()
+              .rotationEffect(.degrees(uprightRotation))
+              .animation(.easeInOut(duration: 0.25), value: uprightRotation)
+          }
         }
-        if entry.status == .predicting {
-          RoundedRectangle(cornerRadius: 10)
-            .fill(.black.opacity(0.4))
-            .frame(width: 84, height: 84)
-          ProgressView()
-            .tint(.white)
+        .overlay {
+          if entry.status == .predicting {
+            Color.black.opacity(0.4)
+            ProgressView()
+              .tint(.white)
+          }
         }
-      }
-      .overlay(alignment: .topTrailing) {
-        if isDeleteMode {
-          deleteBadge
-            // The badge's box is `hitSize`, but only the circle inside it is
-            // visible, so offset by half the box to park the circle's centre
-            // `circleInset` in from the tile's corner.
-            .offset(x: Self.badgeCornerOffset, y: -Self.badgeCornerOffset)
-            .transition(.scale.combined(with: .opacity))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .overlay(alignment: .topTrailing) {
+          if isDeleteMode {
+            deleteBadge
+              // The badge's box is `hitSize`, but only the circle inside it is
+              // visible, so offset by half the box to park the circle's centre
+              // `circleInset` in from the tile's corner.
+              .offset(x: Self.badgeCornerOffset, y: -Self.badgeCornerOffset)
+              .transition(.scale.combined(with: .opacity))
+          }
         }
-      }
       statusLabel
       if entry.status.isRetryable {
         Button(action: onRetry) {
@@ -242,7 +250,7 @@ private struct QueueTile: View {
 
 extension View {
   /// Home-screen style jiggle. `seed` desynchronises neighbouring tiles so the
-  /// strip doesn't rock in unison.
+  /// grid doesn't rock in unison.
   fileprivate func wiggle(isActive: Bool, seed: Int) -> some View {
     modifier(WiggleModifier(isActive: isActive, seed: seed))
   }
