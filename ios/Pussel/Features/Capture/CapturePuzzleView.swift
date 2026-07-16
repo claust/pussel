@@ -27,6 +27,7 @@ struct CapturePuzzleView: View {
         Task { await handle(image: image, source: .camera) }
       }
       .ignoresSafeArea()
+      .keepsScreenAwake()
     }
     .photosPicker(isPresented: $showLibrary, selection: $photoItem, matching: .images)
     .onChange(of: photoItem) { _, item in
