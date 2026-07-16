@@ -36,7 +36,11 @@ struct PieceCaptureView: View {
         .padding(.bottom, 40)
     }
     .task {
-      guard await camera.start() else {
+      let started = await camera.start()
+      // Dismissed while the permission prompt was up — the user left on
+      // purpose, so there is nothing to complain about.
+      guard !Task.isCancelled else { return }
+      guard started else {
         model.reportPieceError("Pussel cannot use the camera. Check camera access in Settings.")
         dismiss()
         return

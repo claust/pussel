@@ -15,19 +15,25 @@ final class PieceCameraSession: NSObject, AVCapturePhotoCaptureDelegate {
   private let photoOutput = AVCapturePhotoOutput()
   private var isConfigured = false
   private var captureContinuation: CheckedContinuation<UIImage?, Never>?
+  /// Whether the view still wants the camera. `start()` awaits the permission
+  /// prompt, which can outlive the screen that asked, so the last caller's
+  /// intent decides — not how far along the awaits happen to be.
+  private var wantsRunning = false
 
   /// Returns false when the camera cannot run — access denied, or no usable
   /// device — so the caller can report it rather than show a dead preview.
   func start() async -> Bool {
+    wantsRunning = true
     guard await AVCaptureDevice.requestAccess(for: .video) else { return false }
     configureIfNeeded()
     guard isConfigured else { return false }
+    // The screen was dismissed while the permission prompt was up: stop() has
+    // already run, and starting now would strand the camera with no one left
+    // to stop it. Not a failure — nothing to report, nothing to run.
+    guard wantsRunning else { return true }
     let session = self.session
-    // start/stop both block, so they run off the main thread — and both go
-    // through one serial queue so a stop that lands while a start is still
-    // queued runs after it. Checking `isRunning` on the caller's thread
-    // instead would let a quick open-then-close leave the camera running:
-    // the stop would see a session that had not flipped to running yet.
+    // startRunning/stopRunning both block, so they run off the main thread —
+    // through one serial queue so a stop queued behind a start runs after it.
     sessionQueue.async {
       guard !session.isRunning else { return }
       session.startRunning()
@@ -36,6 +42,7 @@ final class PieceCameraSession: NSObject, AVCapturePhotoCaptureDelegate {
   }
 
   func stop() {
+    wantsRunning = false
     let session = self.session
     sessionQueue.async {
       guard session.isRunning else { return }
