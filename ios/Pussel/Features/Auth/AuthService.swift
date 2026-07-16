@@ -70,9 +70,7 @@ final class AuthService {
 
   func signOut() {
     GIDSignIn.sharedInstance.signOut()
-    authStore.user = nil
-    authStore.backendToken = nil
-    authStore.avatarURL = nil
+    authStore.clearSession()
   }
 
   /// Avatar pixel size: the 28pt icon on a 3x screen, rounded up.
