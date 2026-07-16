@@ -26,17 +26,27 @@ extension AppModel {
     // with the detection round-trip, so a big photo neither freezes the screen
     // nor delays the trim. Best-effort: a nil here costs zoom detail, not the
     // capture.
-    async let zoomSourceJPEG = Task.detached(priority: .userInitiated) {
+    //
+    // Unstructured on purpose. An `async let` is implicitly awaited when the
+    // scope exits, including the error path below — which would hold the
+    // spinner up through a whole encode before showing a detection failure.
+    let zoomSourceTask = Task.detached(priority: .userInitiated) {
       ImageUtilities.normalizedJPEG(
         from: image, maxDimension: ImageUtilities.zoomSourceMaxDimension, quality: 0.85)
-    }.value
+    }
     do {
       let detection = try await api.detectFrame(jpegData: jpeg)
       flow.phase = .confirmTrim(
         TrimCandidate(
-          rawJPEG: jpeg, zoomSourceJPEG: await zoomSourceJPEG, detection: detection, source: source)
+          rawJPEG: jpeg, zoomSourceJPEG: await zoomSourceTask.value, detection: detection,
+          source: source)
       )
     } catch {
+      // Marks the encode unwanted and drops it without waiting. It is plain
+      // synchronous pixel work, so it finishes on its own and the result is
+      // discarded — the point is that the failure surfaces now, not that the
+      // CPU stops.
+      zoomSourceTask.cancel()
       flow.errorMessage = error.localizedDescription
     }
   }
@@ -72,14 +82,18 @@ extension AppModel {
     // local CPU and the upload is pure waiting, so overlapping them hides the
     // zoom copy's cost behind the network entirely. Nothing downstream needs
     // it until the session is built.
-    async let displayJPEG = zoomCopy(of: candidate, quarterTurns: quarterTurns)
+    //
+    // Unstructured for the same reason as `startTrim`: an `async let` would be
+    // implicitly awaited on the way out of the error path too, leaving the
+    // spinner up for a whole warp before an upload failure could surface.
+    let zoomCopyTask = zoomCopyTask(for: candidate, quarterTurns: quarterTurns)
     do {
       let response = try await api.uploadPuzzle(jpegData: trimmed, pieceCount: pieceCount)
       let session = SolveSession(
         name: Self.puzzleNameFormatter.string(from: Date()),
         puzzleId: response.puzzleId,
         trimmedJPEG: trimmed,
-        displayJPEG: await displayJPEG,
+        displayJPEG: await zoomCopyTask.value,
         targetPieceCount: pieceCount,
         rows: grid.rows,
         cols: grid.cols,
@@ -90,6 +104,10 @@ extension AppModel {
       session.persist()
       flow.phase = .solving(session)
     } catch {
+      // See `startTrim`: dropped rather than waited on, so the upload failure
+      // is what the user sees next instead of a spinner over a warp whose
+      // result no session will ever hold.
+      zoomCopyTask.cancel()
       flow.errorMessage = error.localizedDescription
     }
   }
@@ -103,18 +121,21 @@ extension AppModel {
   /// is the user's rotation, baked in here exactly as it is for the uploaded
   /// image so the two stay in the same orientation.
   ///
-  /// Best-effort throughout: every failure returns nil, leaving the session to
+  /// Best-effort throughout: every failure yields nil, leaving the session to
   /// fall back to `trimmedJPEG` rather than blocking a working capture over a
   /// display nicety.
   ///
-  /// Runs off the main actor: decoding a multi-megapixel photo, warping it and
-  /// encoding the result takes long enough that doing it inline would freeze
-  /// the screen — including the very spinner meant to cover it.
-  private func zoomCopy(of candidate: TrimCandidate, quarterTurns: Int) async -> Data? {
-    guard let source = candidate.zoomSourceJPEG else { return nil }
+  /// Returns a running task rather than awaiting: the work is started so it can
+  /// overlap the upload, but the caller must stay free to abandon it if that
+  /// upload fails. It runs off the main actor because decoding a
+  /// multi-megapixel photo, warping it and encoding the result takes long
+  /// enough that doing it inline would freeze the screen — including the very
+  /// spinner meant to cover it.
+  private func zoomCopyTask(for candidate: TrimCandidate, quarterTurns: Int) -> Task<Data?, Never> {
+    let source = candidate.zoomSourceJPEG
     let corners = candidate.detection.corners
-    return await Task.detached(priority: .userInitiated) {
-      guard let image = UIImage(data: source),
+    return Task.detached(priority: .userInitiated) {
+      guard let source, let image = UIImage(data: source),
         let corrected = ImageUtilities.perspectiveCorrected(from: image, corners: corners)
       else {
         return nil
@@ -124,7 +145,7 @@ extension AppModel {
       return ImageUtilities.normalizedJPEG(
         from: ImageUtilities.rotated(corrected, quarterTurns: quarterTurns),
         maxDimension: ImageUtilities.zoomMaxDimension, quality: 0.85)
-    }.value
+    }
   }
 
   /// Queues a captured piece photo for prediction in the current session.
