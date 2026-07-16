@@ -8,6 +8,9 @@ import UIKit
 struct PieceQueueView: View {
   @Environment(AppModel.self) private var model
   let session: SolveSession
+  /// Invoked with a predicted piece's id when its tile is tapped, to open the
+  /// zoom viewer on where that piece was placed.
+  var onZoomToPiece: (UUID) -> Void = { _ in }
   @State private var isDeleteMode = false
   @State private var showCamera = false
   @State private var showLibrary = false
@@ -47,7 +50,8 @@ struct PieceQueueView: View {
             onRetry: { session.retry(id: entry.id, api: model.api) },
             onDelete: { withAnimation { session.remove(id: entry.id) } },
             onEnterDeleteMode: { withAnimation { isDeleteMode = true } },
-            onExitDeleteMode: { withAnimation { isDeleteMode = false } }
+            onExitDeleteMode: { withAnimation { isDeleteMode = false } },
+            onZoom: { onZoomToPiece(entry.id) }
           )
         }
       }
@@ -109,6 +113,7 @@ private struct QueueTile: View {
   let onDelete: () -> Void
   let onEnterDeleteMode: () -> Void
   let onExitDeleteMode: () -> Void
+  let onZoom: () -> Void
 
   /// Diameter of the visible badge circle.
   private static let badgeCircleSize: CGFloat = 22
@@ -190,8 +195,25 @@ private struct QueueTile: View {
     // reshuffle how its neighbours rock.
     .wiggle(isActive: isDeleteMode, seed: Int(entry.id.uuid.0))
     .contentShape(Rectangle())
+    // In delete mode a tap is the way out of it (the badges are the only
+    // thing meant to act there), so zooming waits until the grid is calm.
+    // A piece with no prediction yet has no place on the puzzle to zoom to.
     .onTapGesture {
-      if isDeleteMode { onExitDeleteMode() }
+      if isDeleteMode {
+        onExitDeleteMode()
+      } else if entry.result != nil {
+        onZoom()
+      }
+    }
+    // VoiceOver can't discover a tap gesture, so the zoom is published as an
+    // action on the tile rather than left implicit. Withheld exactly where the
+    // tap does something else (delete mode) or has nowhere to go (a piece with
+    // no prediction yet).
+    .accessibilityElement(children: .contain)
+    .accessibilityActions {
+      if !isDeleteMode, entry.result != nil {
+        Button("See placement on puzzle", action: onZoom)
+      }
     }
     // Simultaneous, because a plain `.onLongPressGesture` alongside
     // `.onTapGesture` loses the race and never fires.

@@ -18,7 +18,19 @@ enum CaptureSource {
 
 /// A detect-frame result awaiting user confirmation.
 struct TrimCandidate {
+  /// The photo as uploaded for detection — capped at the upload size, so the
+  /// detected `corners` are normalized to this image's frame.
   let rawJPEG: Data
+  /// The same photo kept at zoom quality, to re-warp into a sharp display
+  /// copy once the trim is accepted (see `AppModel.acceptTrim`). Nil when the
+  /// higher-resolution encode failed; the trim then falls back to the
+  /// server's upload-resolution crop.
+  ///
+  /// This is the *source photo*, not the crop taken from it — hence the
+  /// `zoomSource` naming it shares with `ImageUtilities.zoomSourceMaxDimension`,
+  /// which caps it. `SolveSession.zoomJPEG` is the other end of the pipeline:
+  /// the straightened crop that actually gets drawn.
+  let zoomSourceJPEG: Data?
   let detection: DetectFrameResponse
   let source: CaptureSource
 
@@ -61,6 +73,11 @@ final class SolveSession {
   let createdAt: Date
   var puzzleId: String
   let trimmedJPEG: Data
+  /// A higher-resolution copy of `trimmedJPEG` for the zoom viewer, or nil
+  /// for puzzles captured before it was kept (and when the local re-warp
+  /// failed). Never uploaded — `trimmedJPEG` remains the image the backend
+  /// predicted against. See `zoomJPEG`.
+  let displayJPEG: Data?
   /// Total piece count entered by the user when the puzzle was added —
   /// the puzzle's target size, not the number of captured pieces (which
   /// `PuzzleSummary.pieceCount` reports).
@@ -81,6 +98,7 @@ final class SolveSession {
     name: String,
     puzzleId: String,
     trimmedJPEG: Data,
+    displayJPEG: Data? = nil,
     targetPieceCount: Int,
     rows: Int,
     cols: Int,
@@ -91,6 +109,7 @@ final class SolveSession {
     self.name = name
     self.puzzleId = puzzleId
     self.trimmedJPEG = trimmedJPEG
+    self.displayJPEG = displayJPEG
     self.targetPieceCount = targetPieceCount
     self.rows = rows
     self.cols = cols
@@ -106,6 +125,12 @@ final class SolveSession {
   var placedEntries: [CaptureEntry] {
     entries.filter { $0.result != nil }
   }
+
+  /// Bytes the zoom viewer draws: the sharp copy when there is one, otherwise
+  /// the upload-resolution crop. The inline overlay deliberately stays on
+  /// `trimmedJPEG` — it is drawn a few hundred points wide, so decoding the
+  /// zoom copy for it would cost memory it can't show.
+  var zoomJPEG: Data { displayJPEG ?? trimmedJPEG }
 
   func enqueue(jpeg: Data, api: APIClient) {
     entries.append(CaptureEntry(jpeg: jpeg))
