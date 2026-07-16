@@ -56,29 +56,33 @@ struct AppFlowView: View {
 }
 
 /// The account menu icon: the user's Google profile picture when available
-/// (fetched via AsyncImage, cached by URLCache), otherwise the generic symbol.
+/// (fetched via AsyncImage), otherwise the generic person symbol.
 struct ProfileIconView: View {
   let pictureURL: URL?
 
   private static let iconSize: CGFloat = 28
 
   var body: some View {
-    if let pictureURL {
-      AsyncImage(url: pictureURL) { image in
-        image
-          .resizable()
-          .scaledToFill()
-          .frame(width: Self.iconSize, height: Self.iconSize)
-          .clipShape(Circle())
-      } placeholder: {
+    Group {
+      if let pictureURL {
+        AsyncImage(url: pictureURL) { image in
+          image
+            .resizable()
+            .scaledToFill()
+        } placeholder: {
+          fallbackIcon
+        }
+      } else {
         fallbackIcon
       }
-    } else {
-      fallbackIcon
     }
+    .frame(width: Self.iconSize, height: Self.iconSize)
+    .clipShape(Circle())
   }
 
   private var fallbackIcon: some View {
     Image(systemName: "person.crop.circle")
+      .resizable()
+      .scaledToFit()
   }
 }
