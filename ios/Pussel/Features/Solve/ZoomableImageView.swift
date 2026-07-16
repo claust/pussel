@@ -1,6 +1,14 @@
 import SwiftUI
 import UIKit
 
+/// How far the fit scale must move before it's treated as a real bounds change
+/// (rotation, a safe-area shift) rather than layout noise. Well below a scale
+/// change anyone could see, and far above float drift.
+///
+/// File scope because `ZoomableImageView` is generic, and a generic type can't
+/// hold a static stored property.
+private let fitEpsilon: CGFloat = 0.0001
+
 /// An image the user can pinch, pan and double-tap to zoom, with a SwiftUI
 /// `overlay` drawn on top that tracks the image as it moves.
 ///
@@ -135,11 +143,15 @@ struct ZoomableImageView<Overlay: View>: UIViewRepresentable {
       }
       let fit = min(
         scrollView.bounds.width / baseSize.width, scrollView.bounds.height / baseSize.height)
+      // Compared with a tolerance, not exactly: layoutSubviews runs throughout
+      // a pinch, and a sub-pixel drift in the bounds would otherwise re-seat
+      // zoomScale mid-gesture over a change too small to see.
+      //
       // `!hasSized` is not redundant with the scale check: an image that
       // happens to fit at exactly 1.0 matches UIScrollView's default minimum,
       // and would otherwise never be marked sized (leaving focus and
       // double-tap inert forever).
-      if !hasSized || scrollView.minimumZoomScale != fit {
+      if !hasSized || abs(scrollView.minimumZoomScale - fit) > fitEpsilon {
         // Hold the user's magnification across a bounds change (rotation)
         // rather than throwing them back to fit mid-inspection.
         let magnification = hasSized ? scrollView.zoomScale / scrollView.minimumZoomScale : 1

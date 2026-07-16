@@ -8,7 +8,8 @@ enum ImageUtilities {
   static let maxUploadBytes = 10 * 1024 * 1024
 
   /// Long-side cap for the puzzle's zoom copy — the straightened crop itself,
-  /// not the photo it came from (see `perspectiveCorrectedJPEG`).
+  /// not the photo it came from (see
+  /// `perspectiveCorrected(from:corners:maxDimension:)`).
   ///
   /// The uploaded image is capped at 1920 by `normalizedJPEG`, and the crop
   /// taken from it is smaller again, so on a 3× phone the server's copy is
