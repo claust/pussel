@@ -1,5 +1,6 @@
 import PhotosUI
 import SwiftUI
+import UIKit
 
 /// Horizontal strip of captured pieces with their prediction status, led by an
 /// "add piece" tile that opens the camera full screen. Mirrors
