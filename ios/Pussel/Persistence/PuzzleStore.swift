@@ -59,8 +59,18 @@ private struct StoredResult: Codable {
 @MainActor
 final class PuzzleStore {
   /// Home-screen rows, newest activity first. Refreshed after every mutation.
+  /// Excludes `pendingDelete` — a puzzle waiting out its undo window is gone
+  /// from the list even though its files are still on disk.
   private(set) var puzzles: [PuzzleSummary] = []
 
+  /// The puzzle hidden by the most recent `deleteWithUndo`, if its undo window
+  /// is still open. Drives the undo snackbar.
+  private(set) var pendingDelete: PuzzleSummary?
+
+  /// How long the user has to undo before the files actually go.
+  static let undoWindow: Duration = .seconds(5)
+
+  @ObservationIgnored private var purgeTask: Task<Void, Never>?
   @ObservationIgnored private let fileManager = FileManager.default
   @ObservationIgnored private let encoder: JSONEncoder
   @ObservationIgnored private let decoder: JSONDecoder
@@ -257,7 +267,46 @@ final class PuzzleStore {
     refresh()
   }
 
-  /// Rebuilds `puzzles` by scanning the store directory.
+  /// Hides a puzzle from the list and starts its undo window. Nothing is
+  /// touched on disk until the window closes, so quitting or crashing mid-undo
+  /// leaves the puzzle intact rather than half-deleted.
+  func deleteWithUndo(_ id: UUID) {
+    // Only one undo is offered at a time, so a second delete finishes the
+    // first — otherwise its files would linger with no way left to reach them.
+    commitPendingDelete()
+    guard let summary = puzzles.first(where: { $0.id == id }) else { return }
+    pendingDelete = summary
+    puzzles.removeAll { $0.id == id }
+    purgeTask = Task { [weak self] in
+      try? await Task.sleep(for: Self.undoWindow)
+      guard !Task.isCancelled else { return }
+      self?.commitPendingDelete()
+    }
+  }
+
+  /// Puts the pending puzzle back in the list and calls off the purge.
+  func undoDelete() {
+    purgeTask?.cancel()
+    purgeTask = nil
+    guard let summary = pendingDelete else { return }
+    pendingDelete = nil
+    upsert(summary)
+  }
+
+  /// Ends the undo window early and does the real delete. A no-op when nothing
+  /// is pending, so it's safe to call from anywhere that supersedes the undo.
+  func commitPendingDelete() {
+    purgeTask?.cancel()
+    purgeTask = nil
+    guard let pending = pendingDelete else { return }
+    // Cleared first: `delete` calls `refresh`, which would otherwise see the
+    // folder mid-removal and count it as still-pending.
+    pendingDelete = nil
+    delete(pending.id)
+  }
+
+  /// Rebuilds `puzzles` by scanning the store directory. A puzzle awaiting undo
+  /// is still on disk, so it has to be filtered back out or it reappears.
   func refresh() {
     let dirs =
       (try? fileManager.contentsOfDirectory(
@@ -265,6 +314,7 @@ final class PuzzleStore {
         includingPropertiesForKeys: [.isDirectoryKey]
       )) ?? []
     puzzles = dirs.compactMap { dir -> PuzzleSummary? in
+      guard dir.lastPathComponent != pendingDelete?.id.uuidString else { return nil }
       // The folder name is the canonical id (matching loadSession); use it
       // for the summary and all file lookups rather than manifest.id, which
       // could drift if a manifest was copied or moved.
