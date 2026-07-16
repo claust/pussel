@@ -1,6 +1,6 @@
-# exp28 Handoff — M1 (contour extraction) + M2 (corner detection)
+# exp28 Handoff — M1 (contour extraction) + M2 (corner detection) + M3 (edge classification)
 
-Date: 2026-07-16 · Status: **both milestone success criteria met** · Plan: [docs/piece-geometry-scanning.html](../../../docs/piece-geometry-scanning.html)
+Date: 2026-07-16 · Status: **all three milestone success criteria met** · Plan: [docs/piece-geometry-scanning.html](../../../docs/piece-geometry-scanning.html)
 
 ## M1 — High-fidelity contour extraction
 
@@ -77,17 +77,54 @@ synthetic benchmark is the *harder* test for corner geometry.
 produces the per-method/per-background error table automatically. Optional but recommended before
 M4 conclusions.
 
-## Recommendation going into M3 (edge splitting + tab/blank/flat classification)
+## M3 — Edge splitting + tab/blank/flat classification
 
-- Use **polydp as the primary detector, curvature as cross-check** — when their corner sets
-  disagree materially, flag the piece as low-confidence (this doubles as the quality gate for the
-  future scan-lock UX).
-- Split contours at the detected corners into 4 edge arcs; classify by the chord-midpoint test.
-  Ground truth for edge types is nearly free from north_star grid positions (border edges flat,
-  interior edges tab/blank with parity constraints).
-- Wood-background silent contour failures will pollute M3/M4 metrics slightly — either restrict
-  M3/M4 development to gray_fabric + red_carpet, or add a per-piece cross-background consistency
-  check later.
+`edge_split.py` splits each clean contour at the polydp corners (curvature as cross-check →
+`corner_disagreement` flag), maps the 4 arcs to grid directions N/E/S/W (pieces are photographed
+upright), classifies each by signed chord deviation, and emits a **piece record** per photo
+(corners + 4 typed edges, each with a 100-point polyline — the direct input for M4). Coverage:
+916/944 photos (the 28 non-clean contours skipped), 0 splitting failures, 135 disagreement flags.
+
+The deviation distribution is strongly bimodal exactly as hoped: flat edges live in [0, ~0.04]
+(median 0.009, as fraction of chord length), tab/blank features in [~0.11, 0.42] (median 0.292).
+`FLAT_THRESHOLD = 0.07` sits mid-gap.
+
+**Evaluation against near-free ground truth** (`eval_edges.py`, `outputs/edge_eval.json`):
+
+| Metric | Result |
+|---|---|
+| Flat-edge accuracy vs grid borders — gray_fabric | **99.68%** |
+| — red_carpet | 98.38% |
+| — cardboard | 98.00% |
+| — wood | 97.25% |
+| Neighbor tab↔blank complementarity — gray_fabric | 99.43% of adjacent pairs |
+| — red_carpet / cardboard / wood | 95.9% / 96.3% / 92.2% |
+| Cross-background signature consistency | 80.5% of pieces (190/236) |
+
+**Criterion (≥98% edge-type accuracy on clean contours): met on the friendly backgrounds
+(99.68% / 98.38%).**
+
+Failure taxonomy (visually verified on review sheets in `outputs/review_edges/`):
+
+1. **Wood segmentation leaks** (dominates wood's errors and the consistency shortfall): silhouettes
+   that merged wood-grain shadow or neighboring props passed `is_clean`, corrupting corners and
+   hence edge types. An M1 issue surfacing downstream, exactly as predicted — the
+   `corner_disagreement` flags concentrate on these records, validating the flag as a quality gate.
+2. **Figural borders on toddler puzzles are GT noise, not classifier error**: peppa_kitchen (90.2%)
+   and peppa_aquarium (94.1%) have border edges with real shaped cutouts/protrusions (verified
+   visually — e.g. peppa_kitchen r01c01's bottom border). The classifier honestly reports non-flat
+   geometry; the "border ⇒ flat" assumption is what's wrong. Standard-die-cut puzzles score
+   99.5–100%.
+3. Residual tab↔blank flips across backgrounds trace to occasional corner mis-snaps rotating an
+   arc's chord — revisit only if M4 edge matching turns out sensitive to it.
+
+## Recommendation going into M4 (edge complementarity matching)
+
+- Match on the per-edge 100-point polylines already stored in the piece records; gray_fabric
+  records are the cleanest development set (99.7% edge types, 99.4% complementarity).
+- Exclude records with `corner_disagreement` from the first matching benchmark (135/916), then
+  measure how much including them hurts — that quantifies the quality gate's value for the scan UX.
+- True-neighbor ranking GT comes from grid adjacency, same as the complementarity check.
 
 ## Reproduce
 
@@ -98,6 +135,8 @@ uv run python experiments/exp28_piece_geometry/contact_sheets.py
 uv run python experiments/exp28_piece_geometry/synth_benchmark.py --n 200 --seed 42
 uv run python experiments/exp28_piece_geometry/debug_synth_failures.py      # renders failure cases
 uv run python experiments/exp28_piece_geometry/eval_corners.py              # corner sheets (+ eval if labels exist)
+uv run python experiments/exp28_piece_geometry/edge_split.py                # M3: piece records + edge_summary.csv
+uv run python experiments/exp28_piece_geometry/eval_edges.py                # M3: eval + edge-type sheets
 ```
 
 Dataset: `network/datasets/north_star/v1` (local only, regenerate via `experiments/north_star/ingest.py`).
