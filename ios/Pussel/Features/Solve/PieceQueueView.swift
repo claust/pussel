@@ -12,11 +12,6 @@ struct PieceQueueView: View {
   @State private var showLibrary = false
   @State private var photoItem: PhotosPickerItem?
 
-  /// Slack around the tile strip, sized to clear the delete badge's tappable
-  /// box (the widest thing that spills past a tile) plus a little for the tilt
-  /// the wiggle adds at the corners.
-  private static let stripSpill = QueueTile.badgeCornerOffset + 2
-
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
       HStack {
@@ -47,15 +42,11 @@ struct PieceQueueView: View {
           }
         }
         .padding(.vertical, 2)
-        // Room for the wiggle and the delete badge to spill outside the tiles.
-        // The negative padding on the ScrollView widens its bounds by the same
-        // amount, so the spill stays inside the clip region (and stays
-        // tappable) without shifting where the tiles actually sit.
-        .padding(.horizontal, Self.stripSpill)
-        .padding(.top, Self.stripSpill)
       }
-      .padding(.horizontal, -Self.stripSpill)
-      .padding(.top, -Self.stripSpill)
+      // The delete badge hangs past its tile's top-right corner. Without this
+      // the scroll view clips it flat; a negative-padding trick would work too
+      // but silently widens the scroll bounds over the header's Done button.
+      .scrollClipDisabled()
     }
     // The strip outlives the pieces — it always shows the add tile — so delete
     // mode has to be left explicitly once the last piece goes, or the Done
@@ -131,9 +122,9 @@ private struct QueueTile: View {
   /// How far the circle's centre sits inside the tile's corner.
   private static let badgeCircleInset: CGFloat = 3
   /// Distance the badge box is pushed past the corner to land the circle there.
-  /// Also how far the box spills outside the tile, which
-  /// `PieceQueueView`'s strip padding has to clear or the ScrollView clips it.
-  static let badgeCornerOffset = badgeHitSize / 2 - badgeCircleInset
+  /// The circle spills outside the tile by design, which is why the strip
+  /// disables scroll clipping — otherwise the scroll view slices it flat.
+  private static let badgeCornerOffset = badgeHitSize / 2 - badgeCircleInset
 
   /// The model reports how far the piece is turned from its place in the
   /// puzzle, so undoing it shows the piece as it will sit there — the same
