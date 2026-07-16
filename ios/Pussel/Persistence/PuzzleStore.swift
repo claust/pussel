@@ -52,7 +52,8 @@ private struct StoredResult: Codable {
 
 /// Local, on-device persistence for solved/in-progress puzzles. Everything is
 /// kept under `Documents/Puzzles/<uuid>/` — one folder per puzzle with a
-/// `manifest.json`, the `trimmed.jpg` picture, and a `pieces/` directory of
+/// `manifest.json`, the `trimmed.jpg` picture, an optional zoom-quality
+/// `display.jpg` of the same crop, and a `pieces/` directory of
 /// `<pieceId>-upload.jpg` (and optional `<pieceId>-display.jpg`) files. No
 /// server storage: reopening a puzzle rehydrates purely from disk.
 @Observable
@@ -101,6 +102,13 @@ final class PuzzleStore {
     let trimmed = trimmedURL(session.id)
     if !fileManager.fileExists(atPath: trimmed.path) {
       try? session.trimmedJPEG.write(to: trimmed, options: .atomic)
+    }
+    // The zoom copy is optional and immutable, so it's written once and its
+    // absence is a valid state (puzzles from before it was kept, and captures
+    // whose re-warp failed) — loadSession falls back to the trimmed image.
+    let display = puzzleDisplayURL(session.id)
+    if let displayJPEG = session.displayJPEG, !fileManager.fileExists(atPath: display.path) {
+      try? displayJPEG.write(to: display, options: .atomic)
     }
     // The trimmed image is immutable, so its downsampled thumbnail is
     // generated once and reused for the home-screen list.
@@ -231,6 +239,7 @@ final class PuzzleStore {
       name: manifest.name,
       puzzleId: manifest.serverPuzzleId,
       trimmedJPEG: trimmed,
+      displayJPEG: try? Data(contentsOf: puzzleDisplayURL(id)),
       targetPieceCount: manifest.pieceCount,
       rows: manifest.rows,
       cols: manifest.cols,
@@ -365,6 +374,12 @@ final class PuzzleStore {
 
   private func trimmedURL(_ id: UUID) -> URL {
     puzzleDir(id).appendingPathComponent("trimmed.jpg")
+  }
+
+  /// The puzzle's optional zoom-quality overview (`SolveSession.displayJPEG`),
+  /// distinct from a piece's `<pieceId>-display.jpg` under `pieces/`.
+  private func puzzleDisplayURL(_ id: UUID) -> URL {
+    puzzleDir(id).appendingPathComponent("display.jpg")
   }
 
   private func thumbnailURL(_ id: UUID) -> URL {

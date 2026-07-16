@@ -44,6 +44,96 @@ final class ImageUtilitiesTests: XCTestCase {
     XCTAssertEqual(turned.size, CGSize(width: 4, height: 8))
   }
 
+  // MARK: perspectiveCorrected(from:corners:maxDimension:)
+
+  /// A quad covering the whole image, so the correction is a no-op crop and
+  /// only the sizing behaviour is under test.
+  private func fullFrameCorners() -> QuadCorners {
+    QuadCorners(
+      topLeft: NormalizedPoint(x: 0, y: 0),
+      topRight: NormalizedPoint(x: 1, y: 0),
+      bottomRight: NormalizedPoint(x: 1, y: 1),
+      bottomLeft: NormalizedPoint(x: 0, y: 1))
+  }
+
+  private func correctedSize(
+    _ image: UIImage, corners: QuadCorners, maxDimension: CGFloat
+  ) throws -> CGSize {
+    let corrected = try XCTUnwrap(
+      ImageUtilities.perspectiveCorrected(
+        from: image, corners: corners, maxDimension: maxDimension))
+    return CGSize(
+      width: corrected.size.width * corrected.scale,
+      height: corrected.size.height * corrected.scale)
+  }
+
+  func testPerspectiveCorrectedFullFrameKeepsSizeUnderCap() throws {
+    let size = try correctedSize(
+      makeImage(width: 800, height: 400), corners: fullFrameCorners(), maxDimension: 3000)
+    // Comfortably under the cap, so the whole frame survives at 1:1 rather
+    // than being upscaled to meet it.
+    XCTAssertEqual(size, CGSize(width: 800, height: 400))
+  }
+
+  func testPerspectiveCorrectedDownscalesLongSideToCap() throws {
+    let size = try correctedSize(
+      makeImage(width: 800, height: 400), corners: fullFrameCorners(), maxDimension: 200)
+    XCTAssertEqual(size.width, 200, accuracy: 1)
+    XCTAssertEqual(size.height, 100, accuracy: 1)
+  }
+
+  func testPerspectiveCorrectedCropsToQuad() throws {
+    // The left half of an 800×400 image: a 400×400 square, so the result must
+    // carry the quad's aspect ratio, not the source photo's.
+    let corners = QuadCorners(
+      topLeft: NormalizedPoint(x: 0, y: 0),
+      topRight: NormalizedPoint(x: 0.5, y: 0),
+      bottomRight: NormalizedPoint(x: 0.5, y: 1),
+      bottomLeft: NormalizedPoint(x: 0, y: 1))
+    let size = try correctedSize(
+      makeImage(width: 800, height: 400), corners: corners, maxDimension: 3000)
+    XCTAssertEqual(size.width, 400, accuracy: 1)
+    XCTAssertEqual(size.height, 400, accuracy: 1)
+  }
+
+  func testPerspectiveCorrectedStraightensSkewedQuadToLongestEdges() throws {
+    // A quad whose top edge spans half the width and whose bottom edge spans
+    // all of it — a picture shot at an angle. Each output side takes the
+    // longer of its two source edges, so this straightens to the full 800
+    // wide rather than the foreshortened 400.
+    let corners = QuadCorners(
+      topLeft: NormalizedPoint(x: 0.25, y: 0),
+      topRight: NormalizedPoint(x: 0.75, y: 0),
+      bottomRight: NormalizedPoint(x: 1, y: 1),
+      bottomLeft: NormalizedPoint(x: 0, y: 1))
+    let size = try correctedSize(
+      makeImage(width: 800, height: 400), corners: corners, maxDimension: 3000)
+    XCTAssertEqual(size.width, 800, accuracy: 1)
+  }
+
+  func testPerspectiveCorrectedDegenerateQuadReturnsNil() {
+    // Every corner in the same place: no region to straighten.
+    let point = NormalizedPoint(x: 0.5, y: 0.5)
+    let corners = QuadCorners(
+      topLeft: point, topRight: point, bottomRight: point, bottomLeft: point)
+    XCTAssertNil(
+      ImageUtilities.perspectiveCorrected(
+        from: makeImage(width: 800, height: 400), corners: corners))
+  }
+
+  func testPerspectiveCorrectedFeedsRotationWithoutAReEncode() throws {
+    // The zoom copy's pipeline (AppModel.acceptTrim): warp, rotate, encode
+    // once. `perspectiveCorrected` returning an image is what lets the
+    // rotation happen before the single lossy pass.
+    let corrected = try XCTUnwrap(
+      ImageUtilities.perspectiveCorrected(
+        from: makeImage(width: 800, height: 400), corners: fullFrameCorners(),
+        maxDimension: 3000))
+    let turned = ImageUtilities.rotated(corrected, quarterTurns: 1)
+    XCTAssertEqual(turned.size.width * turned.scale, 400, accuracy: 1)
+    XCTAssertEqual(turned.size.height * turned.scale, 800, accuracy: 1)
+  }
+
   // MARK: rotatedJPEG(from:quarterTurns:)
 
   func testRotatedJPEGZeroTurnsReturnsInputUnchanged() throws {

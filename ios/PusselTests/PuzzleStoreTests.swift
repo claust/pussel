@@ -32,17 +32,58 @@ final class PuzzleStoreTests: XCTestCase {
     puzzleDir(puzzle).appendingPathComponent("pieces/\(piece.uuidString)-upload.jpg")
   }
 
-  private func makeSession(store: PuzzleStore, name: String = "Test") -> SolveSession {
+  private func displayFile(_ puzzle: UUID) -> URL {
+    puzzleDir(puzzle).appendingPathComponent("display.jpg")
+  }
+
+  private func makeSession(
+    store: PuzzleStore, name: String = "Test", displayJPEG: Data? = nil
+  ) -> SolveSession {
     SolveSession(
       id: UUID(),
       name: name,
       puzzleId: "server-123",
       trimmedJPEG: tinyJPEG(),
+      displayJPEG: displayJPEG,
       targetPieceCount: 48,
       rows: 6,
       cols: 8,
       store: store
     )
+  }
+
+  // MARK: Zoom copy (display.jpg)
+
+  func testZoomCopyIsPersistedAndReloaded() throws {
+    let store = PuzzleStore()
+    let displayJPEG = Data("zoom-quality-copy".utf8)
+    let session = makeSession(store: store, displayJPEG: displayJPEG)
+    addTeardownBlock { @MainActor in store.delete(session.id) }
+
+    session.persist()
+    XCTAssertTrue(FileManager.default.fileExists(atPath: displayFile(session.id).path))
+
+    let reloaded = try XCTUnwrap(store.loadSession(id: session.id))
+    XCTAssertEqual(reloaded.displayJPEG, displayJPEG)
+    // The viewer draws the sharp copy when there is one.
+    XCTAssertEqual(reloaded.zoomJPEG, displayJPEG)
+  }
+
+  func testPuzzleWithoutZoomCopyReloadsAndFallsBackToTrimmed() throws {
+    // The compatibility path for every puzzle saved before the zoom copy
+    // existed, and for a capture whose re-warp failed: no display.jpg on disk,
+    // and the viewer falls back to the trimmed image rather than showing
+    // nothing.
+    let store = PuzzleStore()
+    let session = makeSession(store: store, displayJPEG: nil)
+    addTeardownBlock { @MainActor in store.delete(session.id) }
+
+    session.persist()
+    XCTAssertFalse(FileManager.default.fileExists(atPath: displayFile(session.id).path))
+
+    let reloaded = try XCTUnwrap(store.loadSession(id: session.id))
+    XCTAssertNil(reloaded.displayJPEG)
+    XCTAssertEqual(reloaded.zoomJPEG, reloaded.trimmedJPEG)
   }
 
   func testSavePersistsSummaryAndSurvivesReload() throws {
