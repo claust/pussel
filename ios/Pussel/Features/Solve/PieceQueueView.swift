@@ -108,7 +108,7 @@ private struct QueueTile: View {
   }
 
   private var deleteBadge: some View {
-    Button(action: onDelete) {
+    Button(role: .destructive, action: onDelete) {
       Image(systemName: "xmark")
         .font(.system(size: 10, weight: .bold))
         .foregroundStyle(.white)
