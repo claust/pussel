@@ -5,7 +5,11 @@ struct ConfirmTrimView: View {
   private static let lowConfidence = 0.4
 
   @Environment(AppModel.self) private var model
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var quarterTurns = 0
+  @State private var hintOpacity = 0.0
+  @State private var hintTurns = 0
+  @State private var didPlayHint = false
   let candidate: TrimCandidate
   /// Decoded once at init rather than in `body`, which re-runs on every
   /// rotate tap (base64-decoding the data URL and the JPEG each time would be
@@ -43,18 +47,15 @@ struct ConfirmTrimView: View {
               .rotationEffect(.degrees(Double(quarterTurns) * 90))
           }
           .frame(maxHeight: 420)
-        Button {
-          // Always increment (never wrap to 0) so the animation turns
-          // clockwise on every tap instead of unwinding 270° → 0°.
-          withAnimation(.snappy(duration: 0.35)) {
-            quarterTurns += 1
-          }
-        } label: {
-          Label("Rotate", systemImage: "rotate.right")
-        }
-        .buttonStyle(.bordered)
-        .controlSize(.regular)
-        .disabled(model.flow.isBusy)
+          .overlay { tapHint }
+          .contentShape(Rectangle())
+          .onTapGesture { rotate() }
+          .accessibilityElement()
+          .accessibilityLabel("Trimmed puzzle photo")
+          .accessibilityHint("Double tap to rotate 90 degrees clockwise.")
+          .accessibilityAddTraits(.isButton)
+          .accessibilityAction { rotate() }
+          .task { await playTapHint() }
       } else {
         ContentUnavailableView("Could not decode the trimmed image", systemImage: "xmark.octagon")
       }
@@ -100,5 +101,63 @@ struct ConfirmTrimView: View {
       }
     }
     .padding(24)
+  }
+
+  /// One-shot "tap here to rotate" demo drawn over the photo: a tapping finger
+  /// beside a rotate glyph that turns a quarter clockwise. Purely decorative —
+  /// hidden from VoiceOver (which gets the accessibility hint instead) and
+  /// non-interactive so it never swallows the tap it is advertising.
+  private var tapHint: some View {
+    ZStack(alignment: .bottomTrailing) {
+      Image(systemName: "rotate.right")
+        .font(.system(size: 52, weight: .semibold))
+        .rotationEffect(.degrees(Double(hintTurns) * 90))
+      Image(systemName: "hand.tap.fill")
+        .font(.system(size: 26, weight: .semibold))
+        .offset(x: 12, y: 10)
+    }
+    .foregroundStyle(.white)
+    .padding(24)
+    .background(.black.opacity(0.55), in: Circle())
+    .opacity(hintOpacity)
+    .allowsHitTesting(false)
+    .accessibilityHidden(true)
+  }
+
+  private func playTapHint() async {
+    guard previewImage != nil, !didPlayHint else { return }
+    didPlayHint = true
+    guard await pause(for: .milliseconds(500)) else { return }
+    withAnimation(.easeIn(duration: 0.25)) { hintOpacity = 1 }
+    guard await pause(for: .milliseconds(550)) else { return }
+    withAnimation(reduceMotion ? nil : .snappy(duration: 0.45)) { hintTurns = 1 }
+    guard await pause(for: .milliseconds(950)) else { return }
+    withAnimation(.easeOut(duration: 0.45)) { hintOpacity = 0 }
+  }
+
+  /// Sleeps between demo steps, reporting whether the sequence should carry on.
+  /// It stops when the `.task` is cancelled (the view went away mid-demo) or
+  /// once the user has rotated — a tap during an early step would otherwise be
+  /// followed by the demo fading itself back in to advertise a gesture the user
+  /// has already found.
+  private func pause(for duration: Duration) async -> Bool {
+    do {
+      try await Task.sleep(for: duration)
+      return quarterTurns == 0
+    } catch {
+      return false
+    }
+  }
+
+  private func rotate() {
+    guard !model.flow.isBusy else { return }
+    // The demo has served its purpose once the user taps; leaving it to finish
+    // would have it spinning over an image that is already spinning.
+    withAnimation(.easeOut(duration: 0.2)) { hintOpacity = 0 }
+    // Always increment (never wrap to 0) so the animation turns clockwise on
+    // every tap instead of unwinding 270° → 0°.
+    withAnimation(.snappy(duration: 0.35)) {
+      quarterTurns += 1
+    }
   }
 }
