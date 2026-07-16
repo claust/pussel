@@ -22,7 +22,7 @@ from app.config import settings
 from app.models.model import FastBackboneModel
 from app.models.puzzle_model import PieceResponse, Position
 from app.services.background_remover import get_background_remover
-from app.services.piece_detector import crop_to_alpha_region
+from app.services.piece_detector import crop_to_alpha_region, harden_alpha
 
 # Path to checkpoint (exp20 4x4 grid model, realistic pieces, ~72.9% cell accuracy)
 DEFAULT_CHECKPOINT_PATH = str(
@@ -240,6 +240,10 @@ class ImageProcessor:
 
                 # Get RGBA image with transparent background for frontend display
                 rgba_image = remover.remove_background(contents)
+
+                # Drop the matte's faint background ghost before cropping so
+                # neither the client nor the crop sees it.
+                rgba_image = harden_alpha(rgba_image)
 
                 # Crop to the segmented subject so the piece fills the frame for the
                 # model (training pieces fill the image) instead of floating in a
