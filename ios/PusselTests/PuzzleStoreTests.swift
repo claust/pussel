@@ -155,4 +155,80 @@ final class PuzzleStoreTests: XCTestCase {
     XCTAssertNil(store.loadSession(id: session.id))
     XCTAssertFalse(FileManager.default.fileExists(atPath: puzzleDir(session.id).path))
   }
+
+  func testDeleteWithUndoHidesPuzzleButKeepsFilesDuringWindow() throws {
+    let store = PuzzleStore()
+    let session = makeSession(store: store)
+    addTeardownBlock { @MainActor in store.delete(session.id) }
+    session.persist()
+
+    store.deleteWithUndo(session.id)
+
+    // Gone from the list, still whole on disk — the point of the undo window.
+    XCTAssertFalse(store.puzzles.contains { $0.id == session.id })
+    XCTAssertEqual(store.pendingDelete?.id, session.id)
+    XCTAssertTrue(FileManager.default.fileExists(atPath: puzzleDir(session.id).path))
+
+    // A rescan must not resurrect the row just because the folder is there.
+    store.refresh()
+    XCTAssertFalse(store.puzzles.contains { $0.id == session.id })
+  }
+
+  func testUndoDeleteRestoresPuzzle() throws {
+    let store = PuzzleStore()
+    let session = makeSession(store: store)
+    addTeardownBlock { @MainActor in store.delete(session.id) }
+    session.persist()
+
+    store.deleteWithUndo(session.id)
+    store.undoDelete()
+
+    XCTAssertNil(store.pendingDelete)
+    XCTAssertTrue(store.puzzles.contains { $0.id == session.id })
+    XCTAssertNotNil(store.loadSession(id: session.id))
+    XCTAssertTrue(FileManager.default.fileExists(atPath: puzzleDir(session.id).path))
+  }
+
+  func testCommitPendingDeleteRemovesFilesForGood() throws {
+    let store = PuzzleStore()
+    let session = makeSession(store: store)
+    addTeardownBlock { @MainActor in store.delete(session.id) }
+    session.persist()
+
+    store.deleteWithUndo(session.id)
+    store.commitPendingDelete()
+
+    XCTAssertNil(store.pendingDelete)
+    XCTAssertFalse(store.puzzles.contains { $0.id == session.id })
+    XCTAssertFalse(FileManager.default.fileExists(atPath: puzzleDir(session.id).path))
+
+    // Undoing after the window has closed must not resurrect a deleted row.
+    store.undoDelete()
+    XCTAssertFalse(store.puzzles.contains { $0.id == session.id })
+  }
+
+  func testSecondDeleteCommitsTheFirst() throws {
+    let store = PuzzleStore()
+    let first = makeSession(store: store, name: "First")
+    let second = makeSession(store: store, name: "Second")
+    addTeardownBlock { @MainActor in
+      store.delete(first.id)
+      store.delete(second.id)
+    }
+    first.persist()
+    second.persist()
+
+    store.deleteWithUndo(first.id)
+    store.deleteWithUndo(second.id)
+
+    // Only the newest delete is undoable; the first is already gone for good,
+    // otherwise its files would linger with no way left to reach them.
+    XCTAssertEqual(store.pendingDelete?.id, second.id)
+    XCTAssertFalse(FileManager.default.fileExists(atPath: puzzleDir(first.id).path))
+    XCTAssertTrue(FileManager.default.fileExists(atPath: puzzleDir(second.id).path))
+
+    store.undoDelete()
+    XCTAssertTrue(store.puzzles.contains { $0.id == second.id })
+    XCTAssertFalse(store.puzzles.contains { $0.id == first.id })
+  }
 }

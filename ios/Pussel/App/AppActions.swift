@@ -122,12 +122,17 @@ extension AppModel {
     session.resume(api: api)
   }
 
-  /// Permanently deletes a stored puzzle. If it is the one being solved,
-  /// returns to the capture screen.
+  /// Deletes a stored puzzle, leaving a brief window to undo it. If it is the
+  /// one being solved, returns to the capture screen.
   func deletePuzzle(_ id: UUID) {
     if case .solving(let session) = flow.phase, session.id == id {
       flow.reset()
     }
-    store.delete(id)
+    store.deleteWithUndo(id)
+  }
+
+  /// Restores the most recently deleted puzzle, if its undo window is open.
+  func undoDelete() {
+    store.undoDelete()
   }
 }
