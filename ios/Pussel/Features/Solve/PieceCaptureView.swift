@@ -11,6 +11,7 @@ struct PieceCaptureView: View {
   @Environment(\.dismiss) private var dismiss
   @State private var camera = PieceCameraSession()
   @State private var photoItem: PhotosPickerItem?
+  @State private var isCapturing = false
 
   var body: some View {
     ZStack {
@@ -24,18 +25,22 @@ struct PieceCaptureView: View {
         .foregroundStyle(.white)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
+    // Two overlays rather than one HStack: the shutter centers on the screen
+    // itself, so it stays put no matter how wide the library button is.
     .overlay(alignment: .bottom) {
-      HStack {
-        libraryButton.frame(maxWidth: .infinity, alignment: .leading)
-        shutterButton
-        // Balances the library button so the shutter stays centered.
-        Color.clear.frame(maxWidth: .infinity)
-      }
-      .padding(.horizontal, 32)
-      .padding(.bottom, 24)
+      shutterButton.padding(.bottom, 24)
+    }
+    .overlay(alignment: .bottomLeading) {
+      libraryButton
+        .padding(.leading, 32)
+        .padding(.bottom, 40)
     }
     .task {
-      await camera.start()
+      guard await camera.start() else {
+        model.reportPieceError("Pussel cannot use the camera. Check camera access in Settings.")
+        dismiss()
+        return
+      }
     }
     .onDisappear {
       camera.stop()
@@ -64,11 +69,20 @@ struct PieceCaptureView: View {
 
   private var shutterButton: some View {
     Button {
+      // Ignore taps while a shot is developing, so a nil result below means
+      // the capture itself failed rather than a double tap.
+      guard !isCapturing else { return }
+      isCapturing = true
       Task {
-        if let image = await camera.capturePhoto() {
-          model.addPiece(image: image)
+        let image = await camera.capturePhoto()
+        isCapturing = false
+        guard let image else {
+          model.reportPieceError("Could not take that photo. Try again.")
           dismiss()
+          return
         }
+        model.addPiece(image: image)
+        dismiss()
       }
     } label: {
       ZStack {

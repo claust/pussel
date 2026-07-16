@@ -88,6 +88,13 @@ extension AppModel {
     session.enqueue(jpeg: jpeg, api: api)
   }
 
+  /// Surfaces a piece-capture failure on the solve screen. The capture UI
+  /// sits in a full-screen cover, so callers dismiss after reporting.
+  func reportPieceError(_ message: String) {
+    guard case .solving(let session) = flow.phase else { return }
+    session.errorMessage = message
+  }
+
   /// Adds a piece picked from the photo library. Both piece pickers route
   /// here so a failed load reports itself on the solve screen instead of
   /// looking like a dropped tap.

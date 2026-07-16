@@ -14,15 +14,19 @@ final class PieceCameraSession: NSObject, AVCapturePhotoCaptureDelegate {
   private var isConfigured = false
   private var captureContinuation: CheckedContinuation<UIImage?, Never>?
 
-  func start() async {
-    guard await AVCaptureDevice.requestAccess(for: .video) else { return }
+  /// Returns false when the camera cannot run — access denied, or no usable
+  /// device — so the caller can report it rather than show a dead preview.
+  func start() async -> Bool {
+    guard await AVCaptureDevice.requestAccess(for: .video) else { return false }
     configureIfNeeded()
-    guard isConfigured, !session.isRunning else { return }
+    guard isConfigured else { return false }
+    guard !session.isRunning else { return true }
     let session = self.session
     Task.detached {
       // startRunning blocks, so keep it off the main thread.
       session.startRunning()
     }
+    return true
   }
 
   func stop() {
