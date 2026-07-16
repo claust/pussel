@@ -22,6 +22,8 @@ struct CapturePuzzleView: View {
       }
     }
     .scrollBounceBehavior(.basedOnSize)
+    .overlay(alignment: .bottom) { UndoDeleteSnackbar() }
+    .animation(.snappy, value: model.store.pendingDelete)
     .fullScreenCover(isPresented: $showCamera) {
       CameraPicker { image in
         Task { await handle(image: image, source: .camera) }
