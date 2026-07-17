@@ -1,11 +1,14 @@
 """Configuration module for the puzzle solver application."""
 
+import logging
 import os
 from functools import lru_cache
 from typing import Literal
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
@@ -20,7 +23,7 @@ class Settings(BaseSettings):
     MAX_UPLOAD_SIZE: int = 10 * 1024 * 1024  # 10MB
 
     # CORS settings
-    BACKEND_CORS_ORIGINS: list[str] = ["*"]
+    BACKEND_CORS_ORIGINS: list[str] = ["http://localhost:3000"]
 
     # Azure settings
     USE_AZURE_STORAGE: bool = False
@@ -31,6 +34,14 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 60
     GOOGLE_CLIENT_ID: str = ""
+
+    # Email allowlist for login: any successfully-verified Google account whose
+    # email appears here (case-insensitively, whitespace-trimmed) may sign in.
+    # An EMPTY list means "allow any Google account" — this preserves today's
+    # behavior and is convenient for local dev, but means anyone with a Gmail
+    # account gets a full account since there's no user table to otherwise
+    # gate access. Set this in deployed environments to restrict access.
+    ALLOWED_EMAILS: list[str] = []
 
     # Background removal settings
     ENABLE_BACKGROUND_REMOVAL: bool = True
@@ -60,6 +71,44 @@ class Settings(BaseSettings):
     PIECE_GEOMETRY_T_ACCEPT: float = -3.98
     PIECE_GEOMETRY_T_NEW: float = -0.80
 
+    # Rate limiting (in-memory, per-process — see app/rate_limit.py for the
+    # per-process caveat). Both are requests-per-minute per caller identity.
+    # Set either to 0 to disable that limit entirely, e.g. for tests and
+    # local dev where hammering an endpoint on purpose shouldn't 429.
+    #
+    # Per-IP, guards POST /api/v1/auth/google (unauthenticated, does a
+    # network call to Google's cert endpoint per request): generous enough
+    # for real logins/retries, low enough to blunt brute force and free DoS
+    # amplification.
+    RATE_LIMIT_AUTH_PER_MINUTE: int = Field(default=10, ge=0)
+    # Per-user, guards POST /api/v1/piece/preview, which the client polls in
+    # a loop while the piece camera is open. Measured client cadences: the
+    # web frontend polls at a 400ms floor between requests (~150/min in
+    # steady state; see DETECT_INTERVAL_MS in
+    # frontend/src/components/camera/live-piece-capture.tsx), and the iOS
+    # app targets ~4Hz / a 250ms minimum interval, serialized on one
+    # in-flight request at a time (~240/min; see
+    # PiecePreviewThrottle.minInterval in
+    # ios/Pussel/Features/Solve/PiecePreviewThrottle.swift). 300/min sits
+    # comfortably above the faster (iOS) cadence so normal live-preview use
+    # never gets 429'd, while still bounding a runaway or malicious client.
+    RATE_LIMIT_PREVIEW_PER_MINUTE: int = Field(default=300, ge=0)
+
+    # Whether to trust the inbound X-Forwarded-For header for per-IP rate
+    # limiting (see app/rate_limit.py::_client_ip). Defaults to False:
+    # nothing in this deployment (no Uvicorn --proxy-headers, no
+    # ProxyHeadersMiddleware, no infra-level stripping) removes or rewrites
+    # an inbound X-Forwarded-For, so a direct caller can set it to an
+    # arbitrary/random value on every request and land in a fresh rate-limit
+    # bucket each time -- trusting it by default would make the auth
+    # brute-force limiter trivially bypassable by exactly the attacker it
+    # exists to stop. Only flip this to True when the app is actually
+    # deployed behind a reverse proxy that overwrites/appends to
+    # X-Forwarded-For itself (e.g. Azure App Service's front end), so the
+    # header's rightmost entry is guaranteed proxy-authored rather than
+    # attacker-authored.
+    TRUST_PROXY_HEADERS: bool = False
+
     # Environment setting (used for validation)
     ENVIRONMENT: str = "development"  # development, test, or production
 
@@ -84,6 +133,25 @@ class Settings(BaseSettings):
             )
         return self
 
+    def is_email_allowed(self, email: str) -> bool:
+        """Check whether an email may authenticate, per ALLOWED_EMAILS.
+
+        Comparison is case-insensitive and tolerant of surrounding whitespace
+        on the configured values, since Google emails are case-insensitive in
+        practice and a comma-separated env var may include stray spaces.
+
+        Args:
+            email: The candidate email address, as returned by Google.
+
+        Returns:
+            True if ALLOWED_EMAILS is empty (allow any account) or the email
+            matches an entry in ALLOWED_EMAILS, False otherwise.
+        """
+        if not self.ALLOWED_EMAILS:
+            return True
+        normalized_allowed = {allowed.strip().lower() for allowed in self.ALLOWED_EMAILS}
+        return email.strip().lower() in normalized_allowed
+
 
 @lru_cache()
 def get_settings() -> Settings:
@@ -93,6 +161,12 @@ def get_settings() -> Settings:
 
 # Create instance
 settings = get_settings()
+
+if not settings.ALLOWED_EMAILS:
+    logger.warning(
+        "ALLOWED_EMAILS is empty: any Google account with a verified email can sign in. "
+        "Set ALLOWED_EMAILS to restrict access to this application."
+    )
 
 # Ensure upload directory exists
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)

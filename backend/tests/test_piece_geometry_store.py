@@ -197,3 +197,23 @@ class TestPieceGeometryStore:
         store = PieceGeometryStore()
 
         assert store.list_pieces("never-seen") == []
+
+    def test_drop_removes_the_puzzles_store(self) -> None:
+        """Dropping a puzzle clears its enrolled pieces; a later add starts a fresh id sequence."""
+        store = PieceGeometryStore()
+        fp_a = _fingerprint(PIECE_A_EDGE_TYPES, PIECE_A_COLORS)
+        store.add_or_match("puzzle-1", fp_a, True, False)
+        assert len(store.list_pieces("puzzle-1")) == 1
+
+        store.drop("puzzle-1")
+
+        assert store.list_pieces("puzzle-1") == []
+        # A fresh enrollment after drop starts over at p001, proving the old store is gone.
+        result = store.add_or_match("puzzle-1", fp_a, True, False)
+        assert result.piece_id == "p001"
+
+    def test_drop_unknown_puzzle_is_a_noop(self) -> None:
+        """Dropping a puzzle with no store yet doesn't raise."""
+        store = PieceGeometryStore()
+
+        store.drop("never-seen")

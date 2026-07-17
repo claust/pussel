@@ -4,7 +4,7 @@ import base64
 import io
 import os
 import uuid
-from typing import Annotated, Dict, List, Literal, Optional, Tuple
+from typing import Annotated, List, Literal, Optional
 
 import numpy as np
 from fastapi import Depends, FastAPI, Form, HTTPException, Query, UploadFile
@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image, ImageOps, UnidentifiedImageError
 from pydantic import ValidationError
 
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, get_owned_puzzle
 from app.auth.service import AuthService, get_auth_service
 from app.config import settings
 from app.models.piece_geometry_model import (
@@ -34,10 +34,13 @@ from app.models.puzzle_model import (
     GeneratePieceResponse,
     PiecePreviewResponse,
     PieceResponse,
+    PuzzleListResponse,
     PuzzleResponse,
+    PuzzleSummary,
     QuadCorners,
 )
 from app.models.user_model import GoogleAuthRequest, TokenResponse, User
+from app.rate_limit import FixedWindowRateLimiter, rate_limit_by_ip, rate_limit_by_user
 from app.services.classical_matcher import get_classical_matcher
 from app.services.image_processor import get_image_processor
 from app.services.piece_detector import get_piece_detector
@@ -50,6 +53,7 @@ from app.services.piece_geometry.store import get_piece_geometry_store
 from app.services.piece_shape import PieceShapeGenerator, calculate_grid_dimensions
 from app.services.puzzle_cutter import get_puzzle_cutter
 from app.services.puzzle_detector import get_puzzle_detector
+from app.services.puzzle_store import PuzzleRecord, get_puzzle_store
 
 # Initialize FastAPI app
 app = FastAPI(title=settings.PROJECT_NAME)
@@ -63,17 +67,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Store puzzle images in memory for demo
-puzzle_images: Dict[str, str] = {}
-# Grid (rows, cols) estimated from an optional client-supplied piece count at
-# upload time; used to size the classical matcher's NCC template. Only present
-# for puzzles uploaded with piece_count.
-puzzle_grids: Dict[str, Tuple[int, int]] = {}
-
 # piece_count must produce a sane grid: a puzzle can't reasonably have fewer
 # than 4 pieces, and this backend isn't tuned for four-digit piece counts.
 MIN_PIECE_COUNT = 4
 MAX_PIECE_COUNT = 2000
+
+# Rate limiters (see app/rate_limit.py). One instance per protected route so
+# their counters don't collide; limits are read live from settings on each
+# request (see app/config.py: RATE_LIMIT_AUTH_PER_MINUTE / _PREVIEW_PER_MINUTE).
+auth_rate_limiter = FixedWindowRateLimiter()
+piece_preview_rate_limiter = FixedWindowRateLimiter()
 
 
 @app.get("/health")
@@ -87,7 +90,11 @@ def health_check() -> dict[str, str]:
 # =============================================================================
 
 
-@app.post("/api/v1/auth/google", response_model=TokenResponse)
+@app.post(
+    "/api/v1/auth/google",
+    response_model=TokenResponse,
+    dependencies=[Depends(rate_limit_by_ip(auth_rate_limiter, lambda: settings.RATE_LIMIT_AUTH_PER_MINUTE))],
+)
 async def google_auth(
     request: GoogleAuthRequest,
     auth_service: Annotated[AuthService, Depends(get_auth_service)],
@@ -95,6 +102,10 @@ async def google_auth(
     """Authenticate with Google OAuth.
 
     Exchanges a Google ID token for an application JWT token.
+
+    Unauthenticated and rate-limited per-IP (see `app.rate_limit`): this
+    endpoint does a network call to Google's cert endpoint per request, so
+    without a limit it's both brute-forceable and a free DoS amplifier.
 
     Args:
         request: The Google authentication request containing the ID token.
@@ -104,13 +115,21 @@ async def google_auth(
         TokenResponse containing the access token and user information.
 
     Raises:
-        HTTPException: If the Google token is invalid.
+        HTTPException: If the Google token is invalid, the account's email
+            isn't on the configured allowlist (see `Settings.ALLOWED_EMAILS`),
+            or the caller's IP has exceeded `RATE_LIMIT_AUTH_PER_MINUTE` (429).
     """
     user_info = auth_service.verify_google_token(request.id_token)
     if user_info is None:
         raise HTTPException(
             status_code=401,
             detail="Invalid Google token",
+        )
+
+    if not settings.is_email_allowed(user_info["email"]):
+        raise HTTPException(
+            status_code=403,
+            detail="This account is not authorized to use this application",
         )
 
     user = User(
@@ -178,8 +197,6 @@ async def upload_puzzle(
             range, or (when piece_count is given) the file isn't a decodable
             image.
     """
-    # Note: current_user can be used to associate puzzles with users in the future
-    _ = current_user  # Acknowledge the parameter is intentionally unused for now
     if file is None:
         raise HTTPException(status_code=400, detail="No file provided")
 
@@ -210,16 +227,51 @@ async def upload_puzzle(
     with open(file_path, "wb") as f:
         f.write(contents)
 
-    puzzle_images[puzzle_id] = file_path
-    if rows is not None and cols is not None:
-        puzzle_grids[puzzle_id] = (rows, cols)
+    get_puzzle_store().add(
+        PuzzleRecord(
+            puzzle_id=puzzle_id,
+            owner_id=current_user.id,
+            file_path=file_path,
+            grid=(rows, cols) if rows is not None and cols is not None else None,
+        )
+    )
 
     return PuzzleResponse(puzzle_id=puzzle_id, piece_count=piece_count, rows=rows, cols=cols)
 
 
-@app.post("/api/v1/puzzle/detect-frame", response_model=DetectFrameResponse)
-async def detect_frame(
+@app.get("/api/v1/puzzles", response_model=PuzzleListResponse)
+async def list_puzzles(
     current_user: Annotated[User, Depends(get_current_user)],
+) -> PuzzleListResponse:
+    """List the caller's own puzzles.
+
+    Args:
+        current_user: The authenticated user.
+
+    Returns:
+        PuzzleListResponse with one summary (puzzle_id, plus rows/cols when
+        known) per puzzle owned by the caller, in upload order. Never
+        includes other users' puzzles.
+    """
+    records = get_puzzle_store().list_for_owner(current_user.id)
+    return PuzzleListResponse(
+        puzzles=[
+            PuzzleSummary(
+                puzzle_id=record.puzzle_id,
+                rows=record.grid[0] if record.grid is not None else None,
+                cols=record.grid[1] if record.grid is not None else None,
+            )
+            for record in records
+        ]
+    )
+
+
+@app.post(
+    "/api/v1/puzzle/detect-frame",
+    response_model=DetectFrameResponse,
+    dependencies=[Depends(get_current_user)],
+)
+async def detect_frame(
     file: Optional[UploadFile] = None,
     corners: Annotated[Optional[str], Form(description="Manually adjusted corners as JSON QuadCorners")] = None,
 ) -> DetectFrameResponse:
@@ -230,8 +282,10 @@ async def detect_frame(
     When ``corners`` is provided (manual adjustment), detection is skipped and
     the supplied corners are used for the warp with confidence 1.0.
 
+    Requires authentication (see the route's ``dependencies``), but doesn't
+    need the caller's identity — it doesn't persist or look up anything.
+
     Args:
-        current_user: The authenticated user.
         file: The raw photo of the puzzle.
         corners: Optional JSON-encoded QuadCorners overriding auto-detection.
 
@@ -243,7 +297,6 @@ async def detect_frame(
         HTTPException: If no/invalid file is provided, the file is too large,
             or the corners payload is malformed.
     """
-    _ = current_user  # Acknowledge the parameter is intentionally unused for now
     if file is None:
         raise HTTPException(status_code=400, detail="No file provided")
 
@@ -286,9 +339,14 @@ async def detect_frame(
     )
 
 
-@app.post("/api/v1/piece/preview", response_model=PiecePreviewResponse)
+@app.post(
+    "/api/v1/piece/preview",
+    response_model=PiecePreviewResponse,
+    dependencies=[
+        Depends(rate_limit_by_user(piece_preview_rate_limiter, lambda: settings.RATE_LIMIT_PREVIEW_PER_MINUTE))
+    ],
+)
 async def preview_piece(
-    current_user: Annotated[User, Depends(get_current_user)],
     file: Optional[UploadFile] = None,
     include_quality: Annotated[
         bool,
@@ -307,8 +365,14 @@ async def preview_piece(
     while the piece camera is open and overlays the returned outline on the
     preview, so the user can see what will be captured.
 
+    Requires authentication and is rate-limited per-user (see the route's
+    ``dependencies``, which composes `get_current_user` with a rate-limit
+    check — see `app.rate_limit.rate_limit_by_user`): the client polls this
+    in a loop, and an authenticated (or buggy) client could otherwise
+    saturate the server's per-frame CV work. Doesn't need the caller's
+    identity beyond that, though — it doesn't persist or look up anything.
+
     Args:
-        current_user: The authenticated user.
         file: A downscaled camera frame.
         include_quality: When true, populates the best-effort `lockable` and
             `corner_disagreement` piece-geometry flags computed from the
@@ -322,9 +386,9 @@ async def preview_piece(
         expressing how piece-like the region is, or found=False.
 
     Raises:
-        HTTPException: If no/invalid file is provided.
+        HTTPException: If no/invalid file is provided, or the caller has
+            exceeded `RATE_LIMIT_PREVIEW_PER_MINUTE` (429).
     """
-    _ = current_user  # Acknowledge the parameter is intentionally unused for now
     if file is None:
         raise HTTPException(status_code=400, detail="No file provided")
 
@@ -366,7 +430,7 @@ async def preview_piece(
 @app.post("/api/v1/puzzle/{puzzle_id}/piece", response_model=PieceResponse)
 async def process_piece(
     puzzle_id: str,
-    current_user: Annotated[User, Depends(get_current_user)],
+    puzzle: Annotated[PuzzleRecord, Depends(get_owned_puzzle)],
     file: Optional[UploadFile] = None,
     remove_bg: Annotated[bool, Query(description="Remove background from piece image using rembg")] = True,
 ) -> PieceResponse:
@@ -374,7 +438,8 @@ async def process_piece(
 
     Args:
         puzzle_id: ID of the puzzle to match against.
-        current_user: The authenticated user.
+        puzzle: The caller's owned puzzle record; the dependency also 404s
+            when the puzzle doesn't exist or belongs to someone else.
         file: The puzzle piece image file.
         remove_bg: Whether to remove background from piece image (default: True).
 
@@ -384,21 +449,16 @@ async def process_piece(
     Raises:
         HTTPException: If puzzle not found or file type is invalid.
     """
-    _ = current_user  # Acknowledge the parameter is intentionally unused for now
     if file is None:
         raise HTTPException(status_code=400, detail="No file provided")
-
-    if puzzle_id not in puzzle_images:
-        raise HTTPException(status_code=404, detail="Puzzle not found")
 
     if settings.MATCHER == "cnn":
         return await get_image_processor().process_piece(file, puzzle_id, remove_background=remove_bg)
 
     # Pass along the grid estimated at upload time (if any) so the NCC fallback's
     # nominal template size uses the puzzle's real grid instead of the defaults.
-    grid_hint = puzzle_grids.get(puzzle_id)
     return await get_classical_matcher().process_piece(
-        file, puzzle_id, remove_background=remove_bg, grid_hint=grid_hint
+        file, puzzle_id, remove_background=remove_bg, grid_hint=puzzle.grid
     )
 
 
@@ -479,7 +539,7 @@ def _geometry_record_response(
 @app.post("/api/v1/puzzle/{puzzle_id}/piece/geometry", response_model=PieceGeometryUploadResponse)
 async def upload_piece_geometry(
     puzzle_id: str,
-    current_user: Annotated[User, Depends(get_current_user)],
+    puzzle: Annotated[PuzzleRecord, Depends(get_owned_puzzle)],
     file: Optional[UploadFile] = None,
     include_contour: Annotated[
         bool, Query(description="Include the full contour polyline in the response (large)")
@@ -506,7 +566,8 @@ async def upload_piece_geometry(
 
     Args:
         puzzle_id: ID of the puzzle this piece photo belongs to.
-        current_user: The authenticated user.
+        puzzle: The caller's owned puzzle record; the dependency also 404s
+            when the puzzle doesn't exist or belongs to someone else.
         file: The puzzle piece photo.
         include_contour: Whether to include the full (large) contour polyline.
         on_uncertain: Gray-zone resolution: "report" (default) keeps the
@@ -521,12 +582,8 @@ async def upload_piece_geometry(
         HTTPException: If no/invalid file is provided, the file is too
             large, or the puzzle does not exist.
     """
-    _ = current_user  # Acknowledge the parameter is intentionally unused for now
     if file is None:
         raise HTTPException(status_code=400, detail="No file provided")
-
-    if puzzle_id not in puzzle_images:
-        raise HTTPException(status_code=404, detail="Puzzle not found")
 
     if file.size and file.size > settings.MAX_UPLOAD_SIZE:
         raise HTTPException(status_code=413, detail="File too large")
@@ -568,13 +625,14 @@ async def upload_piece_geometry(
 @app.get("/api/v1/puzzle/{puzzle_id}/piece/geometry", response_model=PieceGeometryListResponse)
 async def list_piece_geometry(
     puzzle_id: str,
-    current_user: Annotated[User, Depends(get_current_user)],
+    puzzle: Annotated[PuzzleRecord, Depends(get_owned_puzzle)],
 ) -> PieceGeometryListResponse:
     """List the pieces enrolled in a puzzle's piece-geometry store.
 
     Args:
         puzzle_id: ID of the puzzle to list.
-        current_user: The authenticated user.
+        puzzle: The caller's owned puzzle record; the dependency also 404s
+            when the puzzle doesn't exist or belongs to someone else.
 
     Returns:
         PieceGeometryListResponse with one summary (id, edge types, quality
@@ -583,10 +641,6 @@ async def list_piece_geometry(
     Raises:
         HTTPException: If the puzzle does not exist.
     """
-    _ = current_user  # Acknowledge the parameter is intentionally unused for now
-    if puzzle_id not in puzzle_images:
-        raise HTTPException(status_code=404, detail="Puzzle not found")
-
     enrolled = get_piece_geometry_store().list_pieces(puzzle_id)
     return PieceGeometryListResponse(
         puzzle_id=puzzle_id,
@@ -606,7 +660,7 @@ async def list_piece_geometry(
 async def generate_piece(
     puzzle_id: str,
     request: GeneratePieceRequest,
-    current_user: Annotated[User, Depends(get_current_user)],
+    puzzle: Annotated[PuzzleRecord, Depends(get_owned_puzzle)],
 ) -> GeneratePieceResponse:
     """Generate a realistic jigsaw-shaped piece at the specified position.
 
@@ -618,7 +672,8 @@ async def generate_piece(
         puzzle_id: ID of the puzzle to extract piece from.
         request: Contains center_x, center_y (normalized 0-1 coordinates)
             and optional piece_size_ratio.
-        current_user: The authenticated user.
+        puzzle: The caller's owned puzzle record; the dependency also 404s
+            when the puzzle doesn't exist or belongs to someone else.
 
     Returns:
         GeneratePieceResponse with piece_image (base64 PNG) and piece_config.
@@ -626,13 +681,7 @@ async def generate_piece(
     Raises:
         HTTPException: If puzzle not found.
     """
-    _ = current_user  # Acknowledge the parameter is intentionally unused for now
-    if puzzle_id not in puzzle_images:
-        raise HTTPException(status_code=404, detail="Puzzle not found")
-
-    # Load puzzle image
-    puzzle_path = puzzle_images[puzzle_id]
-    puzzle_img = Image.open(puzzle_path).convert("RGBA")
+    puzzle_img = Image.open(puzzle.file_path).convert("RGBA")
 
     # Generate piece with random jigsaw shape
     generator = PieceShapeGenerator(piece_size_ratio=request.piece_size_ratio)
@@ -657,6 +706,7 @@ async def generate_piece(
 async def cut_puzzle(
     puzzle_id: str,
     request: CutPuzzleRequest,
+    puzzle: Annotated[PuzzleRecord, Depends(get_owned_puzzle)],
 ) -> CutPuzzleResponse:
     """Cut a puzzle into jigsaw-shaped pieces for manual solving.
 
@@ -664,9 +714,14 @@ async def cut_puzzle(
     pieces with realistic Bezier curve edges. Each piece is returned as a PNG
     with transparent background, along with its correct position for game play.
 
+    Requires authentication and ownership of the puzzle (previously this
+    endpoint had no auth dependency at all).
+
     Args:
         puzzle_id: ID of the puzzle to cut.
         request: Contains rows, cols, and optional seed for reproducibility.
+        puzzle: The caller's owned puzzle record; the dependency also 404s
+            when the puzzle doesn't exist or belongs to someone else.
 
     Returns:
         CutPuzzleResponse with list of pieces, grid dimensions, and puzzle size.
@@ -674,12 +729,7 @@ async def cut_puzzle(
     Raises:
         HTTPException: If puzzle not found.
     """
-    if puzzle_id not in puzzle_images:
-        raise HTTPException(status_code=404, detail="Puzzle not found")
-
-    # Load puzzle image
-    puzzle_path = puzzle_images[puzzle_id]
-    puzzle_img = Image.open(puzzle_path)
+    puzzle_img = Image.open(puzzle.file_path)
 
     # Cut into pieces
     cutter = get_puzzle_cutter()

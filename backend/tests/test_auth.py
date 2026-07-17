@@ -109,6 +109,90 @@ class TestAuthEndpoints:
         assert response.status_code == 401
         assert response.json()["detail"] == "Invalid Google token"
 
+    def test_google_auth_empty_allowlist_allows_any_account(self) -> None:
+        """Test that an empty ALLOWED_EMAILS (the default) preserves today's behavior."""
+        mock_user_info = {
+            "sub": "google-user-123",
+            "email": "anyone@example.com",
+            "name": "Anyone",
+            "picture": None,
+        }
+
+        with (
+            patch("app.auth.service.AuthService.verify_google_token", return_value=mock_user_info),
+            patch.object(settings, "ALLOWED_EMAILS", []),
+        ):
+            response = client.post(
+                "/api/v1/auth/google",
+                json={"id_token": "fake-google-token"},
+            )
+
+        assert response.status_code == 200
+        assert "access_token" in response.json()
+
+    def test_google_auth_allowlist_permits_listed_email(self) -> None:
+        """Test that a non-empty allowlist admits an email that's on it."""
+        mock_user_info = {
+            "sub": "google-user-123",
+            "email": "user@example.com",
+            "name": "Allowed User",
+            "picture": None,
+        }
+
+        with (
+            patch("app.auth.service.AuthService.verify_google_token", return_value=mock_user_info),
+            patch.object(settings, "ALLOWED_EMAILS", ["user@example.com"]),
+        ):
+            response = client.post(
+                "/api/v1/auth/google",
+                json={"id_token": "fake-google-token"},
+            )
+
+        assert response.status_code == 200
+        assert "access_token" in response.json()
+
+    def test_google_auth_allowlist_rejects_unlisted_email(self) -> None:
+        """Test that a non-empty allowlist rejects an email that's not on it."""
+        mock_user_info = {
+            "sub": "google-user-123",
+            "email": "intruder@example.com",
+            "name": "Intruder",
+            "picture": None,
+        }
+
+        with (
+            patch("app.auth.service.AuthService.verify_google_token", return_value=mock_user_info),
+            patch.object(settings, "ALLOWED_EMAILS", ["user@example.com"]),
+        ):
+            response = client.post(
+                "/api/v1/auth/google",
+                json={"id_token": "fake-google-token"},
+            )
+
+        assert response.status_code == 403
+        assert response.json()["detail"] == "This account is not authorized to use this application"
+
+    def test_google_auth_allowlist_case_insensitive_and_whitespace_tolerant(self) -> None:
+        """Test that allowlist matching ignores case and surrounding whitespace in configured entries."""
+        mock_user_info = {
+            "sub": "google-user-123",
+            "email": "user@example.com",
+            "name": "Allowed User",
+            "picture": None,
+        }
+
+        with (
+            patch("app.auth.service.AuthService.verify_google_token", return_value=mock_user_info),
+            patch.object(settings, "ALLOWED_EMAILS", [" User@Example.com ", "other@example.com"]),
+        ):
+            response = client.post(
+                "/api/v1/auth/google",
+                json={"id_token": "fake-google-token"},
+            )
+
+        assert response.status_code == 200
+        assert "access_token" in response.json()
+
     def test_get_current_user_profile_success(self) -> None:
         """Test getting current user profile with valid token."""
         token = create_test_token()
@@ -300,3 +384,16 @@ class TestAuthService:
         ):
             result = auth_service.verify_google_token("fake-token")
             assert result is None
+
+
+class TestUserModel:
+    """Tests for the User model."""
+
+    def test_created_at_is_timezone_aware(self) -> None:
+        """Test that User.created_at defaults to a timezone-aware datetime (not a naive utcnow())."""
+        from app.models.user_model import User
+
+        user = User(id="test-id", email="test@example.com", name="Test User", picture=None)
+
+        assert user.created_at.tzinfo is not None
+        assert user.created_at.tzinfo.utcoffset(user.created_at) == timedelta(0)
