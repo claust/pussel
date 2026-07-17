@@ -1,14 +1,11 @@
 """Service for detecting a puzzle picture's boundary in a photo and perspective-correcting it."""
 
-import io
 import math
 from typing import List, Optional, Tuple, cast
 
 import cv2
 import numpy as np
 from PIL import Image
-
-from app.services.background_remover import get_background_remover
 
 Point = Tuple[float, float]
 
@@ -30,6 +27,22 @@ BORDER_FRACTION = 0.05
 # If the border ring's 99th-percentile chroma deviation exceeds this, there is no
 # uniform background around the subject (e.g. an edge-to-edge image) and detection bails out
 MAX_BORDER_CHROMA_SPREAD = 0.06
+
+# Auto-Canny spread: thresholds are set to (1 ± sigma) × the image's median intensity,
+# so the edge detector adapts to each photo's exposure rather than using fixed levels
+EDGE_CANNY_SIGMA = 0.33
+
+# Kernel size for dilating the edge map, closing small gaps in the puzzle's border
+# so its outline forms a single traceable contour
+EDGE_DILATE_KERNEL = 5
+
+# Polygon-approximation tolerances (as a fraction of contour perimeter) tried in order
+# when reducing an edge contour to a quadrilateral
+EDGE_APPROX_EPSILONS = (0.02, 0.04, 0.06)
+
+# Line thickness (working pixels) used when rasterizing a candidate quad's outline to
+# measure how much of it coincides with real detected edges (the edge-support term)
+EDGE_SUPPORT_THICKNESS = 2 * EDGE_DILATE_KERNEL + 1
 
 
 def _order_corners(points: "np.ndarray") -> "np.ndarray":
@@ -75,22 +88,17 @@ class PuzzleFrameDetector:
 
     Detection is layered. The fast path segments the subject from a roughly
     uniform background (sampled from the photo's border) using chroma distance
-    — which ignores shadows — plus a brighter-than-background luminance rule.
-    When the border is not a uniform background (e.g. a webcam shot with a
-    cluttered room behind the puzzle), it falls back to rembg salient-object
-    segmentation. Either way a quadrilateral is fitted to the convex hull of
-    the largest segmented region.
+    — which ignores shadows — plus a brighter-than-background luminance rule,
+    then fits a quadrilateral to the convex hull of the largest region. When
+    the border is not a uniform background (e.g. a handheld photo where the
+    puzzle nearly fills the frame), it falls back to direct edge-based
+    detection of the puzzle's rectangular boundary.
+
+    The puzzle picture is a strong quadrilateral with straight edges, so the
+    fallback looks for that rectangle explicitly rather than asking a
+    salient-object model — a salient-object model segments whatever the
+    artwork depicts (an elephant, a lion) instead of the puzzle's outline.
     """
-
-    def __init__(self, salient_fallback: bool = True) -> None:
-        """Initialize the detector.
-
-        Args:
-            salient_fallback: Whether to fall back to rembg salient-object
-                segmentation when background-based segmentation is not
-                applicable. Disable for fast, dependency-free detection only.
-        """
-        self._salient_fallback = salient_fallback
 
     def detect_corners(self, image: Image.Image) -> Tuple[List[Point], float]:
         """Detect the puzzle picture's quadrilateral in the image.
@@ -119,9 +127,8 @@ class PuzzleFrameDetector:
         mask = self._foreground_mask(work)
         result = self._quad_from_mask(mask, work_w, work_h) if mask is not None else None
 
-        if result is None and self._salient_fallback:
-            mask = self._salient_mask(rgb)
-            result = self._quad_from_mask(mask, work_w, work_h) if mask is not None else None
+        if result is None:
+            result = self._edge_quad(work, work_w, work_h)
 
         if result is None:
             return list(FULL_IMAGE_CORNERS), 0.0
@@ -198,32 +205,100 @@ class PuzzleFrameDetector:
         mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((11, 11), dtype=np.uint8))
         return cast("np.ndarray", mask)
 
-    def _salient_mask(self, rgb: "np.ndarray") -> Optional["np.ndarray"]:
-        """Segment the most salient object using rembg (u2net).
+    def _edge_quad(self, work: "np.ndarray", work_w: int, work_h: int) -> Optional[Tuple["np.ndarray", float]]:
+        """Detect the puzzle's rectangular boundary directly from image edges.
 
-        Used when there is no uniform background to segment against, e.g. a
-        webcam shot of a puzzle held up in front of a cluttered room.
+        Used when there is no uniform background to segment against (e.g. a
+        handheld photo where the puzzle nearly fills the frame). The puzzle
+        picture is a large quadrilateral with straight edges, so this traces
+        edge contours and keeps the best-scoring convex four-sided one. Unlike
+        a salient-object model, it answers "where is the rectangle?" rather
+        than "what does the artwork depict?".
 
         Args:
-            rgb: Working-size uint8 RGB image.
+            work: Blurred float RGB working image.
+            work_w: Working image width.
+            work_h: Working image height.
 
         Returns:
-            A uint8 mask (0/255) of the salient object, or None if
-            segmentation fails.
+            A (quad, confidence) tuple where quad has shape (4, 2), or None
+            when no sufficiently large convex quadrilateral is found.
         """
-        try:
-            buffer = io.BytesIO()
-            Image.fromarray(rgb).save(buffer, format="PNG")
-            rgba = get_background_remover().remove_background(buffer.getvalue())
-        except Exception:
-            return None
-        if rgba.mode != "RGBA":
-            return None
-        alpha = np.asarray(rgba.split()[3])
-        mask = (alpha > 128).astype(np.uint8) * 255
-        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((25, 25), dtype=np.uint8))
-        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((11, 11), dtype=np.uint8))
-        return cast("np.ndarray", mask)
+        gray = cv2.cvtColor(np.clip(work, 0, 255).astype(np.uint8), cv2.COLOR_RGB2GRAY)
+        median = float(np.median(gray))
+        lower = int(max(0, (1.0 - EDGE_CANNY_SIGMA) * median))
+        upper = int(min(255, (1.0 + EDGE_CANNY_SIGMA) * median))
+        edges = cv2.Canny(gray, lower, upper)
+        edges = cv2.dilate(edges, np.ones((EDGE_DILATE_KERNEL, EDGE_DILATE_KERNEL), dtype=np.uint8))
+
+        contours, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+        image_area = work_w * work_h
+        best: Optional[Tuple["np.ndarray", float]] = None
+        for contour in contours:
+            if cv2.contourArea(contour) < MIN_AREA_RATIO * image_area:
+                continue
+            quad = self._quad_from_contour(contour)
+            if quad is None:
+                continue
+            confidence = self._rect_confidence(quad, edges, work_w, work_h)
+            if best is None or confidence > best[1]:
+                best = (quad, confidence)
+        return best
+
+    def _quad_from_contour(self, contour: "np.ndarray") -> Optional["np.ndarray"]:
+        """Reduce an edge contour to a convex quadrilateral, if it is one.
+
+        Tries increasingly coarse polygon approximations; accepts the first
+        that yields exactly four convex points. Requiring a clean four-sided
+        approximation is what rejects the artwork's subject: a puzzle border
+        traces a quadrilateral, an elephant does not.
+
+        Args:
+            contour: A contour from cv2.findContours.
+
+        Returns:
+            Array of shape (4, 2), float32, unordered, or None if the contour
+            does not approximate a convex quadrilateral.
+        """
+        perimeter = cv2.arcLength(contour, closed=True)
+        for epsilon in EDGE_APPROX_EPSILONS:
+            approx = cv2.approxPolyDP(contour, epsilon * perimeter, closed=True)
+            if len(approx) == 4 and cv2.isContourConvex(approx):
+                return approx.reshape(4, 2).astype(np.float32)
+        return None
+
+    def _rect_confidence(self, quad: "np.ndarray", edges: "np.ndarray", work_w: int, work_h: int) -> float:
+        """Score how puzzle-like a candidate quad is, in [0, 1].
+
+        Combines three signals that together mean "this is the puzzle's
+        rectangle" rather than merely "this is a tidy quad": how rectangular
+        the quad is, how much of the photo it covers, and how much of its
+        outline actually lies on detected edges (edge support). Edge support is
+        the key discriminator — a quad that traces a real bordered rectangle
+        sits on strong edges, an arbitrary quad does not.
+
+        Args:
+            quad: The candidate quadrilateral, shape (4, 2).
+            edges: The (dilated) binary edge map the quad was found in.
+            work_w: Working image width.
+            work_h: Working image height.
+
+        Returns:
+            Confidence value clamped to [0, 1].
+        """
+        rect_w, rect_h = cv2.minAreaRect(quad.reshape(-1, 1, 2))[1]
+        rect_area = rect_w * rect_h
+        quad_area = cv2.contourArea(quad.reshape(-1, 1, 2))
+        rectangularity = quad_area / rect_area if rect_area > 0 else 0.0
+        area_ratio = quad_area / (work_w * work_h)
+
+        outline = np.zeros((work_h, work_w), dtype=np.uint8)
+        cv2.polylines(outline, [quad.astype(np.int32)], isClosed=True, color=255, thickness=EDGE_SUPPORT_THICKNESS)
+        outline_pixels = int(np.count_nonzero(outline))
+        edge_support = float(np.count_nonzero(edges & outline)) / outline_pixels if outline_pixels else 0.0
+
+        confidence = rectangularity * edge_support * min(1.0, area_ratio / FULL_CONFIDENCE_AREA_RATIO)
+        return float(np.clip(confidence, 0.0, 1.0))
 
     def _quad_from_mask(self, mask: "np.ndarray", work_w: int, work_h: int) -> Optional[Tuple["np.ndarray", float]]:
         """Fit a quadrilateral to the largest region of a foreground mask.
