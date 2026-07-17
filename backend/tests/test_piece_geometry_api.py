@@ -346,6 +346,82 @@ class TestListPieceGeometry:
         assert "polyline" not in piece
 
 
+class TestDeletePieceGeometry:
+    """Tests for DELETE /api/v1/puzzle/{puzzle_id}/piece/geometry/{piece_id}."""
+
+    def _enroll_piece(self, puzzle_id: str) -> str:
+        """Enroll one piece via the upload endpoint and return its piece_id."""
+        with patch("app.main.get_piece_geometry_service", return_value=mocked_geometry_service()):
+            response = client.post(
+                f"/api/v1/puzzle/{puzzle_id}/piece/geometry",
+                files=geometry_files(),
+                headers=get_auth_header(),
+            )
+        assert response.status_code == 200
+        return str(response.json()["piece_id"])
+
+    def test_requires_auth(self) -> None:
+        """The endpoint rejects unauthenticated requests."""
+        puzzle_id = upload_test_puzzle()
+
+        response = client.delete(f"/api/v1/puzzle/{puzzle_id}/piece/geometry/p001")
+
+        assert response.status_code in (401, 403)
+
+    def test_unknown_puzzle_returns_404(self) -> None:
+        """Deleting against a nonexistent puzzle_id returns 404."""
+        response = client.delete(
+            "/api/v1/puzzle/does-not-exist/piece/geometry/p001",
+            headers=get_auth_header(),
+        )
+
+        assert response.status_code == 404
+
+    def test_unknown_piece_returns_404(self) -> None:
+        """Deleting a piece_id this puzzle never enrolled returns 404."""
+        puzzle_id = upload_test_puzzle()
+
+        response = client.delete(
+            f"/api/v1/puzzle/{puzzle_id}/piece/geometry/p404",
+            headers=get_auth_header(),
+        )
+
+        assert response.status_code == 404
+
+    def test_deleted_piece_disappears_from_the_list(self) -> None:
+        """A deleted piece is gone from the list endpoint the scanner's gallery pre-fills from."""
+        puzzle_id = upload_test_puzzle()
+        piece_id = self._enroll_piece(puzzle_id)
+
+        response = client.delete(
+            f"/api/v1/puzzle/{puzzle_id}/piece/geometry/{piece_id}",
+            headers=get_auth_header(),
+        )
+
+        assert response.status_code == 204
+        listed = client.get(f"/api/v1/puzzle/{puzzle_id}/piece/geometry", headers=get_auth_header())
+        assert listed.json()["pieces"] == []
+
+    def test_rescanning_a_deleted_piece_reads_as_new(self) -> None:
+        """After deletion the piece is un-enrolled, so its photo no longer matches a stale entry."""
+        puzzle_id = upload_test_puzzle()
+        piece_id = self._enroll_piece(puzzle_id)
+        client.delete(f"/api/v1/puzzle/{puzzle_id}/piece/geometry/{piece_id}", headers=get_auth_header())
+
+        with patch("app.main.get_piece_geometry_service", return_value=mocked_geometry_service()):
+            response = client.post(
+                f"/api/v1/puzzle/{puzzle_id}/piece/geometry",
+                files=geometry_files(),
+                headers=get_auth_header(),
+            )
+
+        assert response.status_code == 200
+        result = response.json()
+        assert result["status"] == "new"
+        # Ids are never recycled — the re-scan gets a fresh one.
+        assert result["piece_id"] != piece_id
+
+
 class TestPreviewIncludeQuality:
     """Tests for the /api/v1/piece/preview include_quality flag."""
 
