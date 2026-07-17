@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import UIKit
 
 /// The linear real-mode wizard, mirroring the web app's RealModePhase
 /// (frontend/src/app/real/page.tsx) minus the corner-adjust step.
@@ -100,6 +101,23 @@ final class SolveSession {
     /// so `pusseldebug://scan` can demo the scan-and-lock flow there.
     var debugScanOpen = false
   #endif
+
+  /// Pixel aspect (width / height) of `trimmedJPEG`, the image the backend
+  /// predicted against and so the canvas its normalized coordinates refer to.
+  /// `PieceQueueView` needs it to read a `PieceSpan`'s two axes on one scale
+  /// (see `PieceThumbnailGeometry`).
+  ///
+  /// Decoded once and kept, rather than per read: the queue grid asks on
+  /// every layout pass, and this decodes the whole puzzle JPEG. Falls back to
+  /// square on undecodable bytes, which only skews the thumbnails' aspect —
+  /// `trimmedJPEG` decoding is otherwise load-bearing enough that the session
+  /// has bigger problems by then.
+  @ObservationIgnored lazy var puzzleAspect: CGFloat = {
+    guard let size = UIImage(data: trimmedJPEG)?.size, size.width > 0, size.height > 0 else {
+      return 1
+    }
+    return size.width / size.height
+  }()
 
   @ObservationIgnored private let store: PuzzleStore?
 
