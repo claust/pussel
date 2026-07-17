@@ -660,7 +660,7 @@ async def list_piece_geometry(
 async def delete_piece_geometry(
     puzzle_id: str,
     piece_id: str,
-    current_user: Annotated[User, Depends(get_current_user)],
+    puzzle: Annotated[PuzzleRecord, Depends(get_owned_puzzle)],
 ) -> None:
     """Un-enroll one piece from a puzzle's piece-geometry store.
 
@@ -671,16 +671,13 @@ async def delete_piece_geometry(
     Args:
         puzzle_id: ID of the puzzle the piece belongs to.
         piece_id: ID of the enrolled piece to remove.
-        current_user: The authenticated user.
+        puzzle: The caller's owned puzzle record; the dependency also 404s
+            when the puzzle doesn't exist or belongs to someone else.
 
     Raises:
         HTTPException: If the puzzle does not exist, or it has no piece with
             this id enrolled.
     """
-    _ = current_user  # Acknowledge the parameter is intentionally unused for now
-    if puzzle_id not in puzzle_images:
-        raise HTTPException(status_code=404, detail="Puzzle not found")
-
     if not get_piece_geometry_store().remove(puzzle_id, piece_id):
         raise HTTPException(status_code=404, detail="Piece not found")
 

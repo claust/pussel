@@ -183,6 +183,73 @@ class TestPieceGeometryOwnership:
         assert response.status_code == 404
 
 
+class TestDeletePieceGeometryOwnership:
+    """Tests for DELETE /api/v1/puzzle/{puzzle_id}/piece/geometry/{piece_id}."""
+
+    def _enroll_piece(self, puzzle_id: str, user_id: str) -> str:
+        """Enroll one piece against a puzzle and return its piece id.
+
+        Args:
+            puzzle_id: The puzzle to enroll the piece under.
+            user_id: The user performing the enrollment.
+
+        Returns:
+            The enrolled piece's id.
+        """
+        with patch("app.main.get_piece_geometry_service", return_value=mocked_geometry_service()):
+            response = client.post(
+                f"/api/v1/puzzle/{puzzle_id}/piece/geometry",
+                files=geometry_files(),
+                headers=auth_header(user_id),
+            )
+        assert response.status_code == 200
+        piece_id = response.json()["piece_id"]
+        assert isinstance(piece_id, str)
+        return piece_id
+
+    def test_owner_can_delete_piece(self) -> None:
+        """User A can un-enroll a piece from their own puzzle."""
+        puzzle_id = upload_puzzle_as(USER_A)
+        piece_id = self._enroll_piece(puzzle_id, USER_A)
+
+        response = client.delete(
+            f"/api/v1/puzzle/{puzzle_id}/piece/geometry/{piece_id}",
+            headers=auth_header(USER_A),
+        )
+
+        assert response.status_code == 204
+
+    def test_non_owner_gets_404_on_delete(self) -> None:
+        """User B gets 404 deleting a piece from user A's puzzle.
+
+        Guards the destructive case: before ownership was enforced, any
+        authenticated user could un-enroll another user's scanned pieces.
+        """
+        puzzle_id = upload_puzzle_as(USER_A)
+        piece_id = self._enroll_piece(puzzle_id, USER_A)
+
+        response = client.delete(
+            f"/api/v1/puzzle/{puzzle_id}/piece/geometry/{piece_id}",
+            headers=auth_header(USER_B),
+        )
+
+        assert response.status_code == 404
+
+        # The piece must still be enrolled: a rejected delete has to be a no-op,
+        # not a 404 returned after the store was already mutated.
+        listed = client.get(f"/api/v1/puzzle/{puzzle_id}/piece/geometry", headers=auth_header(USER_A))
+        assert [piece["piece_id"] for piece in listed.json()["pieces"]] == [piece_id]
+
+    def test_delete_requires_auth(self) -> None:
+        """An unauthenticated delete is rejected."""
+        puzzle_id = upload_puzzle_as(USER_A)
+        piece_id = self._enroll_piece(puzzle_id, USER_A)
+
+        response = client.delete(f"/api/v1/puzzle/{puzzle_id}/piece/geometry/{piece_id}")
+
+        assert response.status_code == 401
+
+
 class TestGeneratePieceOwnership:
     """Tests for POST /api/v1/puzzle/{puzzle_id}/generate-piece."""
 
