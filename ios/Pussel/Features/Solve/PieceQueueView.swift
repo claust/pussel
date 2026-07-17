@@ -56,7 +56,7 @@ struct PieceQueueView: View {
             entry: entry,
             isDeleteMode: isDeleteMode,
             onRetry: { session.retry(id: entry.id, api: model.api) },
-            onDelete: { withAnimation { session.remove(id: entry.id) } },
+            onDelete: { withAnimation { session.remove(id: entry.id, api: model.api) } },
             onEnterDeleteMode: { withAnimation { isDeleteMode = true } },
             onExitDeleteMode: { withAnimation { isDeleteMode = false } },
             onZoom: { onZoomToPiece(entry.id) }
@@ -223,15 +223,11 @@ private struct QueueTile: View {
   /// gutter absorbs without the badge landing on the neighbouring tile.
   private static let badgeCornerOffset = badgeHitSize / 2 - badgeCircleInset
 
-  /// The model reports how far the piece is turned from its place in the
-  /// puzzle, so undoing it shows the piece as it will sit there — the same
-  /// counter-clockwise correction PuzzleOverlayView applies to its markers.
-  /// Normalized to (-180, 180] so the tile animates the short way round
-  /// rather than spinning three quarter turns to reach the same place.
+  /// Shows the piece as it will sit in the puzzle. Zero until the prediction
+  /// lands — the capture is drawn as photographed until there is something
+  /// better to say. See `PieceResponse.uprightRotationDegrees`.
   private var uprightRotation: Double {
-    guard let piece = entry.result else { return 0 }
-    let degrees = (360 - piece.rotation % 360) % 360
-    return Double(degrees > 180 ? degrees - 360 : degrees)
+    entry.result?.uprightRotationDegrees ?? 0
   }
 
   var body: some View {

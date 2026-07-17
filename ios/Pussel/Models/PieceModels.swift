@@ -25,6 +25,21 @@ struct PieceResponse: Codable, Equatable {
   let pieceSpan: PieceSpan?
 }
 
+extension PieceResponse {
+  /// How far to turn the captured image so the piece appears as it will sit
+  /// in the puzzle. The model reports how far the piece is turned *away from*
+  /// its place, so showing it upright means undoing that — the same
+  /// counter-clockwise correction `PuzzleOverlayView` applies to its markers.
+  ///
+  /// Normalized to (-180, 180] so a view animating this value turns the short
+  /// way round rather than spinning three quarter turns to reach the same
+  /// place.
+  var uprightRotationDegrees: Double {
+    let degrees = (360 - rotation % 360) % 360
+    return Double(degrees > 180 ? degrees - 360 : degrees)
+  }
+}
+
 /// Bounding box normalized to [0,1] image coordinates, mirroring the
 /// backend's `BoundingBox` model.
 struct NormalizedBoundingBox: Codable, Equatable {
