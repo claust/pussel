@@ -1,17 +1,21 @@
 import Foundation
 
-/// Pure decision logic for whether a new live-preview frame should be sent
-/// to the backend, given the current throttle state. No I/O, no timers, no
+/// Pure decision logic for whether a new live-preview frame should be
+/// analyzed, given the current throttle state. No I/O, no timers, no
 /// actor isolation — a plain value type, so it's directly unit-testable
-/// without mocking the network or a clock.
+/// without mocking the detector or a clock.
 ///
 /// `PiecePreviewStreamer` is the sole owner of a live instance and is
-/// responsible for calling `markSent`/`markCompleted` around each request;
+/// responsible for calling `markSent`/`markCompleted` around each analysis;
 /// this type only computes the yes/no answer and the state transitions.
 struct PiecePreviewThrottle: Equatable {
-  /// Minimum time between requests — the ~4Hz cadence M9 targets for
-  /// tracking responsiveness without hammering the backend.
-  static let minInterval: TimeInterval = 0.25
+  /// Minimum time between analyses. With on-device detection the real pacer
+  /// is the in-flight gate (one Vision inference at a time, typically
+  /// 50–150 ms); this floor just keeps the overlay's worst case at ~10Hz so
+  /// a very fast device doesn't spend the whole CPU on segmentation. The
+  /// server fallback path is additionally paced by its own round-trip,
+  /// which the in-flight gate serializes exactly as before.
+  static let minInterval: TimeInterval = 0.1
 
   private(set) var lastSend: Date?
   private(set) var isInFlight = false
