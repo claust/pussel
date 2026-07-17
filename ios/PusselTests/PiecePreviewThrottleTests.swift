@@ -21,7 +21,8 @@ final class PiecePreviewThrottleTests: XCTestCase {
     let t0 = Date()
     throttle.markSent(at: t0)
     throttle.markCompleted()
-    XCTAssertFalse(throttle.shouldSend(now: t0.addingTimeInterval(0.1)))
+    XCTAssertFalse(
+      throttle.shouldSend(now: t0.addingTimeInterval(PiecePreviewThrottle.minInterval / 2)))
   }
 
   func testResumesOnceMinIntervalElapsesAfterCompletion() {
