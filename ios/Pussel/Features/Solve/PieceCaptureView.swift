@@ -1,6 +1,8 @@
 import AVFoundation
 import PhotosUI
+import QuartzCore
 import SwiftUI
+import UIKit
 
 /// Full-screen piece capture, presented when the "+" tile in the piece list is
 /// tapped. The camera only runs while this is on screen. Device-only — on the
@@ -10,14 +12,20 @@ struct PieceCaptureView: View {
   @Environment(AppModel.self) private var model
   @Environment(\.dismiss) private var dismiss
   @State private var camera = PieceCameraSession()
+  @State private var previewStreamer: PiecePreviewStreamer?
   @State private var photoItem: PhotosPickerItem?
   @State private var isCapturing = false
 
   var body: some View {
     ZStack {
       Color.black.ignoresSafeArea()
-      CameraPreview(session: camera.session)
-        .ignoresSafeArea()
+      CameraPreview(
+        session: camera.session,
+        previewState: previewStreamer?.state ?? .none,
+        updatedAt: previewStreamer?.updatedAt ?? .distantPast,
+        frameSize: previewStreamer?.frameSize ?? .zero
+      )
+      .ignoresSafeArea()
     }
     .overlay(alignment: .top) {
       Button("Cancel") { dismiss() }
@@ -36,18 +44,34 @@ struct PieceCaptureView: View {
         .padding(.bottom, 40)
     }
     .task {
+      let streamer = previewStreamer ?? PiecePreviewStreamer(api: model.api)
+      previewStreamer = streamer
+      camera.attachPreviewStreamer(streamer)
       let started = await camera.start()
       // Dismissed while the permission prompt was up — the user left on
       // purpose, so there is nothing to complain about.
       guard !Task.isCancelled else { return }
       guard started else {
+        #if DEBUG
+          // The Simulator has no camera; stay on screen over the black
+          // background so `pusseldebug://previewloop` can still demo the
+          // overlay instead of bouncing straight back out. A real device
+          // failure (permission denied, etc.) still reports and dismisses.
+          if !PieceCameraSession.isCameraAvailable {
+            camera.setPreviewStreamingEnabled(true)
+            return
+          }
+        #endif
         model.reportPieceError("Pussel cannot use the camera. Check camera access in Settings.")
         dismiss()
         return
       }
+      camera.setPreviewStreamingEnabled(true)
     }
     .onDisappear {
+      camera.setPreviewStreamingEnabled(false)
       camera.stop()
+      previewStreamer?.reset()
     }
     .keepsScreenAwake()
     .onChange(of: photoItem) { _, item in
@@ -98,8 +122,28 @@ struct PieceCaptureView: View {
   }
 }
 
+/// Camera preview with the M9 live piece-outline overlay: a `CAShapeLayer`
+/// drawn on top of the `AVCaptureVideoPreviewLayer`, mapped from
+/// `PiecePreviewStreamer`'s normalized polygon via
+/// `PiecePreviewGeometry.viewPolygon` (aspect-fill onto the overlay bounds,
+/// mirroring the preview layer's `.resizeAspectFill` of the same upright
+/// portrait feed).
 struct CameraPreview: UIViewRepresentable {
   let session: AVCaptureSession
+  let previewState: PiecePreviewState
+  let updatedAt: Date
+  /// Pixel size of the frame the current polygon was measured against —
+  /// the upright-portrait downscaled JPEG that was sent to the backend. Its
+  /// aspect ratio drives the aspect-fill mapping onto the overlay bounds.
+  let frameSize: CGSize
+
+  /// The overlay hides once `updatedAt` is older than this — a stalled
+  /// request stream (e.g. persistent network errors) shouldn't leave a
+  /// stale outline glued to the screen.
+  static let staleInterval: TimeInterval = 1.5
+  /// Implicit-transaction duration for path/color changes, so the outline
+  /// glides between detections rather than snapping.
+  private static let pathAnimationDuration: TimeInterval = 0.12
 
   final class PreviewView: UIView {
     // Overrides UIView's class property, so `static` isn't an option (it can't
@@ -110,6 +154,30 @@ struct CameraPreview: UIViewRepresentable {
     // AVCaptureVideoPreviewLayer, so this cast can never fail.
     // swiftlint:disable:next force_cast
     var previewLayer: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
+
+    let outlineLayer = CAShapeLayer()
+
+    override init(frame: CGRect) {
+      super.init(frame: frame)
+      outlineLayer.fillColor = UIColor.clear.cgColor
+      outlineLayer.lineWidth = 3
+      outlineLayer.shadowColor = UIColor.black.cgColor
+      outlineLayer.shadowOpacity = 0.6
+      outlineLayer.shadowRadius = 3
+      outlineLayer.shadowOffset = .zero
+      outlineLayer.isHidden = true
+      layer.addSublayer(outlineLayer)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+      fatalError("init(coder:) has not been implemented")
+    }
+
+    override func layoutSubviews() {
+      super.layoutSubviews()
+      outlineLayer.frame = bounds
+    }
   }
 
   func makeUIView(context: Context) -> PreviewView {
@@ -119,5 +187,37 @@ struct CameraPreview: UIViewRepresentable {
     return view
   }
 
-  func updateUIView(_ uiView: PreviewView, context: Context) {}
+  func updateUIView(_ uiView: PreviewView, context: Context) {
+    guard let polygon = previewState.polygon, polygon.count >= 3,
+      Date().timeIntervalSince(updatedAt) < Self.staleInterval
+    else {
+      uiView.outlineLayer.isHidden = true
+      return
+    }
+
+    // One mapping path for device and Simulator: the streamed frame is
+    // rotated to upright portrait at the connection level (see
+    // PieceCameraSession.configureIfNeeded), so it shows exactly what the
+    // `.resizeAspectFill` preview layer shows — same image, same aspect.
+    // Aspect-filling the frame-normalized polygon onto the overlay's bounds
+    // therefore reproduces the preview layer's geometry with no
+    // orientation guesswork (and on the Simulator there is no live preview
+    // layer to convert through anyway; the backdrop is just black).
+    let viewPoints = PiecePreviewGeometry.viewPolygon(
+      fromFramePolygon: polygon, frameSize: frameSize, viewBounds: uiView.bounds.size)
+    let path = UIBezierPath()
+    path.move(to: viewPoints[0])
+    for point in viewPoints.dropFirst() {
+      path.addLine(to: point)
+    }
+    path.close()
+
+    CATransaction.begin()
+    CATransaction.setAnimationDuration(Self.pathAnimationDuration)
+    uiView.outlineLayer.path = path.cgPath
+    uiView.outlineLayer.strokeColor =
+      (previewState.isLockable ? UIColor.systemGreen : UIColor.systemYellow).cgColor
+    uiView.outlineLayer.isHidden = false
+    CATransaction.commit()
+  }
 }

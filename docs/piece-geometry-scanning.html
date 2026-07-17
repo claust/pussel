@@ -176,14 +176,15 @@
   <span class="kicker">Pussel · brainstorm &amp; living results log · 2026-07-16</span>
   <h1>The Second Column: Scanning Exact Piece Geometry</h1>
   <p class="subtitle" style="margin-top:0.5rem">
-    <strong>Status: Phases A, B, and C complete</strong> (M1–M4, M6, M7 researched in
-    <code>network/experiments/exp28_piece_geometry/</code> — detailed log: <code>HANDOFF.md</code> there;
-    M5 deferred, optional; M8 shipped the stack as production backend code in
-    <code>backend/app/services/piece_geometry/</code> with E2E verification on real photos).
+    <strong>Status: Phases A, B, C complete; Phase D underway — M9 done, M10 next</strong>
+    (M1–M4, M6, M7 researched in <code>network/experiments/exp28_piece_geometry/</code> — detailed
+    log: <code>HANDOFF.md</code> there; M5 deferred, optional; M8 shipped the stack as production
+    backend code in <code>backend/app/services/piece_geometry/</code> with E2E verification on real
+    photos; M9 put the live outline overlay in the iOS camera, verified on a physical iPhone).
     Result blocks (◆) below record what each milestone actually found. The scoring stack:
     rembg contour → polydp corners → typed edges + canonical polylines → shape+spatial-color
     fingerprint → one z-sum score for ranking (95.2% top-1 cross-background) and thresholding
-    (M7 recipe). Next: Phase D (M9, iOS live overlay).
+    (M7 recipe). Next: M10, scan-and-lock.
   </p>
   <p class="subtitle">
     Today Pussel answers <em>"where in the picture does this piece go?"</em> by matching surface
@@ -616,17 +617,31 @@
 <p class="phasedesc">Only now touch Swift — with a proven algorithm behind a stable API. Split into three small steps so each is demoable on-device.</p>
 
 <div class="milestone">
-  <h4><span class="mtag d">M9</span> Live outline overlay in the iOS preview <span class="badge next">NEXT ▶</span></h4>
+  <h4><span class="mtag d">M9</span> Live outline overlay in the iOS preview <span class="badge done">DONE ✓</span></h4>
   <div class="meta">~2–3 sessions · iOS catches up to what the web frontend already does</div>
   <ul>
     <li>Add an <code>AVCaptureVideoDataOutput</code> frame tap to the existing <code>PieceCameraSession</code>; throttle-stream downscaled frames to the (extended) preview endpoint; draw the returned polygon over the preview layer.</li>
     <li>Optional spike alongside: on-device <code>VNDetectContoursRequest</code> for the rough outline at full frame rate, with the backend doing the precise work — decide based on felt latency.</li>
   </ul>
   <div class="success">Point phone at a piece → its outline appears live within ~300ms and tracks as the piece/phone moves.</div>
+  <div class="outcome">
+    <strong>Criterion met — verified live on a physical iPhone 15 by the user.</strong> The camera
+    session gained an <code>AVCaptureVideoDataOutput</code> tap streaming throttled 480px JPEGs
+    (≥250ms interval, one in flight) to the preview endpoint with quality flags; the outline renders
+    as a CAShapeLayer — yellow detected, green lockable — with 120ms animated tracking. Pure logic
+    (throttle, coordinate mapping) is extracted and unit-tested; 76 iOS tests pass. Two lessons worth
+    keeping: (1) <em>never guess buffer orientation</em> — the first device build drew the outline
+    rotated and offset because a fixed sensor-rotation assumption was wrong; the fix rotates buffers
+    to portrait at the connection level (<code>videoRotationAngle=90</code>) so the streamed frame is
+    pixel-identical to the preview, mapped by one unit-tested aspect-fill transform on device and
+    Simulator alike. (2) iOS 26 Simulator camera-permission dialogs cannot be scripted away, so DEBUG
+    Simulator builds skip the real capture session entirely and a <code>pusseldebug://previewloop</code>
+    command feeds fake frames through the identical pipeline for tap-free demos.
+  </div>
 </div>
 
 <div class="milestone">
-  <h4><span class="mtag d">M10</span> Scan-and-lock: the "mark it green" moment</h4>
+  <h4><span class="mtag d">M10</span> Scan-and-lock: the "mark it green" moment <span class="badge next">NEXT ▶</span></h4>
   <div class="meta">~3–4 sessions · the heart of the vision</div>
   <ul>
     <li>Stability tracking across frames (contour IoU between consecutive detections); when stable + quality-gated (sharpness, size, corner confidence), auto-capture a full-res frame, run full geometry extraction, and flip the overlay to a locked/green state with haptic feedback.</li>

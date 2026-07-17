@@ -8,7 +8,9 @@
   ///   echo "pusseldebug://trim?puzzle=/host/path.jpg" > /tmp/pussel-debug-command
   ///   xcrun simctl spawn booted notifyutil -p dk.delectosoft.pussel.debug
   /// Commands: trim?puzzle=, accept[?pieces=], piece?path=, reupload, reset,
-  ///   open?index=, delete?index= (index into the saved-puzzles list).
+  ///   open?index=, delete?index= (index into the saved-puzzles list),
+  ///   camera[?open=0], previewloop?path=<host image path>[&stop=1] (M9 live
+  ///   preview overlay demo — see PieceCameraSession.startDebugPreviewLoop).
   /// Simulator apps can read host file paths directly. Compiled out of
   /// Release builds; the handler runs the same actions as the real UI.
   @MainActor
@@ -81,6 +83,10 @@
         debugOpen(index: value("index"))
       case "delete":
         debugDelete(index: value("index"))
+      case "camera":
+        debugCamera(open: value("open"))
+      case "previewloop":
+        debugPreviewLoop(path: value("path"), stop: value("stop"))
       default:
         break
       }
@@ -125,6 +131,31 @@
         return
       }
       deletePuzzle(store.puzzles[index].id)
+    }
+
+    /// Forces the piece camera cover open (or closed with `?open=0`), even
+    /// on the Simulator where `PieceCameraSession.isCameraAvailable` is
+    /// false — see `PieceQueueView.cameraCoverIsPresented`. Must already be
+    /// in the solving phase (drive there first with `trim`/`accept`).
+    private func debugCamera(open: String?) {
+      guard case .solving(let session) = flow.phase else { return }
+      session.debugCameraOpen = (open.flatMap(Int.init) ?? 1) != 0
+    }
+
+    /// Starts (or, with `?stop=1`, stops) a repeating fake-frame loop on the
+    /// active piece camera session, feeding `path` through the same
+    /// downscale → stream → overlay pipeline a real camera frame takes —
+    /// the Simulator's stand-in for a live camera, so M9's outline overlay
+    /// is demoable there. Requires the piece camera to already be open
+    /// (`camera`, or the real shutter screen on a device).
+    private func debugPreviewLoop(path: String?, stop: String?) {
+      guard let camera = PieceCameraSession.debugActive else { return }
+      if (stop.flatMap(Int.init) ?? 0) != 0 {
+        camera.stopDebugPreviewLoop()
+        return
+      }
+      guard let image = Self.hostImage(path) else { return }
+      camera.startDebugPreviewLoop(image: image)
     }
 
     private static func hostImage(_ path: String?) -> UIImage? {

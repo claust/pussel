@@ -68,6 +68,20 @@ final class APIClient {
     return try await sendDecoding(request)
   }
 
+  /// Streams one downscaled live-preview frame to the piece-region
+  /// detector. Stateless and lightweight — `PiecePreviewStreamer` calls
+  /// this in a throttled loop while the piece camera is open.
+  /// `include_quality=true` adds the `lockable`/`corner_disagreement` flags.
+  func previewPiece(imageData: Data) async throws -> PiecePreviewResponse {
+    let request = makeMultipartRequest(
+      path: "api/v1/piece/preview",
+      queryItems: [URLQueryItem(name: "include_quality", value: "true")],
+      jpegData: imageData,
+      filename: "frame.jpg"
+    )
+    return try await sendDecoding(request)
+  }
+
   // MARK: - Request building & sending
 
   func makeMultipartRequest(

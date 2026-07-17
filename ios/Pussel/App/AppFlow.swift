@@ -73,6 +73,12 @@ final class SolveSession {
   var isProcessing = false
   var puzzleExpired = false
   var errorMessage: String?
+  #if DEBUG
+    /// Forces `PieceQueueView`'s camera cover open even when
+    /// `PieceCameraSession.isCameraAvailable` is false (the Simulator),
+    /// so `pusseldebug://camera` can demo M9's live preview overlay there.
+    var debugCameraOpen = false
+  #endif
 
   @ObservationIgnored private let store: PuzzleStore?
 

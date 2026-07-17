@@ -59,7 +59,7 @@ struct PieceQueueView: View {
     .onChange(of: session.entries.isEmpty) { _, isEmpty in
       if isEmpty { isDeleteMode = false }
     }
-    .fullScreenCover(isPresented: $showCamera) {
+    .fullScreenCover(isPresented: cameraCoverIsPresented) {
       PieceCaptureView()
     }
     // Simulator path: no camera, so the tile picks from the library directly.
@@ -80,6 +80,24 @@ struct PieceQueueView: View {
       showLibrary = true
     }
   }
+
+  #if DEBUG
+    /// Also presented when `pusseldebug://camera` sets
+    /// `session.debugCameraOpen`, so M9's overlay is demoable on the
+    /// Simulator (which has no camera, so `showCamera` alone never becomes
+    /// reachable there).
+    private var cameraCoverIsPresented: Binding<Bool> {
+      Binding(
+        get: { showCamera || session.debugCameraOpen },
+        set: { newValue in
+          showCamera = newValue
+          session.debugCameraOpen = newValue
+        }
+      )
+    }
+  #else
+    private var cameraCoverIsPresented: Binding<Bool> { $showCamera }
+  #endif
 }
 
 /// Leading tile in the grid: a big plus that starts a new piece capture.

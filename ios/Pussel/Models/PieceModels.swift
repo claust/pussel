@@ -25,6 +25,33 @@ struct PieceResponse: Codable, Equatable {
   let pieceSpan: PieceSpan?
 }
 
+/// Bounding box normalized to [0,1] image coordinates, mirroring the
+/// backend's `BoundingBox` model.
+struct NormalizedBoundingBox: Codable, Equatable {
+  let x: Double
+  let y: Double
+  let width: Double
+  let height: Double
+}
+
+/// Response of POST /api/v1/piece/preview — live piece-region detection in
+/// a downscaled camera frame, streamed from `PiecePreviewStreamer`.
+struct PiecePreviewResponse: Codable, Equatable {
+  let found: Bool
+  /// Outline of the detected region, normalized to the frame that was
+  /// submitted. Empty when `found` is false.
+  let polygon: [NormalizedPoint]
+  let bbox: NormalizedBoundingBox?
+  let confidence: Double
+  /// Best-effort piece-geometry quality flag from a quick corner-detection
+  /// pass; only populated when the request opted in with
+  /// `include_quality=true` (see `APIClient.previewPiece`).
+  let lockable: Bool?
+  /// Whether the quick corner cross-check disagreed; only populated with
+  /// `include_quality=true`.
+  let cornerDisagreement: Bool?
+}
+
 /// A captured piece moving through the prediction queue.
 struct CaptureEntry: Identifiable, Equatable {
   enum Status: Equatable {
