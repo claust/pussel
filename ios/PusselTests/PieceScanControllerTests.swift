@@ -416,6 +416,42 @@ final class PieceScanControllerTests: XCTestCase {
     XCTAssertEqual(ctrl.gallery.count, 0)
   }
 
+  // MARK: - 5c. onEnrolled fires for enrolled pieces only
+
+  /// Enrolled pieces (new verdicts, auto or confirmed) must reach the
+  /// session's piece list via onEnrolled; matched pieces must not — the
+  /// dedupe is what keeps the puzzle page's list duplicate-free.
+  func testOnEnrolledFiresForNewAndConfirmButNotMatched() async {
+    let client = FakeGeometryClient()
+    client.uploadResponses = [
+      .success(uploadResponse(status: .new, pieceId: "p-a")),
+      .success(uploadResponse(status: .matched, pieceId: "p-a", matchPieceId: "p-a")),
+      .success(uploadResponse(status: .uncertain, pieceId: nil, matchPieceId: "p-a")),
+      .success(uploadResponse(status: .new, pieceId: "p-b")),
+    ]
+    var enrolled: [(String, Data)] = []
+    let ctrl = PieceScanController(
+      puzzleId: { "test-puzzle" },
+      geometryClient: client,
+      capture: { fixtureJPEG },
+      haptic: { _ in },
+      onEnrolled: { enrolled.append(($0, $1)) },
+      sleep: { _ in }
+    )
+
+    driveToFire(ctrl)  // new p-a
+    await settle()
+    driveToFire(ctrl)  // matched
+    await settle()
+    driveToFire(ctrl)  // uncertain — chip pending
+    await settle()
+    await ctrl.confirmUncertainAsNew()  // enroll → new p-b
+    await settle()
+
+    XCTAssertEqual(enrolled.map(\.0), ["p-a", "p-b"])
+    XCTAssertEqual(enrolled.map(\.1), [fixtureJPEG, fixtureJPEG])
+  }
+
   // MARK: - 6. loadEnrolled merges gallery
 
   func testLoadEnrolledMergesServerPiecesWithLocalGallery() async {
@@ -454,6 +490,39 @@ final class PieceScanControllerTests: XCTestCase {
     let serverOnly = ctrl.gallery.first { $0.pieceId == "server-only" }
     XCTAssertNotNil(local?.thumbnailJPEG, "Existing thumbnail must be preserved")
     XCTAssertNil(serverOnly?.thumbnailJPEG, "Server-only piece has no local thumbnail")
+  }
+
+  /// Pieces enrolled in an earlier scanner visit come back from the server
+  /// list without images; the thumbnailForPiece hook (wired to the session's
+  /// persisted piece entries) restores them instead of a placeholder.
+  func testLoadEnrolledRestoresThumbnailsViaProvider() async {
+    let client = FakeGeometryClient()
+    client.listResponse = .success(
+      PieceGeometryListResponse(
+        puzzleId: "test-puzzle",
+        pieces: [
+          PieceGeometrySummary(
+            pieceId: "p-earlier", edgeTypes: [.tab, .tab, .tab, .tab],
+            isClean: true, cornerDisagreement: false),
+          PieceGeometrySummary(
+            pieceId: "p-unknown", edgeTypes: [.flat, .flat, .flat, .flat],
+            isClean: true, cornerDisagreement: false),
+        ]
+      ))
+    let storedPhoto = Data("STORED".utf8)
+    let ctrl = PieceScanController(
+      puzzleId: { "test-puzzle" },
+      geometryClient: client,
+      capture: { fixtureJPEG },
+      haptic: { _ in },
+      thumbnailForPiece: { id in id == "p-earlier" ? storedPhoto : nil },
+      sleep: { _ in }
+    )
+
+    await ctrl.loadEnrolled()
+
+    XCTAssertEqual(ctrl.gallery.first { $0.pieceId == "p-earlier" }?.thumbnailJPEG, storedPhoto)
+    XCTAssertNil(ctrl.gallery.first { $0.pieceId == "p-unknown" }?.thumbnailJPEG)
   }
 
   // MARK: - 7. ingest during non-scanning phase is ignored

@@ -139,6 +139,17 @@ final class PieceScanController {
   /// this, every auto-lock on a stale session dead-ends in a red
   /// "Puzzle not found" banner — found by the user on the first device run.
   private let recoverPuzzle: (() async -> Bool)?
+  /// Called once per enrolled piece (a `new` verdict, auto or via the
+  /// uncertain-confirm) with the geometry piece id and the captured JPEG.
+  /// The view wires this to `SolveSession.enqueueScanned`, which is what
+  /// puts scanned pieces into the puzzle page's piece list and persists
+  /// their photos — the scan gallery restores its thumbnails from those
+  /// entries via `thumbnailForPiece`.
+  private let onEnrolled: ((String, Data) -> Void)?
+  /// Locally stored photo for a geometry piece id, for gallery items whose
+  /// piece was scanned in an earlier scanner visit (the server list carries
+  /// no images). Nil (absent or no match) falls back to the placeholder tile.
+  private let thumbnailForPiece: ((String) -> Data?)?
   /// Injected sleep so tests can override with a no-op instant function and
   /// avoid any real `Task.sleep` pauses.
   private let sleep: (TimeInterval) async -> Void
@@ -164,6 +175,8 @@ final class PieceScanController {
     capture: @escaping () async -> Data?,
     haptic: @escaping (ScanHaptic) -> Void = pieceScanDefaultHaptic,
     recoverPuzzle: (() async -> Bool)? = nil,
+    onEnrolled: ((String, Data) -> Void)? = nil,
+    thumbnailForPiece: ((String) -> Data?)? = nil,
     sleep: @escaping (TimeInterval) async -> Void = pieceScanDefaultSleep,
     tracker: PieceScanStabilityTracker = PieceScanStabilityTracker()
   ) {
@@ -172,6 +185,8 @@ final class PieceScanController {
     self.capture = capture
     self.haptic = haptic
     self.recoverPuzzle = recoverPuzzle
+    self.onEnrolled = onEnrolled
+    self.thumbnailForPiece = thumbnailForPiece
     self.sleep = sleep
     self.tracker = tracker
   }
@@ -236,6 +251,7 @@ final class PieceScanController {
       let edgeTypes = response.edgeTypes
       gallery.append(ScannedPiece(pieceId: pieceId, edgeTypes: edgeTypes, thumbnailJPEG: jpeg))
       pendingUncertainJPEG = nil
+      onEnrolled?(pieceId, jpeg)
       setVerdict(.locked(pieceId: pieceId, edgeTypes: edgeTypes))
       haptic(.success)
       scheduleRearm(delay: Self.rearmDelayLocked)
@@ -312,7 +328,13 @@ final class PieceScanController {
     let knownIds = Set(gallery.map(\.pieceId))
     for piece in response.pieces where !knownIds.contains(piece.pieceId) {
       gallery.append(
-        ScannedPiece(pieceId: piece.pieceId, edgeTypes: piece.edgeTypes, thumbnailJPEG: nil))
+        ScannedPiece(
+          pieceId: piece.pieceId,
+          edgeTypes: piece.edgeTypes,
+          // Pieces enrolled in an earlier scanner visit were enqueued into
+          // the session's piece list at lock time — recover their photos
+          // from there rather than showing a placeholder.
+          thumbnailJPEG: thumbnailForPiece?(piece.pieceId)))
     }
   }
 

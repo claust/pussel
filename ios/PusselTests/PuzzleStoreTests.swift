@@ -63,7 +63,8 @@ final class PuzzleStoreTests: XCTestCase {
           rotationConfidence: 0.77,
           cleanedImage: nil,
           pieceSpan: PieceSpan(width: 0.34, height: 0.25)
-        )
+        ),
+        scanPieceId: "p001"
       )
     ]
     session.persist()
@@ -92,6 +93,9 @@ final class PuzzleStoreTests: XCTestCase {
     XCTAssertEqual(entry.result?.position, NormalizedPoint(x: 0.34, y: 0.4))
     XCTAssertEqual(entry.result?.rotation, 90)
     XCTAssertEqual(entry.result?.pieceSpan, PieceSpan(width: 0.34, height: 0.25))
+    // The scan-and-lock link survives the round trip, so the scan gallery
+    // can restore this entry's photo as its thumbnail on a later visit.
+    XCTAssertEqual(entry.scanPieceId, "p001")
   }
 
   func testUnpredictedPieceReloadsAsQueued() throws {

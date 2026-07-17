@@ -40,6 +40,10 @@ private struct StoredPiece: Codable {
   let id: UUID
   /// nil while the piece is captured but not yet predicted.
   var result: StoredResult?
+  /// Geometry-store piece id for M10 scan-and-lock captures; nil for
+  /// shutter/library captures and for manifests written before this field
+  /// existed (optional Codable decodes missing keys as nil).
+  var scanPieceId: String?
 }
 
 private struct StoredResult: Codable {
@@ -153,7 +157,8 @@ final class PuzzleStore {
               rotationConfidence: $0.rotationConfidence,
               pieceSpan: $0.pieceSpan
             )
-          }
+          },
+          scanPieceId: entry.scanPieceId
         )
       },
       pieceCount: session.targetPieceCount,
@@ -255,7 +260,8 @@ final class PuzzleStore {
         uploadJPEG: upload,
         displayImage: display,
         status: result == nil ? .queued : .done,
-        result: result
+        result: result,
+        scanPieceId: piece.scanPieceId
       )
     }
     return session
