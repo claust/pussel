@@ -294,8 +294,9 @@ async def preview_piece(
         bool,
         Query(
             description=(
-                "Also run a quick corner-detection pass on the detected region and add "
-                "lockable/corner_disagreement flags. Default response shape is unchanged when omitted."
+                "Also run a quick corner-detection pass on the detected region and populate the "
+                "lockable/corner_disagreement flags. Those fields are always present in the response "
+                "model; when this is omitted/false they are returned as null."
             )
         ),
     ] = False,
@@ -309,12 +310,12 @@ async def preview_piece(
     Args:
         current_user: The authenticated user.
         file: A downscaled camera frame.
-        include_quality: When true, adds best-effort `lockable` and
+        include_quality: When true, populates the best-effort `lockable` and
             `corner_disagreement` piece-geometry flags computed from the
             detected region's polygon (see
             `app.services.piece_geometry.service.quick_quality_from_polygon`).
-            Omitted/false leaves the response unchanged from before this flag
-            existed.
+            Both fields are always present in `PiecePreviewResponse`; when
+            omitted/false they are returned as null.
 
     Returns:
         PiecePreviewResponse with the detected region outline and a confidence

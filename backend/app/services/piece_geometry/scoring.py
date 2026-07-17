@@ -13,8 +13,12 @@ which were stable across all four north_star backgrounds) is used instead.
 
 The `t_accept` / `t_new` scan-lock thresholds themselves live in
 `app.config.Settings` (`PIECE_GEOMETRY_T_ACCEPT` / `PIECE_GEOMETRY_T_NEW`)
-so they can be tuned via environment/config without a code change; their
-M7-frozen defaults are -4.78 and -0.80 respectively.
+so they can be tuned via environment/config without a code change. See
+`Settings` for the authoritative current defaults and the rationale: M7
+froze the strictest accept point (-4.78), but the shipped default relaxes
+`t_accept` to M7's FMR=1% ROC operating point so hands-free scan enrollment
+does not send most genuine re-scans to the gray zone; `t_new` stays at the
+M7-frozen -0.80.
 """
 
 from dataclasses import dataclass

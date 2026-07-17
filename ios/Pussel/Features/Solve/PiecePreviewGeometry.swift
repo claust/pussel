@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 /// Pure math for mapping the backend's frame-normalized piece outline onto
