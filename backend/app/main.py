@@ -602,6 +602,35 @@ async def list_piece_geometry(
     )
 
 
+@app.delete("/api/v1/puzzle/{puzzle_id}/piece/geometry/{piece_id}", status_code=204)
+async def delete_piece_geometry(
+    puzzle_id: str,
+    piece_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> None:
+    """Un-enroll one piece from a puzzle's piece-geometry store.
+
+    Mirrors the client deleting a scanned piece from its piece list: the piece
+    disappears from the scanner's gallery, and a fresh photo of it reads as a
+    new piece again instead of matching the stale enrollment.
+
+    Args:
+        puzzle_id: ID of the puzzle the piece belongs to.
+        piece_id: ID of the enrolled piece to remove.
+        current_user: The authenticated user.
+
+    Raises:
+        HTTPException: If the puzzle does not exist, or it has no piece with
+            this id enrolled.
+    """
+    _ = current_user  # Acknowledge the parameter is intentionally unused for now
+    if puzzle_id not in puzzle_images:
+        raise HTTPException(status_code=404, detail="Puzzle not found")
+
+    if not get_piece_geometry_store().remove(puzzle_id, piece_id):
+        raise HTTPException(status_code=404, detail="Piece not found")
+
+
 @app.post("/api/v1/puzzle/{puzzle_id}/generate-piece", response_model=GeneratePieceResponse)
 async def generate_piece(
     puzzle_id: str,
