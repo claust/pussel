@@ -194,4 +194,4 @@ ios-deploy: ios-generate
 # Screenshot the connected (physical) device. The device must be unlocked.
 # Override the destination with OUT=<path>; defaults to a timestamped /tmp file.
 ios-screenshot:
-	@./scripts/ios_screenshot.sh $(OUT)
+	@./scripts/ios_screenshot.sh "$(OUT)"

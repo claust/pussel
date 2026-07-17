@@ -19,7 +19,7 @@ if ! command -v pymobiledevice3 &> /dev/null; then
     exit 1
 fi
 
-if ! idevice_id -l 2>/dev/null | grep -q .; then
+if ! pymobiledevice3 usbmux list 2>/dev/null | grep -q '"Identifier"'; then
     echo "Error: no paired iOS device found."
     echo "Connect the device via USB, unlock it, and tap Trust."
     exit 1
@@ -29,12 +29,13 @@ pymobiledevice3 developer dvt screenshot "$OUT" --userspace
 
 # The capture is 16-bit RGB (~9 MB); flattening to 8-bit cuts that to ~3 MB
 # with no visible loss. Optional -- skipped when ffmpeg is unavailable.
+# The scratch file sits next to $OUT so the .png suffix lets ffmpeg infer the
+# format and the final mv stays within one filesystem.
 if command -v ffmpeg &> /dev/null; then
-    TMP="$(mktemp -t ios_screenshot).png"
+    TMP="$OUT.tmp.$$.png"
+    trap 'rm -f "$TMP"' EXIT
     if ffmpeg -y -loglevel error -i "$OUT" -pix_fmt rgb24 "$TMP" 2>/dev/null; then
         mv "$TMP" "$OUT"
-    else
-        rm -f "$TMP"
     fi
 fi
 
