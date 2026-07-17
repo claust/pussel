@@ -39,12 +39,29 @@ exits rather than picking one.
 USAGE
 }
 
+# Refuse a device+simulator combination rather than letting the last flag win:
+# `make ios-screenshot TARGET=simulator DEV=<udid>` expands to both, and
+# silently honouring one would capture the target the caller did not ask for.
+select_target() {
+    if [ "$TARGET" != "auto" ] && [ "$TARGET" != "$1" ]; then
+        {
+            echo "Error: --device and --simulator cannot be combined."
+            echo
+            echo "Pass one target, or none to use whichever is available."
+            echo "Via make, TARGET=device|simulator, SIM=<name-or-udid> and DEV=<udid>"
+            echo "each select a target -- use only one of them."
+        } >&2
+        exit 2
+    fi
+    TARGET="$1"
+}
+
 while [ $# -gt 0 ]; do
     case "$1" in
-        --device) TARGET="device" ;;
-        --device=*) TARGET="device"; DEV_SPEC="${1#*=}" ;;
-        --simulator|--sim) TARGET="simulator" ;;
-        --simulator=*|--sim=*) TARGET="simulator"; SIM_SPEC="${1#*=}" ;;
+        --device) select_target "device" ;;
+        --device=*) select_target "device"; DEV_SPEC="${1#*=}" ;;
+        --simulator|--sim) select_target "simulator" ;;
+        --simulator=*|--sim=*) select_target "simulator"; SIM_SPEC="${1#*=}" ;;
         -h|--help) usage; exit 0 ;;
         -*) echo "Error: unknown option '$1'." >&2; echo >&2; usage >&2; exit 2 ;;
         # An empty positional is what `make ios-screenshot` passes when OUT is
