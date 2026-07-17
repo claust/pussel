@@ -10,6 +10,7 @@ import XCTest
 final class FakeGeometryClient: PieceGeometryScanning {
   private(set) var uploadCallCount = 0
   private(set) var lastEnrollUncertain: Bool?
+  private(set) var receivedPuzzleIds: [String] = []
 
   /// Queue of upload responses. Each call to `uploadPieceGeometry` dequeues
   /// one; panics if the queue runs dry (indicates the test over-called).
@@ -22,6 +23,7 @@ final class FakeGeometryClient: PieceGeometryScanning {
   ) async throws -> PieceGeometryUploadResponse {
     uploadCallCount += 1
     lastEnrollUncertain = enrollUncertain
+    receivedPuzzleIds.append(puzzleId)
     guard !uploadResponses.isEmpty else {
       fatalError("FakeGeometryClient: no more scripted upload responses")
     }
@@ -110,7 +112,7 @@ final class PieceScanControllerTests: XCTestCase {
   ) -> (ctrl: PieceScanController, haptics: HapticBox) {
     let box = HapticBox()
     let ctrl = PieceScanController(
-      puzzleId: "test-puzzle",
+      puzzleId: { "test-puzzle" },
       geometryClient: client,
       capture: { captureReturnsNil ? nil : fixtureJPEG },
       haptic: { [weak box] kind in box?.record(kind) },
@@ -196,7 +198,7 @@ final class PieceScanControllerTests: XCTestCase {
     let box = HapticBox()
     // Non-resuming sleep so the rearm doesn't clear pendingUncertainJPEG.
     let ctrl = PieceScanController(
-      puzzleId: "test-puzzle",
+      puzzleId: { "test-puzzle" },
       geometryClient: client,
       capture: { fixtureJPEG },
       haptic: { [weak box] kind in box?.record(kind) },
@@ -228,7 +230,7 @@ final class PieceScanControllerTests: XCTestCase {
     ]
     let box = HapticBox()
     let ctrl = PieceScanController(
-      puzzleId: "test-puzzle",
+      puzzleId: { "test-puzzle" },
       geometryClient: client,
       capture: { fixtureJPEG },
       haptic: { [weak box] kind in box?.record(kind) },
@@ -262,7 +264,7 @@ final class PieceScanControllerTests: XCTestCase {
     let box = HapticBox()
     let pendingJPEGClearedAfterConfirm = LockBox(false)
     let ctrl = PieceScanController(
-      puzzleId: "test-puzzle",
+      puzzleId: { "test-puzzle" },
       geometryClient: client,
       capture: { fixtureJPEG },
       haptic: { [weak box] kind in box?.record(kind) },
@@ -301,7 +303,7 @@ final class PieceScanControllerTests: XCTestCase {
       .success(uploadResponse(status: .new, pieceId: "p-once")),
     ]
     let ctrl = PieceScanController(
-      puzzleId: "test-puzzle",
+      puzzleId: { "test-puzzle" },
       geometryClient: client,
       capture: { fixtureJPEG },
       haptic: { _ in },
@@ -352,6 +354,66 @@ final class PieceScanControllerTests: XCTestCase {
     XCTAssertTrue(haptics.contains(.failure))
     // Instant sleep re-arms back to .scanning.
     XCTAssertEqual(ctrl.phase, .scanning)
+  }
+
+  // MARK: - 5b. 404 → puzzle recovery → retried once with the fresh id
+
+  /// The backend's in-memory puzzle store forgets a saved session's id after
+  /// a restart. The first auto-lock's 404 must trigger the recovery hook
+  /// (session re-upload) and retry against the fresh id — the failure mode
+  /// the first physical-device run hit on every scan.
+  func testPuzzleNotFoundRecoversAndRetriesWithFreshId() async {
+    let client = FakeGeometryClient()
+    client.uploadResponses = [
+      .failure(APIError(message: "Puzzle not found", status: 404)),
+      .success(uploadResponse(status: .new, pieceId: "p-new")),
+    ]
+    let box = HapticBox()
+    var puzzleId = "stale-id"
+    let ctrl = PieceScanController(
+      puzzleId: { puzzleId },
+      geometryClient: client,
+      capture: { fixtureJPEG },
+      haptic: { [weak box] kind in box?.record(kind) },
+      recoverPuzzle: {
+        puzzleId = "fresh-id"
+        return true
+      },
+      sleep: { _ in }
+    )
+
+    driveToFire(ctrl)
+    await settle()
+
+    XCTAssertEqual(client.receivedPuzzleIds, ["stale-id", "fresh-id"])
+    XCTAssertEqual(ctrl.gallery.count, 1)
+    XCTAssertTrue(box.contains(.success))
+    XCTAssertFalse(box.contains(.failure))
+  }
+
+  /// When recovery itself fails, the verdict is an actionable failure and
+  /// there is no retry loop.
+  func testPuzzleNotFoundWithFailedRecoveryFailsOnce() async {
+    let client = FakeGeometryClient()
+    client.uploadResponses = [
+      .failure(APIError(message: "Puzzle not found", status: 404))
+    ]
+    let box = HapticBox()
+    let ctrl = PieceScanController(
+      puzzleId: { "stale-id" },
+      geometryClient: client,
+      capture: { fixtureJPEG },
+      haptic: { [weak box] kind in box?.record(kind) },
+      recoverPuzzle: { false },
+      sleep: { _ in }
+    )
+
+    driveToFire(ctrl)
+    await settle()
+
+    XCTAssertEqual(client.uploadCallCount, 1, "No retry without a recovered id")
+    XCTAssertTrue(box.contains(.failure))
+    XCTAssertEqual(ctrl.gallery.count, 0)
   }
 
   // MARK: - 6. loadEnrolled merges gallery

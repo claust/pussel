@@ -121,13 +121,24 @@ final class PieceScanController {
 
   // MARK: - Dependencies
 
-  private let puzzleId: String
+  /// Read fresh for every request rather than captured once: the backend's
+  /// puzzle store is in-memory, so a backend restart invalidates the id
+  /// mid-session and `recoverPuzzle` (re-upload) mints a new one — the
+  /// retry must see it.
+  private let puzzleId: () -> String
   private let geometryClient: any PieceGeometryScanning
   /// Returns the full-res JPEG for the current frame, already downscaled and
   /// encoded. Nil means the capture failed (e.g. no camera in the Simulator
   /// when the DEBUG capture-image isn't set).
   private let capture: () async -> Data?
   private let haptic: (ScanHaptic) -> Void
+  /// Called when a geometry POST 404s (the backend forgot this puzzle — its
+  /// store is in-memory and a restart wipes it mid-session). Should obtain a
+  /// fresh puzzle id (`SolveSession.reupload`) and return whether it
+  /// succeeded; the POST is then retried once against `puzzleId()`. Without
+  /// this, every auto-lock on a stale session dead-ends in a red
+  /// "Puzzle not found" banner — found by the user on the first device run.
+  private let recoverPuzzle: (() async -> Bool)?
   /// Injected sleep so tests can override with a no-op instant function and
   /// avoid any real `Task.sleep` pauses.
   private let sleep: (TimeInterval) async -> Void
@@ -148,10 +159,11 @@ final class PieceScanController {
   // MARK: - Init
 
   init(
-    puzzleId: String,
+    puzzleId: @escaping () -> String,
     geometryClient: any PieceGeometryScanning,
     capture: @escaping () async -> Data?,
     haptic: @escaping (ScanHaptic) -> Void = pieceScanDefaultHaptic,
+    recoverPuzzle: (() async -> Bool)? = nil,
     sleep: @escaping (TimeInterval) async -> Void = pieceScanDefaultSleep,
     tracker: PieceScanStabilityTracker = PieceScanStabilityTracker()
   ) {
@@ -159,6 +171,7 @@ final class PieceScanController {
     self.geometryClient = geometryClient
     self.capture = capture
     self.haptic = haptic
+    self.recoverPuzzle = recoverPuzzle
     self.sleep = sleep
     self.tracker = tracker
   }
@@ -192,11 +205,23 @@ final class PieceScanController {
   /// Shared POST path used by both the auto-capture and the uncertain-confirm
   /// flows. Caller is responsible for clearing `pendingUncertainJPEG` before
   /// entering here (to close the race window for a double-tap confirm).
-  private func post(jpeg: Data, enrollUncertain: Bool) async {
+  ///
+  /// A 404 means the backend forgot this puzzle (in-memory store, restart) —
+  /// recover a fresh puzzle id and retry once, so a stale saved session heals
+  /// itself on the first lock instead of red-bannering every scan.
+  private func post(jpeg: Data, enrollUncertain: Bool, isRetry: Bool = false) async {
     do {
       let response = try await geometryClient.uploadPieceGeometry(
-        puzzleId: puzzleId, jpegData: jpeg, enrollUncertain: enrollUncertain)
+        puzzleId: puzzleId(), jpegData: jpeg, enrollUncertain: enrollUncertain)
       applyResponse(response, jpeg: jpeg)
+    } catch let error as APIError where error.status == 404 && !isRetry {
+      if let recoverPuzzle, await recoverPuzzle() {
+        await post(jpeg: jpeg, enrollUncertain: enrollUncertain, isRetry: true)
+        return
+      }
+      setVerdict(.failure("Puzzle session expired. Close the scanner and re-add the puzzle."))
+      haptic(.failure)
+      scheduleRearm(delay: Self.rearmDelayFailure)
     } catch {
       setVerdict(.failure(error.localizedDescription))
       haptic(.failure)
@@ -282,7 +307,7 @@ final class PieceScanController {
   /// strip on open is cosmetic, and the next POST will surface any real backend
   /// problem.
   func loadEnrolled() async {
-    guard let response = try? await geometryClient.listPieceGeometry(puzzleId: puzzleId)
+    guard let response = try? await geometryClient.listPieceGeometry(puzzleId: puzzleId())
     else { return }
     let knownIds = Set(gallery.map(\.pieceId))
     for piece in response.pieces where !knownIds.contains(piece.pieceId) {

@@ -72,13 +72,22 @@ struct PieceScanView: View {
       camera.attachPreviewStreamer(streamer)
 
       let ctrl = PieceScanController(
-        puzzleId: session.puzzleId,
+        puzzleId: { [weak session] in session?.puzzleId ?? "" },
         geometryClient: model.api,
         capture: { [weak camera] in
           guard let camera else { return nil }
           let image = await camera.capturePhoto()
           guard let image else { return nil }
           return ImageUtilities.normalizedJPEG(from: image, maxDimension: 1600, quality: 0.9)
+        },
+        // The backend's puzzle store is in-memory: a stored session's id can
+        // 404 after a backend restart. Recover the same way the piece queue
+        // does — re-upload the kept trimmed image for a fresh id — so the
+        // first auto-lock heals the session instead of red-bannering.
+        recoverPuzzle: { [weak session] in
+          guard let session else { return false }
+          await session.reupload(api: model.api)
+          return session.errorMessage == nil
         }
       )
       controller = ctrl
