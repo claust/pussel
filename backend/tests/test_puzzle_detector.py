@@ -193,11 +193,12 @@ class TestEdgeFallback:
 
     @staticmethod
     def make_edge_to_edge_puzzle(with_subject: bool) -> Tuple[Image.Image, "np.ndarray"]:
-        """Render a tilted, bordered puzzle rectangle that fills the frame.
+        """Render a tilted, bordered puzzle on a non-uniform (gradient) surround.
 
-        The border ring is not a uniform background (the puzzle nearly reaches
-        every edge), so the chroma fast path bails and the edge fallback runs.
-        This reproduces the real handheld-overview failure mode from issue #110.
+        The surround's chroma varies across the frame, so the border ring is
+        not a uniform background: the chroma fast path bails and the edge
+        fallback runs. This reproduces the real handheld-overview failure mode
+        from issue #110, where the chroma path bails on every real photo.
 
         Args:
             with_subject: When true, paint a large blob of a single colour in
@@ -208,11 +209,14 @@ class TestEdgeFallback:
             The photo and the destination quad (4x2, TL/TR/BR/BL) of the
             puzzle's outline in pixel coordinates.
         """
-        rng = np.random.default_rng(11)
         width, height = 900, 700
-        # Slightly non-uniform, mid-tone surround so the border ring is not "background"
-        photo = np.full((height, width, 3), (110, 118, 130), dtype=np.uint8)
-        photo = np.clip(photo.astype(np.int16) + rng.normal(0, 6, (height, width, 3)), 0, 255).astype(np.uint8)
+        # Smooth left-to-right colour gradient: chroma varies across the border
+        # ring (so the chroma path bails) but stays low-frequency (few stray edges).
+        ramp = np.linspace(0.0, 1.0, width, dtype=np.float32)[None, :]
+        photo = np.zeros((height, width, 3), dtype=np.uint8)
+        photo[:, :, 0] = (200 - 150 * ramp).astype(np.uint8)  # red fades out
+        photo[:, :, 1] = 120
+        photo[:, :, 2] = (50 + 150 * ramp).astype(np.uint8)  # blue fades in
 
         # Busy artwork with a dark border, warped to a tilted quad that nearly fills the frame
         art = np.full((512, 512, 3), (235, 225, 205), dtype=np.uint8)
@@ -231,12 +235,30 @@ class TestEdgeFallback:
         photo = np.where(mask[..., None] > 0, warped, photo)
         return Image.fromarray(photo), dst_quad
 
+    def test_chroma_path_bails_on_gradient_surround(self, detector: PuzzleFrameDetector) -> None:
+        """The fixture's non-uniform surround makes the chroma fast path bail.
+
+        This is the precondition for the tests below: they only exercise the
+        edge fallback if the chroma path declines first. Guards against a future
+        threshold tweak silently routing these through the chroma path.
+        """
+        import cv2 as _cv2
+
+        photo, _ = self.make_edge_to_edge_puzzle(with_subject=False)
+        work = _cv2.GaussianBlur(np.asarray(photo), (7, 7), 0).astype(np.float32)
+
+        assert detector._foreground_mask(work) is None
+
     def test_edge_fallback_traces_puzzle_rectangle(self, detector: PuzzleFrameDetector) -> None:
-        """A bordered puzzle that fills the frame is detected by its rectangle."""
+        """A bordered puzzle on a non-uniform surround is detected by its rectangle."""
+        from unittest.mock import patch
+
         photo, dst_quad = self.make_edge_to_edge_puzzle(with_subject=False)
         width, height = photo.size
 
-        corners, confidence = detector.detect_corners(photo)
+        with patch.object(detector, "_edge_quad", wraps=detector._edge_quad) as spy:
+            corners, confidence = detector.detect_corners(photo)
+        spy.assert_called_once()  # detection went through the edge path, not chroma
 
         expected = [(float(x) / width, float(y) / height) for x, y in dst_quad.tolist()]
         assert confidence > 0.4
