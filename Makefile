@@ -191,7 +191,15 @@ ios-deploy: ios-generate
 		"$(IOS_DERIVED)/Build/Products/Debug-iphoneos/$(IOS_APP_NAME).app" && \
 	xcrun devicectl device process launch --device "$$DEVICE" "$(IOS_BUNDLE_ID)"
 
-# Screenshot the connected (physical) device. The device must be unlocked.
+# Screenshot a connected device or a booted Simulator, whichever is available
+# (a connected device must be unlocked). When several targets are available the
+# script lists them and exits rather than guessing; pick one with:
+#   make ios-screenshot TARGET=device
+#   make ios-screenshot TARGET=simulator
+#   make ios-screenshot SIM="iPhone 17 Pro"   # name or udid; implies simulator
 # Override the destination with OUT=<path>; defaults to a timestamped /tmp file.
+# SIM is quoted here rather than passed through a bare $(ARGS), so simulator
+# names containing spaces survive as a single argument.
 ios-screenshot:
-	@./scripts/ios_screenshot.sh "$(OUT)"
+	@./scripts/ios_screenshot.sh $(if $(TARGET),--$(TARGET)) \
+		$(if $(SIM),--simulator="$(SIM)") "$(OUT)"
