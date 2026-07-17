@@ -90,7 +90,8 @@ make ios-screenshot OUT=/path/shot.png
 ```
 
 The device must be connected via USB, paired/trusted, and **unlocked**. Install
-the one dependency with `uv tool install pymobiledevice3`.
+the one required dependency with `uv tool install pymobiledevice3`. ffmpeg is
+used if present (see below) but is not required.
 
 Note that the obvious alternatives do not work on iOS 17+, which moved the
 screenshot service from `lockdownd` to RemoteXPC:
