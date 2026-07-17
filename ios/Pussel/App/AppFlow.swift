@@ -175,9 +175,25 @@ final class SolveSession {
     processNext(api: api)
   }
 
-  func remove(id: UUID) {
+  /// Deletes a piece from the list, and — for pieces that came from the
+  /// scanner — un-enrolls it from the backend's geometry store too. Without
+  /// that second half the scanner's gallery pre-fill (`loadEnrolled`, which
+  /// reads the server's enrolled list) would keep showing the deleted piece
+  /// on the next visit, as a thumbnail-less tile whose photo no longer
+  /// exists locally, and a re-scan of it would report "already scanned".
+  ///
+  /// The local removal is not contingent on the network call: the un-enroll
+  /// is fire-and-forget, so a failure leaves a stale server entry rather than
+  /// a piece the user couldn't delete. Server errors are ignored for the same
+  /// reason — there is nothing actionable to show for a piece that is already
+  /// gone from the user's list.
+  func remove(id: UUID, api: APIClient) {
+    guard let entry = entries.first(where: { $0.id == id }) else { return }
     entries.removeAll { $0.id == id }
     persist()
+    guard let scanPieceId = entry.scanPieceId else { return }
+    let puzzleId = puzzleId
+    Task { try? await api.deletePieceGeometry(puzzleId: puzzleId, pieceId: scanPieceId) }
   }
 
   /// Serially drains the queue — one in-flight prediction at a time, like

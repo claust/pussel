@@ -163,8 +163,71 @@ class TestGalleryStatsCaching:
         assert third is not first
 
 
+class TestRemove:
+    """Un-enrolling a piece the user deleted from their piece list."""
+
+    def test_removing_a_piece_drops_it_from_the_gallery(self) -> None:
+        """remove() reports success and the piece stops being listed."""
+        store = PuzzlePieceStore()
+        store.add_or_match(_fingerprint(PIECE_A_EDGE_TYPES, PIECE_A_COLORS), True, False)
+
+        assert store.remove("p001") is True
+        assert store.list_pieces() == []
+
+    def test_removing_an_unknown_piece_reports_false(self) -> None:
+        """An id this store never enrolled is a no-op, not an error."""
+        store = PuzzlePieceStore()
+
+        assert store.remove("p404") is False
+
+    def test_a_removed_piece_can_be_rescanned_as_new(self) -> None:
+        """With the stale enrollment gone, the same piece's next photo is new — under a fresh id."""
+        store = PuzzlePieceStore()
+        store.add_or_match(_fingerprint(PIECE_A_EDGE_TYPES, PIECE_A_COLORS), True, False)
+        store.remove("p001")
+
+        result = store.add_or_match(_fingerprint(PIECE_A_EDGE_TYPES, PIECE_A_COLORS), True, False)
+
+        assert result.verdict == MatchVerdict.NEW
+        # Ids are never recycled, so a removed id can't resurface on another piece.
+        assert result.piece_id == "p002"
+
+    def test_removing_invalidates_the_cached_stats(self) -> None:
+        """A remove + enroll returns the gallery to its old size — the cache must not survive it."""
+        from app.services.piece_geometry.scoring import MIN_GALLERY_FOR_STATS
+
+        store = PuzzlePieceStore()
+        fp = _fingerprint(PIECE_A_EDGE_TYPES, PIECE_A_COLORS)
+        for _ in range(MIN_GALLERY_FOR_STATS):
+            store._enroll(fp, True, False)
+        first = store._gallery_stats()
+
+        store.remove("p001")
+        # Same gallery size as when `first` was cached, different gallery — a
+        # size-keyed cache would wrongly hand back `first` here.
+        store._enroll(_fingerprint(PIECE_B_EDGE_TYPES, PIECE_B_COLORS), True, False)
+
+        assert store._gallery_stats() is not first
+
+
 class TestPieceGeometryStore:
     """Tests for the puzzle_id-keyed PieceGeometryStore wrapper."""
+
+    def test_remove_only_affects_the_named_puzzle(self) -> None:
+        """Removing a piece id from one puzzle leaves the same id in another puzzle alone."""
+        store = PieceGeometryStore()
+        store.add_or_match("puzzle-1", _fingerprint(PIECE_A_EDGE_TYPES, PIECE_A_COLORS), True, False)
+        store.add_or_match("puzzle-2", _fingerprint(PIECE_B_EDGE_TYPES, PIECE_B_COLORS), True, False)
+
+        assert store.remove("puzzle-1", "p001") is True
+        assert store.list_pieces("puzzle-1") == []
+        assert [p.piece_id for p in store.list_pieces("puzzle-2")] == ["p001"]
+
+    def test_remove_for_unknown_puzzle_reports_false(self) -> None:
+        """Removing from a puzzle with no store yet is a no-op, not an error."""
+        store = PieceGeometryStore()
+
+        assert store.remove("never-seen", "p001") is False
 
     def test_stores_are_isolated_per_puzzle(self) -> None:
         """Two puzzles' piece stores don't share enrolled pieces or id sequences."""
