@@ -5,7 +5,7 @@
         format format-backend format-network format-shared format-frontend format-ios \
         test-backend install-dev-backend install-dev-network \
         start-backend start-frontend stop-backend stop-frontend \
-        ios-generate ios-run ios-deploy ios-test
+        ios-generate ios-run ios-deploy ios-test ios-screenshot
 
 # Run all checks (Python + Next.js + iOS)
 # check-ios self-skips where swift-format is unavailable (non-macOS), so this
@@ -190,3 +190,17 @@ ios-deploy: ios-generate
 	xcrun devicectl device install app --device "$$DEVICE" \
 		"$(IOS_DERIVED)/Build/Products/Debug-iphoneos/$(IOS_APP_NAME).app" && \
 	xcrun devicectl device process launch --device "$$DEVICE" "$(IOS_BUNDLE_ID)"
+
+# Screenshot a connected device or a booted Simulator, whichever is available
+# (a connected device must be unlocked). When several targets are available the
+# script lists them and exits rather than guessing; pick one with:
+#   make ios-screenshot TARGET=device
+#   make ios-screenshot TARGET=simulator
+#   make ios-screenshot SIM="iPhone 17 Pro"   # name or udid; implies simulator
+#   make ios-screenshot DEV=<udid>            # implies device
+# Override the destination with OUT=<path>; defaults to a timestamped /tmp file.
+# SIM/DEV are quoted here rather than passed through a bare $(ARGS), so names
+# containing spaces survive as a single argument.
+ios-screenshot:
+	@./scripts/ios_screenshot.sh $(if $(TARGET),--$(TARGET)) \
+		$(if $(SIM),--simulator="$(SIM)") $(if $(DEV),--device="$(DEV)") "$(OUT)"
