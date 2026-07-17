@@ -117,6 +117,16 @@ final class PieceCameraSession: NSObject, AVCapturePhotoCaptureDelegate {
   }
 
   func capturePhoto() async -> UIImage? {
+    #if targetEnvironment(simulator)
+      // The Simulator has no real camera, so `capturePhoto` would hang
+      // waiting for a photo output that never fires. When the DEBUG preview
+      // loop is running (i.e. a host image was fed via `startDebugPreviewLoop`)
+      // we use the upright image it stored so the scan-and-lock flow can
+      // complete an end-to-end cycle on the Simulator without a real device.
+      if let debugCaptureImage {
+        return debugCaptureImage
+      }
+    #endif
     // Ignore shutter taps while a capture is in flight — overwriting the
     // stored continuation would leak it and hang the first caller.
     guard isConfigured, captureContinuation == nil else { return nil }
@@ -203,11 +213,19 @@ final class PieceCameraSession: NSObject, AVCapturePhotoCaptureDelegate {
 
     private var debugPreviewTimer: Timer?
 
+    /// The upright host image last fed by `startDebugPreviewLoop`. Stored so
+    /// `capturePhoto()` can return it on the Simulator, giving the scan-and-
+    /// lock flow a real JPEG to POST without a physical camera.
+    private(set) var debugCaptureImage: UIImage?
+
     /// Feeds `image` through the same downscale → stream → overlay path as
     /// a real camera frame, on a ~3Hz repeating timer — the Simulator has
     /// no camera, so this is how `pusseldebug://previewloop?path=<host
     /// image path>` demos M9 there. `pusseldebug://previewloop?stop=1`
     /// stops it (`stopDebugPreviewLoop`).
+    /// Also stores the upright image in `debugCaptureImage` so the M10
+    /// scan-and-lock flow can complete an end-to-end POST cycle on the
+    /// Simulator via the `capturePhoto()` override above.
     func startDebugPreviewLoop(image: UIImage) {
       stopDebugPreviewLoop()
       // Bake any EXIF orientation into the pixels first: `cgImage` alone
@@ -224,6 +242,7 @@ final class PieceCameraSession: NSObject, AVCapturePhotoCaptureDelegate {
       }
       guard let cgImage = upright.cgImage else { return }
       let ciImage = CIImage(cgImage: cgImage)
+      debugCaptureImage = upright
       feedDebugFrame(ciImage)
       let interval: TimeInterval = 1.0 / 3.0
       let timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
@@ -236,6 +255,7 @@ final class PieceCameraSession: NSObject, AVCapturePhotoCaptureDelegate {
     func stopDebugPreviewLoop() {
       debugPreviewTimer?.invalidate()
       debugPreviewTimer = nil
+      debugCaptureImage = nil
     }
 
     private func feedDebugFrame(_ ciImage: CIImage) {

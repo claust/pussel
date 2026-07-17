@@ -319,7 +319,57 @@ Two hard-won lessons recorded for posterity:
 Deploy recipe used (device): build with `API_BASE_URL=http://<mac LAN IP>:8001`, backend on
 `--host 0.0.0.0`; `devicectl device install app` + `process launch`.
 
-## Recommendation going into M10 (scan-and-lock)
+## M10 — iOS scan-and-lock (Phase D, second milestone)
+
+Implemented exactly along the recommendation below and E2E-verified in the Simulator against the
+real backend (the 10-physical-pieces-in-2-minutes criterion still needs the on-device run).
+
+Implementation (`ios/Pussel/Features/Solve/`):
+
+- `PieceScanStabilityTracker` (pure, unit-tested): bbox-IoU ≥ 0.8 between consecutive `lockable`
+  preview detections, streak ≥ 1 s and ≥ 3 samples → fire once (latched until reset). `.detected`
+  (non-lockable) and degenerate polygons reset the streak.
+- `PieceScanController` (@MainActor @Observable, DI for client/capture/haptics/sleep — fully
+  unit-testable without camera/network/clock): scanning → capturing (auto `capturePhoto()`, no
+  shutter; downscaled to 1600 px JPEG like the texture path) → POST → verdict → timed re-arm.
+  Verdicts: `new` → "Piece locked ✓ T·B·F·T" + green flash + success haptic + gallery append;
+  `matched` → "Already scanned" + warning haptic + gallery-tile highlight (no duplicate);
+  `uncertain` → scanning resumes immediately, a persistent one-tap chip re-posts the same JPEG
+  with `on_uncertain=enroll` (double-tap-safe).
+- `PieceScanView`: opened from a new viewfinder tile next to the piece grid's "+"; reuses the M9
+  `CameraPreview`/`PiecePreviewStreamer` stack unchanged; session gallery strip at the bottom
+  (thumbnail or placeholder + edge glyph, pre-filled from GET on open).
+- Debug driving on the Simulator: `pusseldebug://scan` opens the view, `previewloop` doubles as
+  the capture source (the loop image is returned by `capturePhoto()` in DEBUG sim builds), and
+  `pusseldebug://scanconfirm` taps the uncertain chip.
+
+**Simulator E2E (worktree backend on :8001, north_star puzzle01 photos, all verified on screen
+and against the store via GET):** r00_c00 auto-locked as `new p001` (edge glyph F·T·B·F,
+thumbnail in gallery); continued pointing → `matched` → "Already scanned" with gallery highlight,
+store still 1 piece; app relaunch → gallery pre-filled from GET (placeholder tile); r02_c02 →
+`unreadable` (see the gap below), no chip, scanning continues; r02_c00 → gray-zone chip →
+`scanconfirm` → enrolled `p002` (B·B·F·F), locked banner, store lists [p001, p002].
+
+**The E2E again caught a real-flow gap unit tests missed (third time in this project):** the
+backend's `uncertain` status has a second, fingerprint-less flavor — contour quality-gate failure
+(e.g. the north_star arrow marker merging into the crop: r02_c02, r01_c01 on gray_fabric) returns
+`uncertain` with `z_score = null`, and `on_uncertain=enroll` correctly refuses to enroll it. The
+confirm chip would have been a dead-end loop for those photos. The controller now branches on
+`z_score == nil` → a distinct `unreadable` verdict ("Couldn't read the piece — adjust and hold
+steady", no chip, keep scanning). Production note: this flavor should be rare on a clean mat —
+it was the arrow marker + dark-wood clutter in the dataset photos.
+
+Tests: 110 iOS tests pass (tracker, controller incl. the unreadable branch, model decoding,
+API client); `make check-ios` clean. Deployed to the physical iPhone 15 with
+`API_BASE_URL=http://192.168.86.63:8001`.
+
+Known limitation for the device run: the backend piece store is in-memory, so a saved puzzle's
+`puzzle_id` dies with a backend restart. The scan flow surfaces the 404 as a red failure banner
+but has no re-upload recovery of its own (the piece-queue flow does) — start the device test
+from a freshly captured puzzle, or re-upload via the queue's expired banner first. Worth folding
+into M11 or a small follow-up.
+
+## Recommendation going into M10 (scan-and-lock) — original brief, implemented above
 
 - Track stability across preview responses (contour IoU or polygon-center drift between
   consecutive frames); when stable + `lockable`, auto-capture a full-res frame, POST it to
