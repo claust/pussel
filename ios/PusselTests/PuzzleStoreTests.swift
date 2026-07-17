@@ -228,8 +228,9 @@ final class PuzzleStoreTests: XCTestCase {
 
     session.remove(id: scanned.id, api: stubAPI())
 
-    // The un-enroll is fire-and-forget, so wait for the detached Task's request
-    // rather than assuming it landed by the time remove() returned.
+    // The un-enroll is fire-and-forget — remove() spawns the request in an
+    // unawaited Task — so wait for it rather than assuming it landed by the
+    // time remove() returned.
     try await waitForRequest(matching: "/api/v1/puzzle/server-123/piece/geometry/p007")
     XCTAssertEqual(StubURLProtocol.receivedRequests.last?.httpMethod, "DELETE")
   }
