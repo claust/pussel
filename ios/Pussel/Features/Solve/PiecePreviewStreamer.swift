@@ -103,11 +103,15 @@ final class PiecePreviewStreamer: @unchecked Sendable {
         do {
           let detection = try self.detector.detect(cgImage: cgImage)
           await MainActor.run { self.apply(detection, frameSize: frameSize, now: Date()) }
-        } catch {
+        } catch is PieceLiveDetectorUnavailable {
           // Vision subject lifting can't run here at all (e.g. Simulator) —
           // latch so this and every later frame use the server path.
           self.lock.withLock { self.visionUnavailable = true }
           fallBack = true
+        } catch {
+          // Any other error is transient — treat it like a dropped frame
+          // (keep the last-known state, retry on-device next frame) rather
+          // than permanently switching to the server path.
         }
       }
       if fallBack {
