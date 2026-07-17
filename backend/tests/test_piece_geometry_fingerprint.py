@@ -100,7 +100,7 @@ class TestFingerprintSelfConsistency:
         d_spatial_other = spatial_pair_distance(fp_a, fp_b, k_other)
         z_other = combined_z(d_shape_other, d_spatial_other, FALLBACK_STATS)
 
-        assert z_self < -4.78  # t_accept default
+        assert z_self < -4.78  # below even the strict M7 t_accept (production default is -3.98)
         assert z_other > -0.80  # t_new default
         assert z_self < z_other
 

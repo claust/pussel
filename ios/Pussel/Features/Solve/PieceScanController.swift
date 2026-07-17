@@ -214,7 +214,15 @@ final class PieceScanController {
       scheduleRearm(delay: Self.rearmDelayFailure)
       return
     }
-    await post(jpeg: jpeg, enrollUncertain: false)
+    // Hands-free enrollment: gray-zone verdicts enroll immediately instead of
+    // waiting for a confirm tap. The M10 device runs showed the confirm-chip
+    // flow costs one tap per new piece (M7: ~98% of new pieces land in the
+    // gray zone), which defeats the scan-10-pieces-hands-free goal. The
+    // matching risk is carried by the relaxed backend t_accept (M7's FMR=1%
+    // point): ~8% of genuine re-scans may now enroll as duplicates, deletable
+    // from the piece list. The chip UX below remains for the response shapes
+    // that still report uncertain (e.g. a server with enrollment disabled).
+    await post(jpeg: jpeg, enrollUncertain: true)
   }
 
   /// Shared POST path used by both the auto-capture and the uncertain-confirm
