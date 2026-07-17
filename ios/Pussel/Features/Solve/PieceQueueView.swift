@@ -24,7 +24,19 @@ struct PieceQueueView: View {
     GridItem(.adaptive(minimum: 84), spacing: 12, alignment: .top)
   ]
 
+  /// Divisor that puts every thumbnail on one scale, so the tiles report
+  /// which piece is bigger instead of how close the camera was. Scans every
+  /// entry, so read it ONCE per layout and hand the result down — reading it
+  /// per tile walks the whole grid for each tile in it.
+  private var thumbnailMaxExtent: CGFloat? {
+    PieceThumbnailGeometry.maxExtent(
+      spans: session.entries.map { $0.result?.pieceSpan }, puzzleAspect: session.puzzleAspect)
+  }
+
   var body: some View {
+    // Bound here rather than read inside the ForEach below, which would scan
+    // every entry once per tile — see `thumbnailMaxExtent`.
+    let maxExtent = thumbnailMaxExtent
     VStack(alignment: .leading, spacing: 8) {
       HStack {
         Text("Pieces (\(session.entries.count))")
@@ -54,6 +66,8 @@ struct PieceQueueView: View {
         ForEach(session.entries.reversed()) { entry in
           QueueTile(
             entry: entry,
+            maxExtent: maxExtent,
+            puzzleAspect: session.puzzleAspect,
             isDeleteMode: isDeleteMode,
             onRetry: { session.retry(id: entry.id, api: model.api) },
             onDelete: { withAnimation { session.remove(id: entry.id, api: model.api) } },
@@ -195,6 +209,9 @@ private struct AddPieceTile: View {
 
 private struct QueueTile: View {
   let entry: CaptureEntry
+  /// Shared across the grid — see `PieceQueueView.thumbnailMaxExtent`.
+  let maxExtent: CGFloat?
+  let puzzleAspect: CGFloat
   let isDeleteMode: Bool
   let onRetry: () -> Void
   let onDelete: () -> Void
@@ -232,18 +249,41 @@ private struct QueueTile: View {
 
   var body: some View {
     VStack(spacing: 6) {
-      // A clear square sets the tile's size from the column it lands in; the
-      // thumbnail then fills it and is clipped back to the square, so a piece
-      // photo of any aspect ratio still tiles evenly with its neighbours.
+      // A clear square sets the tile's size from the column it lands in, so a
+      // piece photo of any aspect ratio still tiles evenly with its
+      // neighbours. The thumbnail sits inside that square rather than filling
+      // it: filling would crop the tabs off any non-square piece, and the tabs
+      // are what the piece is recognised by. A quarter turn from
+      // `uprightRotation` swaps the drawn image's bounds, which rest within
+      // the square either way — though a near-square piece at the grid's
+      // largest scale sweeps a wider box mid-turn and can graze the clip for
+      // part of the quarter-second it animates. Sizing every piece down to
+      // clear its own diagonal would cost the whole grid real size to buy a
+      // transient on one tile, so the animation keeps its reveal.
       Color.clear
         .aspectRatio(1, contentMode: .fit)
         .overlay {
-          if let image = UIImage(data: entry.displayImage) {
-            Image(uiImage: image)
-              .resizable()
-              .scaledToFill()
-              .rotationEffect(.degrees(uprightRotation))
-              .animation(.easeInOut(duration: 0.25), value: uprightRotation)
+          GeometryReader { geo in
+            if let image = UIImage(data: entry.displayImage) {
+              let side = min(geo.size.width, geo.size.height)
+              // The measured frame, so the piece is drawn to the same scale as
+              // its neighbours. An unmeasured piece has nothing to place on
+              // that scale, so it falls back to the tile — which reads as
+              // "big", but inventing a size for it would read as a
+              // measurement.
+              let frame =
+                PieceThumbnailGeometry.size(
+                  span: entry.result?.pieceSpan, maxExtent: maxExtent,
+                  puzzleAspect: puzzleAspect, tileSide: side
+                ) ?? CGSize(width: side, height: side)
+              Image(uiImage: image)
+                .resizable()
+                .scaledToFit()
+                .frame(width: frame.width, height: frame.height)
+                .rotationEffect(.degrees(uprightRotation))
+                .animation(.easeInOut(duration: 0.25), value: uprightRotation)
+                .position(x: geo.size.width / 2, y: geo.size.height / 2)
+            }
           }
         }
         .overlay {
