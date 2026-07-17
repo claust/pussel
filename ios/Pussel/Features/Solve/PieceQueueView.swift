@@ -13,6 +13,7 @@ struct PieceQueueView: View {
   var onZoomToPiece: (UUID) -> Void = { _ in }
   @State private var isDeleteMode = false
   @State private var showCamera = false
+  @State private var showScan = false
   @State private var showLibrary = false
   @State private var photoItem: PhotosPickerItem?
 
@@ -40,6 +41,13 @@ struct PieceQueueView: View {
       // rather than centering against their taller status labels.
       LazyVGrid(columns: Self.columns, alignment: .leading, spacing: 12) {
         AddPieceTile(action: addPiece)
+        // Omit the tile entirely when it can't be used, rather than rendering
+        // it invisible — an .opacity(0) tile still takes taps and is announced
+        // by VoiceOver. Always present in DEBUG (the Simulator scan demo opens
+        // it over a black preview); in release only when there's a camera.
+        if showScanTile {
+          ScanPiecesTile(action: openScan)
+        }
         // Newest first, so a piece appears next to the plus that captured it
         // and the grid ages away from there. The stored order stays oldest
         // first — the prediction queue works through it front to back.
@@ -63,8 +71,11 @@ struct PieceQueueView: View {
     .onChange(of: session.entries.isEmpty) { _, isEmpty in
       if isEmpty { isDeleteMode = false }
     }
-    .fullScreenCover(isPresented: $showCamera) {
+    .fullScreenCover(isPresented: cameraCoverIsPresented) {
       PieceCaptureView()
+    }
+    .fullScreenCover(isPresented: scanCoverIsPresented) {
+      PieceScanView(session: session)
     }
     // Simulator path: no camera, so the tile picks from the library directly.
     .photosPicker(isPresented: $showLibrary, selection: $photoItem, matching: .images)
@@ -83,6 +94,82 @@ struct PieceQueueView: View {
     } else {
       showLibrary = true
     }
+  }
+
+  /// Whether the scan-and-lock tile is shown. Always in DEBUG so the
+  /// Simulator scan demo (`pusseldebug://scan`) has an entry point over its
+  /// black preview; in release only when a camera exists to drive it, so it
+  /// is never a dead, VoiceOver-discoverable control.
+  private var showScanTile: Bool {
+    #if DEBUG
+      return true
+    #else
+      return PieceCameraSession.isCameraAvailable
+    #endif
+  }
+
+  private func openScan() {
+    // On a real device the camera is available; on the Simulator it's not,
+    // but the DEBUG build still opens the scan view (over a black preview)
+    // so `pusseldebug://scan` can demo the scan-and-lock flow there.
+    #if DEBUG
+      showScan = true
+    #else
+      if PieceCameraSession.isCameraAvailable {
+        showScan = true
+      }
+    #endif
+  }
+
+  #if DEBUG
+    /// Also presented when `pusseldebug://camera` sets
+    /// `session.debugCameraOpen`, so M9's overlay is demoable on the
+    /// Simulator (which has no camera, so `showCamera` alone never becomes
+    /// reachable there).
+    private var cameraCoverIsPresented: Binding<Bool> {
+      Binding(
+        get: { showCamera || session.debugCameraOpen },
+        set: { newValue in
+          showCamera = newValue
+          session.debugCameraOpen = newValue
+        }
+      )
+    }
+
+    /// Also presented when `pusseldebug://scan` sets
+    /// `session.debugScanOpen`, mirroring `cameraCoverIsPresented` above.
+    private var scanCoverIsPresented: Binding<Bool> {
+      Binding(
+        get: { showScan || session.debugScanOpen },
+        set: { newValue in
+          showScan = newValue
+          session.debugScanOpen = newValue
+        }
+      )
+    }
+  #else
+    private var cameraCoverIsPresented: Binding<Bool> { $showCamera }
+    private var scanCoverIsPresented: Binding<Bool> { $showScan }
+  #endif
+}
+
+/// Second tile in the grid: opens the hands-free scan-and-lock flow.
+private struct ScanPiecesTile: View {
+  let action: () -> Void
+
+  var body: some View {
+    Button(action: action) {
+      RoundedRectangle(cornerRadius: 10)
+        .strokeBorder(.tint, style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
+        .aspectRatio(1, contentMode: .fit)
+        .overlay {
+          Image(systemName: "dot.viewfinder")
+            .font(.system(size: 28, weight: .light))
+            .foregroundStyle(.tint)
+        }
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel("Scan pieces")
   }
 }
 

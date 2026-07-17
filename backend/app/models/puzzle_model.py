@@ -113,6 +113,17 @@ class PiecePreviewResponse(BaseModel):
     confidence: float = Field(
         default=0.0, ge=0.0, le=1.0, description="How piece-like the detected region is; 0.0 when found is False"
     )
+    lockable: Optional[bool] = Field(
+        default=None,
+        description=(
+            "Best-effort piece-geometry quality flag from a quick corner-detection pass on the preview "
+            "region; only populated when the request opts in with include_quality=true"
+        ),
+    )
+    corner_disagreement: Optional[bool] = Field(
+        default=None,
+        description="Whether the quick corner cross-check disagreed; only populated with include_quality=true",
+    )
 
 
 class DetectFrameResponse(BaseModel):
