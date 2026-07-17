@@ -363,11 +363,38 @@ Tests: 110 iOS tests pass (tracker, controller incl. the unreadable branch, mode
 API client); `make check-ios` clean. Deployed to the physical iPhone 15 with
 `API_BASE_URL=http://192.168.86.63:8001`.
 
-Known limitation for the device run: the backend piece store is in-memory, so a saved puzzle's
-`puzzle_id` dies with a backend restart. The scan flow surfaces the 404 as a red failure banner
-but has no re-upload recovery of its own (the piece-queue flow does) — start the device test
-from a freshly captured puzzle, or re-upload via the queue's expired banner first. Worth folding
-into M11 or a small follow-up.
+**Device run (same day, physical iPhone 15, real pieces on a wood table) — verified working,
+with three findings that each turned into a same-day fix:**
+
+1. **Stale puzzle ids dead-ended every scan.** The backend piece store is in-memory, so a saved
+   session's `puzzle_id` 404s after a backend restart — the first device run red-bannered on every
+   lock. Fix: the controller reads the puzzle id through a closure and, on 404, re-uploads the
+   stored puzzle image (same recovery as the piece queue) and retries once. Watched working live:
+   404 → upload → retry 200 → enrolled.
+2. **Scanned pieces were a parallel world.** Locked pieces appeared only in the scan gallery — not
+   in the puzzle page's piece list — and gallery thumbnails died with the view (the GET carries no
+   images). Fix: an enrolled piece now enqueues its capture as a regular `CaptureEntry` (position
+   prediction, overlay marker, disk persistence) tagged with `scanPieceId`; the gallery restores
+   thumbnails from those persisted entries. Matched verdicts enqueue nothing, so the dedupe keeps
+   the piece list duplicate-free.
+3. **The confirm chip cost one tap per new piece** — M7's measurement (97.9% of new pieces land in
+   the gray zone at the strict thresholds) meant "scan 10 pieces hands-free" degenerated into 10
+   chip taps. Product decision (user): relax `t_accept` to M7's FMR=1% ROC point (−3.98; gray-zone
+   re-scans ~26–30% → ~8% at 1% wrong-lock risk) and auto-enroll gray-zone verdicts
+   (`on_uncertain=enroll` on the first post). Accepted cost: the ~8% of re-scans still in the gray
+   zone can enroll a duplicate (deletable in the piece list). After the change, the observed device
+   flow was: new piece → zero-tap lock → enrolled → predicted → in the piece list; re-pointing at
+   scanned pieces → "Already scanned", zero duplicates across repeated re-locks. The chip UX is
+   retained for response shapes that still report uncertain.
+
+Also observed on-device, matching M1: a black/very dark surface defeats the preview detector
+entirely (no outline, so no lock can fire); wood and mid-tone surfaces work well. The gray-mat
+recommendation stands.
+
+Backend surfaces still shared: piece ids are only unique within one store lifetime — after a
+restart + recovery the fresh store re-mints p001…, so client-side links to old ids are cleared on
+re-upload (implemented). A persistent piece store would remove this whole class; a candidate for
+Phase E.
 
 ## Recommendation going into M10 (scan-and-lock) — original brief, implemented above
 
