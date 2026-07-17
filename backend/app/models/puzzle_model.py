@@ -49,6 +49,20 @@ class PuzzleResponse(BaseModel):
     cols: Optional[int] = Field(default=None, description="Estimated grid cols, present when piece_count was given")
 
 
+class PuzzleSummary(BaseModel):
+    """Summary of one puzzle owned by the caller, as returned by the puzzle-listing endpoint."""
+
+    puzzle_id: str
+    rows: Optional[int] = Field(default=None, description="Estimated grid rows, present when known")
+    cols: Optional[int] = Field(default=None, description="Estimated grid cols, present when known")
+
+
+class PuzzleListResponse(BaseModel):
+    """Response model for listing the caller's own puzzles."""
+
+    puzzles: List[PuzzleSummary] = Field(..., description="The caller's puzzles, in upload order")
+
+
 # Models for puzzle frame detection (real mode)
 
 
