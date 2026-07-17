@@ -334,6 +334,17 @@ class PieceGeometryStore:
         store = self._stores.get(puzzle_id)
         return store.list_pieces() if store else []
 
+    def drop(self, puzzle_id: str) -> None:
+        """Remove a puzzle's piece-geometry store entirely.
+
+        Called when a puzzle is evicted from `PuzzleStore` so its enrolled
+        pieces don't linger in memory. A no-op if the puzzle has no store.
+
+        Args:
+            puzzle_id: The puzzle's id.
+        """
+        self._stores.pop(puzzle_id, None)
+
 
 _piece_geometry_store: Optional[PieceGeometryStore] = None
 

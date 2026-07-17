@@ -1,6 +1,6 @@
 """User and authentication models."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from pydantic import BaseModel, EmailStr, Field
@@ -13,7 +13,9 @@ class User(BaseModel):
     email: EmailStr = Field(..., description="User's email address")
     name: str = Field(..., description="User's display name")
     picture: Optional[str] = Field(None, description="URL to user's profile picture")
-    created_at: datetime = Field(default_factory=datetime.utcnow, description="Account creation timestamp")
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc), description="Account creation timestamp"
+    )
 
 
 class TokenPayload(BaseModel):
