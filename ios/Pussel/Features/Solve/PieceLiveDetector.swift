@@ -23,10 +23,18 @@ struct PieceLiveDetection: Equatable {
 }
 
 /// Vision availability failure — subject lifting needs OS support that the
-/// Simulator (and very old hardware) may not provide. Distinct from "no piece
-/// in this frame" (a `nil` detection), so the caller can fall back to the
-/// server-side preview endpoint exactly once instead of per-frame.
+/// Simulator (and very old hardware) may not provide. Thrown only for error
+/// codes that mean the request can never run here (see
+/// `PieceLiveDetector.isUnavailable`); distinct from "no piece in this
+/// frame" (a `nil` detection), so the caller can latch its fallback to the
+/// server-side preview endpoint immediately instead of retrying per-frame.
 struct PieceLiveDetectorUnavailable: Error {}
+
+/// A Vision failure that doesn't prove the platform can't run subject
+/// lifting — the frame is lost, but the next one may well succeed. The
+/// caller should treat one of these like a dropped frame and only demote to
+/// the server path if they keep happening.
+struct PieceLiveDetectorTransientFailure: Error {}
 
 /// On-device replacement for the `/api/v1/piece/preview` round-trip: Apple's
 /// subject-lift segmentation (`VNGenerateForegroundInstanceMaskRequest`, the
@@ -81,14 +89,18 @@ final class PieceLiveDetector: Sendable {
   /// - Returns: The detection, or nil when nothing piece-like is in frame.
   /// - Throws: `PieceLiveDetectorUnavailable` when Vision's subject lifting
   ///   cannot run at all on this platform (the caller should fall back to
-  ///   the server preview endpoint).
+  ///   the server preview endpoint), or `PieceLiveDetectorTransientFailure`
+  ///   for any other Vision error (the caller should treat the frame as
+  ///   dropped).
   func detect(cgImage: CGImage) throws -> PieceLiveDetection? {
     let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
     let maskRequest = VNGenerateForegroundInstanceMaskRequest()
     do {
       try handler.perform([maskRequest])
     } catch {
-      throw PieceLiveDetectorUnavailable()
+      throw
+        Self.isUnavailable(error)
+        ? PieceLiveDetectorUnavailable() : PieceLiveDetectorTransientFailure()
     }
     guard let observation = maskRequest.results?.first, !observation.allInstances.isEmpty else {
       return nil
@@ -150,6 +162,22 @@ final class PieceLiveDetector: Sendable {
       confidence: max(areaScore * aspectScore, 0.001),
       lockable: lockable
     )
+  }
+
+  /// Whether a `perform` error proves the request can never run on this
+  /// platform (unsupported request/revision), as opposed to a one-off
+  /// failure worth retrying on the next frame.
+  static func isUnavailable(_ error: Error) -> Bool {
+    let nsError = error as NSError
+    guard nsError.domain == VNErrorDomain,
+      let code = VNErrorCode(rawValue: nsError.code)
+    else { return false }
+    switch code {
+    case .unsupportedRequest, .unsupportedRevision, .notImplemented:
+      return true
+    default:
+      return false
+    }
   }
 
   // MARK: - Contour extraction

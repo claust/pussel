@@ -51,10 +51,18 @@ final class PiecePreviewStreamer: @unchecked Sendable {
   private let detector = PieceLiveDetector()
   private let lock = NSLock()
   private var throttle = PiecePreviewThrottle()
-  /// Latched (lock-guarded) after the first `PieceLiveDetectorUnavailable`,
-  /// so every later frame goes straight to the server path instead of paying
-  /// a doomed Vision attempt per frame.
+  /// Latched (lock-guarded) once on-device detection is judged unusable —
+  /// either an explicit `PieceLiveDetectorUnavailable`, or
+  /// `maxConsecutiveTransientFailures` transient Vision failures in a row —
+  /// so every later frame goes straight to the server path instead of
+  /// paying a doomed Vision attempt per frame.
   private var visionUnavailable = false
+  /// Lock-guarded run of `PieceLiveDetectorTransientFailure`s; reset by any
+  /// successful detection.
+  private var consecutiveTransientFailures = 0
+  /// One transient Vision failure is a dropped frame; this many in a row is
+  /// a platform that can't really do this, so demote to the server path.
+  private static let maxConsecutiveTransientFailures = 3
   /// JPEG quality for frames sent down the server fallback path (matches the
   /// pre-on-device streaming pipeline).
   private static let fallbackJPEGQuality: CGFloat = 0.6
@@ -102,6 +110,7 @@ final class PiecePreviewStreamer: @unchecked Sendable {
       if !fallBack {
         do {
           let detection = try self.detector.detect(cgImage: cgImage)
+          self.lock.withLock { self.consecutiveTransientFailures = 0 }
           await MainActor.run { self.apply(detection, frameSize: frameSize, now: Date()) }
         } catch is PieceLiveDetectorUnavailable {
           // Vision subject lifting can't run here at all (e.g. Simulator) —
@@ -109,9 +118,16 @@ final class PiecePreviewStreamer: @unchecked Sendable {
           self.lock.withLock { self.visionUnavailable = true }
           fallBack = true
         } catch {
-          // Any other error is transient — treat it like a dropped frame
-          // (keep the last-known state, retry on-device next frame) rather
-          // than permanently switching to the server path.
+          // A transient Vision failure is a dropped frame (keep the
+          // last-known state, retry on-device next frame) — unless they
+          // keep coming, which means this platform can't really do
+          // on-device detection and should demote to the server path.
+          fallBack = self.lock.withLock {
+            self.consecutiveTransientFailures += 1
+            let latch = self.consecutiveTransientFailures >= Self.maxConsecutiveTransientFailures
+            if latch { self.visionUnavailable = true }
+            return latch
+          }
         }
       }
       if fallBack {
