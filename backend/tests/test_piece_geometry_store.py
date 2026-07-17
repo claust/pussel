@@ -138,6 +138,31 @@ class TestGalleryStatsFallback:
         assert stats == FALLBACK_STATS
 
 
+class TestGalleryStatsCaching:
+    """_gallery_stats is O(n^2); it caches and invalidates only when the gallery grows."""
+
+    def test_stats_are_cached_between_calls_and_invalidated_on_enroll(self) -> None:
+        """Repeated _gallery_stats calls reuse the cached object until a piece is enrolled."""
+        from app.services.piece_geometry.scoring import MIN_GALLERY_FOR_STATS
+
+        store = PuzzlePieceStore()
+        fp = _fingerprint(PIECE_A_EDGE_TYPES, PIECE_A_COLORS)
+        # Enroll exactly enough pieces to leave the fallback regime, so
+        # _gallery_stats takes the real (cacheable) branch.
+        for _ in range(MIN_GALLERY_FOR_STATS):
+            store._enroll(fp, True, False)
+
+        first = store._gallery_stats()
+        second = store._gallery_stats()
+        # Same object identity => the second call reused the cache, not recomputed.
+        assert first is second
+
+        # Enrolling a piece must invalidate the cache: the next call recomputes.
+        store._enroll(fp, True, False)
+        third = store._gallery_stats()
+        assert third is not first
+
+
 class TestPieceGeometryStore:
     """Tests for the puzzle_id-keyed PieceGeometryStore wrapper."""
 
