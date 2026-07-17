@@ -197,9 +197,10 @@ ios-deploy: ios-generate
 #   make ios-screenshot TARGET=device
 #   make ios-screenshot TARGET=simulator
 #   make ios-screenshot SIM="iPhone 17 Pro"   # name or udid; implies simulator
+#   make ios-screenshot DEV=<udid>            # implies device
 # Override the destination with OUT=<path>; defaults to a timestamped /tmp file.
-# SIM is quoted here rather than passed through a bare $(ARGS), so simulator
-# names containing spaces survive as a single argument.
+# SIM/DEV are quoted here rather than passed through a bare $(ARGS), so names
+# containing spaces survive as a single argument.
 ios-screenshot:
 	@./scripts/ios_screenshot.sh $(if $(TARGET),--$(TARGET)) \
-		$(if $(SIM),--simulator="$(SIM)") "$(OUT)"
+		$(if $(SIM),--simulator="$(SIM)") $(if $(DEV),--device="$(DEV)") "$(OUT)"
