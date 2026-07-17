@@ -51,7 +51,13 @@ class Settings(BaseSettings):
     # z-score (exp28 M7, frozen on north_star): accept as a match below
     # PIECE_GEOMETRY_T_ACCEPT, declare a new piece above PIECE_GEOMETRY_T_NEW, and
     # treat anything in between as a gray zone (ask the user to rescan).
-    PIECE_GEOMETRY_T_ACCEPT: float = -4.78
+    # t_accept sits at M7's FMR=1% ROC point (-3.98) rather than the strictest
+    # frozen setting (-4.78): the M10 device runs showed the strict point sends
+    # ~26-30% of genuine re-scans to the gray zone, and with the scanner
+    # auto-enrolling gray-zone pieces those re-scans would duplicate. At -3.98
+    # gray-zone re-scans drop to ~8% for a 1% wrong-lock risk (see exp28
+    # HANDOFF M7/M10).
+    PIECE_GEOMETRY_T_ACCEPT: float = -3.98
     PIECE_GEOMETRY_T_NEW: float = -0.80
 
     # Environment setting (used for validation)
