@@ -13,7 +13,9 @@ struct PieceLiveDetection: Equatable {
   let polygon: [NormalizedPoint]
   /// Axis-aligned bounding box of `polygon`, normalized to the frame.
   let bbox: CGRect
-  /// Product of the area and aspect band scores, in (0, 1].
+  /// Product of the area and aspect band scores, floored at 0.001 so an
+  /// accepted detection always reports a strictly positive confidence in
+  /// (0, 1] — mirrors the backend's `MIN_REPORTED_CONFIDENCE`.
   let confidence: Double
   /// On-device stand-in for the backend's quality gate: a single clean
   /// component, well inside the frame, in the full-confidence area/aspect
@@ -98,9 +100,7 @@ final class PieceLiveDetector: Sendable {
     do {
       try handler.perform([maskRequest])
     } catch {
-      throw
-        Self.isUnavailable(error)
-        ? PieceLiveDetectorUnavailable() : PieceLiveDetectorTransientFailure()
+      throw Self.classified(error)
     }
     guard let observation = maskRequest.results?.first, !observation.allInstances.isEmpty else {
       return nil
@@ -113,12 +113,10 @@ final class PieceLiveDetector: Sendable {
       // Classified like a `perform` failure: a genuine Vision error must not
       // masquerade as "empty frame" (which would clear the overlay and dodge
       // the caller's transient-failure demotion).
-      throw
-        Self.isUnavailable(error)
-        ? PieceLiveDetectorUnavailable() : PieceLiveDetectorTransientFailure()
+      throw Self.classified(error)
     }
 
-    guard let contours = Self.topLevelContours(ofMask: maskBuffer) else { return nil }
+    guard let contours = try Self.topLevelContours(ofMask: maskBuffer) else { return nil }
     let areas = contours.map { abs(Self.signedArea(of: $0.normalizedPoints)) }
     guard let largestIndex = areas.indices.max(by: { areas[$0] < areas[$1] }),
       areas[largestIndex] > 0
@@ -188,22 +186,34 @@ final class PieceLiveDetector: Sendable {
   // MARK: - Contour extraction
 
   /// Runs `VNDetectContoursRequest` over a subject-lift mask and returns the
-  /// top-level contours. The mask is a float pixel buffer (background 0,
-  /// subject 1) at the analyzed frame's resolution, so the contour tracer is
-  /// configured for a bright subject on a dark background with no contrast
-  /// boost.
-  private static func topLevelContours(ofMask maskBuffer: CVPixelBuffer) -> [VNContour]? {
+  /// top-level contours (nil when the mask genuinely traces to none). The
+  /// mask is a float pixel buffer (background 0, subject 1) at the analyzed
+  /// frame's resolution, so the contour tracer is configured for a bright
+  /// subject on a dark background with no contrast boost. Vision errors are
+  /// classified and rethrown like every other stage — they must not read as
+  /// "no detection".
+  private static func topLevelContours(ofMask maskBuffer: CVPixelBuffer) throws -> [VNContour]? {
     let request = VNDetectContoursRequest()
     request.contrastAdjustment = 1.0
     request.detectsDarkOnLight = false
     request.maximumImageDimension = 1024
     let handler = VNImageRequestHandler(
       ciImage: CIImage(cvPixelBuffer: maskBuffer), options: [:])
-    guard (try? handler.perform([request])) != nil,
-      let observation = request.results?.first
-    else { return nil }
+    do {
+      try handler.perform([request])
+    } catch {
+      throw classified(error)
+    }
+    guard let observation = request.results?.first else { return nil }
     let contours = observation.topLevelContours
     return contours.isEmpty ? nil : contours
+  }
+
+  /// Maps a raw Vision error onto the detector's two-error taxonomy:
+  /// provably-unavailable codes latch the caller's fallback, everything
+  /// else is a transient dropped frame.
+  private static func classified(_ error: Error) -> Error {
+    isUnavailable(error) ? PieceLiveDetectorUnavailable() : PieceLiveDetectorTransientFailure()
   }
 
   // MARK: - Geometry helpers
