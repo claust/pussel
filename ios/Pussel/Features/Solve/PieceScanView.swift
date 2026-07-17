@@ -256,6 +256,7 @@ struct PieceScanView: View {
             ForEach(pieces) { piece in
               GalleryItemView(
                 piece: piece,
+                uprightRotation: uprightRotation(for: piece),
                 isHighlighted: isAlreadyScanned && piece.pieceId == matchedId
               )
             }
@@ -269,6 +270,20 @@ struct PieceScanView: View {
   }
 
   // MARK: - Helpers
+
+  /// How far to turn a gallery thumbnail so it shows the piece the way the
+  /// puzzle page's grid and overlay do.
+  ///
+  /// Read from the session rather than stored on `ScannedPiece`, because the
+  /// gallery item exists before its orientation is known: the geometry lock
+  /// enrols the piece, and only the position prediction that follows says
+  /// which way round it goes. Reading `entries` here inside `body` is what
+  /// subscribes the strip to that later update, so the thumbnail turns itself
+  /// upright when the prediction lands. Zero until then, and for pieces from
+  /// an earlier scanner visit that never got one.
+  private func uprightRotation(for piece: ScannedPiece) -> Double {
+    session.entry(forScanPieceId: piece.pieceId)?.result?.uprightRotationDegrees ?? 0
+  }
 
   /// Joins edge glyphs with the middle-dot separator used throughout the UI.
   private func edgeGlyphs(_ types: [GeometryEdgeType]) -> String {
@@ -291,6 +306,8 @@ struct PieceScanView: View {
 /// placeholder, with the edge-type glyphs underneath.
 private struct GalleryItemView: View {
   let piece: ScannedPiece
+  /// Degrees to turn the thumbnail so it matches the puzzle page's grid.
+  let uprightRotation: Double
   let isHighlighted: Bool
 
   private static let size: CGFloat = 56
@@ -308,6 +325,11 @@ private struct GalleryItemView: View {
             .resizable()
             .scaledToFill()
             .frame(width: Self.size, height: Self.size)
+            // Rotate inside the clip, not with it: `.rotationEffect` leaves
+            // the layout size alone, so the rounded square stays square and
+            // the turned photo is trimmed back to it.
+            .rotationEffect(.degrees(uprightRotation))
+            .animation(.easeInOut(duration: 0.25), value: uprightRotation)
             .clipShape(RoundedRectangle(cornerRadius: Self.cornerRadius))
         } else {
           Image(systemName: "puzzlepiece")
