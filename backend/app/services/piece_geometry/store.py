@@ -85,9 +85,14 @@ class PuzzlePieceStore:
     _next_id: int = 1
     # Cached impostor stats and the gallery size they were computed for.
     # `_gallery_stats` is O(n^2) in the gallery and runs on every locked frame,
-    # but the stats only change when a piece is enrolled — so cache them and let
-    # `_enroll` invalidate. The gallery is append-only (pieces are never removed
-    # or mutated in place), so the size is a sufficient cache key.
+    # but the stats only change when the gallery does — so cache them and let
+    # `_enroll` and `remove` invalidate. Pieces are never mutated in place, so
+    # every change routes through one of those two.
+    #
+    # The size alone is NOT a sufficient cache key now that pieces can be
+    # removed: a remove followed by an enroll returns to the same size with a
+    # different gallery. Both mutators clear `_cached_stats` outright, so the
+    # size only guards the cache against a stale hit, never validates it alone.
     _cached_stats: Optional[GalleryStats] = None
     _cached_stats_n: int = -1
 
@@ -217,6 +222,26 @@ class PuzzlePieceStore:
 
         return MatchResult(MatchVerdict.UNCERTAIN, None, match_piece_id, z_score)
 
+    def remove(self, piece_id: str) -> bool:
+        """Un-enroll one piece, so a later photo of it reads as new again.
+
+        Ids are never recycled (`_next_id` only counts up), so a removed id
+        cannot come back attached to a different physical piece.
+
+        Args:
+            piece_id: The piece to remove.
+
+        Returns:
+            True if the piece was enrolled and is now gone; False if this
+            puzzle never had a piece with that id.
+        """
+        before = len(self._pieces)
+        self._pieces = [piece for piece in self._pieces if piece.piece_id != piece_id]
+        if len(self._pieces) == before:
+            return False
+        self._cached_stats = None
+        return True
+
     def list_pieces(self) -> List[EnrolledPiece]:
         """List all pieces enrolled so far, in enrollment order.
 
@@ -277,6 +302,24 @@ class PieceGeometryStore:
         return self._get_or_create(puzzle_id).add_or_match(
             fingerprint, is_clean, corner_disagreement, enroll_uncertain=enroll_uncertain
         )
+
+    def remove(self, puzzle_id: str, piece_id: str) -> bool:
+        """Un-enroll one piece from one puzzle's store.
+
+        Called when the user deletes a scanned piece from the piece list: the
+        piece must stop appearing in the scanner's gallery, and a fresh photo
+        of it must read as new rather than as an already-scanned duplicate.
+
+        Args:
+            puzzle_id: The puzzle the piece belongs to.
+            piece_id: The piece to remove.
+
+        Returns:
+            True if the piece was enrolled and is now gone; False when the
+            puzzle has no store yet or holds no such piece.
+        """
+        store = self._stores.get(puzzle_id)
+        return store.remove(piece_id) if store else False
 
     def list_pieces(self, puzzle_id: str) -> List[EnrolledPiece]:
         """List all pieces enrolled for one puzzle.

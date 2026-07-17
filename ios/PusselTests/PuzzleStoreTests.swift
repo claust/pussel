@@ -54,6 +54,19 @@ final class PuzzleStoreTests: XCTestCase {
     )
   }
 
+  /// An APIClient wired to `StubURLProtocol` (defined in APIClientTests) so
+  /// `remove(id:api:)`'s geometry un-enroll never touches the network. Tests
+  /// that care about the request assert on `StubURLProtocol.receivedRequests`.
+  private func stubAPI() -> APIClient {
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.protocolClasses = [StubURLProtocol.self]
+    return APIClient(
+      baseURL: URL(string: "http://stub.local")!,
+      session: URLSession(configuration: configuration),
+      authStore: AuthStore()
+    )
+  }
+
   // MARK: Zoom copy (display.jpg)
 
   func testZoomCopyIsPersistedAndReloaded() throws {
@@ -185,7 +198,7 @@ final class PuzzleStoreTests: XCTestCase {
     let fileManager = FileManager.default
     XCTAssertTrue(fileManager.fileExists(atPath: uploadFile(session.id, drop.id).path))
 
-    session.remove(id: drop.id)
+    session.remove(id: drop.id, api: stubAPI())
 
     // The dropped piece's image file is pruned; the kept one remains.
     XCTAssertFalse(fileManager.fileExists(atPath: uploadFile(session.id, drop.id).path))
@@ -193,6 +206,68 @@ final class PuzzleStoreTests: XCTestCase {
 
     let reloaded = try XCTUnwrap(PuzzleStore().loadSession(id: session.id))
     XCTAssertEqual(reloaded.entries.map(\.id), [keep.id])
+  }
+
+  func testRemovingScannedPieceUnenrollsItFromTheGeometryStore() async throws {
+    // Without this DELETE, the scanner's gallery pre-fill (loadEnrolled) reads
+    // the piece back off the server on the next visit and shows it as a
+    // thumbnail-less tile, because its local photo is gone.
+    let store = PuzzleStore()
+    let session = makeSession(store: store)
+    addTeardownBlock { @MainActor in store.delete(session.id) }
+
+    StubURLProtocol.receivedRequests = []
+    StubURLProtocol.handler = { _ in (204, Data()) }
+    defer { StubURLProtocol.handler = nil }
+
+    let scanned = CaptureEntry(
+      id: UUID(), uploadJPEG: Data("scanned".utf8), displayImage: Data("scanned".utf8),
+      status: .queued, result: nil, scanPieceId: "p007")
+    session.entries = [scanned]
+    session.persist()
+
+    session.remove(id: scanned.id, api: stubAPI())
+
+    // The un-enroll is fire-and-forget — remove() spawns the request in an
+    // unawaited Task — so wait for it rather than assuming it landed by the
+    // time remove() returned.
+    try await waitForRequest(matching: "/api/v1/puzzle/server-123/piece/geometry/p007")
+    XCTAssertEqual(StubURLProtocol.receivedRequests.last?.httpMethod, "DELETE")
+  }
+
+  func testRemovingUnscannedPieceSkipsTheGeometryDelete() async throws {
+    // A hand-captured piece was never enrolled, so there is nothing to
+    // un-enroll — and no piece id that a DELETE could safely name.
+    let store = PuzzleStore()
+    let session = makeSession(store: store)
+    addTeardownBlock { @MainActor in store.delete(session.id) }
+
+    StubURLProtocol.receivedRequests = []
+    StubURLProtocol.handler = { _ in (204, Data()) }
+    defer { StubURLProtocol.handler = nil }
+
+    let entry = CaptureEntry(
+      id: UUID(), uploadJPEG: Data("manual".utf8), displayImage: Data("manual".utf8),
+      status: .queued, result: nil, scanPieceId: nil)
+    session.entries = [entry]
+    session.persist()
+
+    session.remove(id: entry.id, api: stubAPI())
+
+    // Give any (incorrectly) spawned request a chance to land before asserting
+    // that none did.
+    try await Task.sleep(nanoseconds: 100_000_000)
+    XCTAssertTrue(session.entries.isEmpty)
+    XCTAssertTrue(StubURLProtocol.receivedRequests.isEmpty)
+  }
+
+  /// Polls until a request for `path` shows up, or fails the test after ~2s.
+  private func waitForRequest(matching path: String) async throws {
+    for _ in 0..<40 {
+      if StubURLProtocol.receivedRequests.contains(where: { $0.url?.path == path }) { return }
+      try await Task.sleep(nanoseconds: 50_000_000)
+    }
+    XCTFail("No request for \(path) within the timeout")
   }
 
   func testDeleteRemovesPuzzle() throws {
