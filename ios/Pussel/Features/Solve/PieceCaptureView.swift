@@ -139,7 +139,10 @@ struct CameraPreview: UIViewRepresentable {
 
   /// The overlay hides once `updatedAt` is older than this — a stalled
   /// request stream (e.g. persistent network errors) shouldn't leave a
-  /// stale outline glued to the screen.
+  /// stale outline glued to the screen. Enforced both here (on every
+  /// `updateUIView`) and by `PreviewView`'s independent tick, because a
+  /// stalled stream stops changing observable state and so stops calling
+  /// `updateUIView` — the very case this guard exists for.
   static let staleInterval: TimeInterval = 1.5
   /// Implicit-transaction duration for path/color changes, so the outline
   /// glides between detections rather than snapping.
@@ -157,6 +160,13 @@ struct CameraPreview: UIViewRepresentable {
 
     let outlineLayer = CAShapeLayer()
 
+    /// The instant the currently-shown outline becomes stale (the last
+    /// `updatedAt` + `staleInterval`). The tick below hides the outline once
+    /// `Date()` passes this, so a stalled stream that stops driving
+    /// `updateUIView` can't leave the outline frozen on screen.
+    private var staleDeadline: Date = .distantPast
+    private var staleTimer: Timer?
+
     override init(frame: CGRect) {
       super.init(frame: frame)
       outlineLayer.fillColor = UIColor.clear.cgColor
@@ -167,11 +177,45 @@ struct CameraPreview: UIViewRepresentable {
       outlineLayer.shadowOffset = .zero
       outlineLayer.isHidden = true
       layer.addSublayer(outlineLayer)
+      // ~3 Hz backstop, independent of SwiftUI re-renders: hides the outline
+      // within ~0.35 s of the stream stalling, well under staleInterval, at
+      // negligible cost. Weak self so it never keeps the view alive; the
+      // RunLoop holds the timer until deinit invalidates it.
+      let timer = Timer(timeInterval: 0.35, repeats: true) { [weak self] _ in
+        self?.hideOutlineIfStale()
+      }
+      RunLoop.main.add(timer, forMode: .common)
+      staleTimer = timer
+    }
+
+    deinit {
+      staleTimer?.invalidate()
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) {
       fatalError("init(coder:) has not been implemented")
+    }
+
+    /// Shows the outline and marks it fresh until `deadline`. Called by
+    /// `updateUIView` when a live detection arrives.
+    func showOutline(freshUntil deadline: Date) {
+      staleDeadline = deadline
+      outlineLayer.isHidden = false
+    }
+
+    /// Hides the outline now and stops the tick from re-showing it. Called by
+    /// `updateUIView` when there is nothing valid to draw.
+    func hideOutline() {
+      staleDeadline = .distantPast
+      outlineLayer.isHidden = true
+    }
+
+    /// Tick target: hides the outline once its freshness window has elapsed.
+    private func hideOutlineIfStale() {
+      if !outlineLayer.isHidden, Date() >= staleDeadline {
+        outlineLayer.isHidden = true
+      }
     }
 
     override func layoutSubviews() {
@@ -191,7 +235,7 @@ struct CameraPreview: UIViewRepresentable {
     guard let polygon = previewState.polygon, polygon.count >= 3,
       Date().timeIntervalSince(updatedAt) < Self.staleInterval
     else {
-      uiView.outlineLayer.isHidden = true
+      uiView.hideOutline()
       return
     }
 
@@ -217,7 +261,7 @@ struct CameraPreview: UIViewRepresentable {
     uiView.outlineLayer.path = path.cgPath
     uiView.outlineLayer.strokeColor =
       (previewState.isLockable ? UIColor.systemGreen : UIColor.systemYellow).cgColor
-    uiView.outlineLayer.isHidden = false
+    uiView.showOutline(freshUntil: updatedAt.addingTimeInterval(Self.staleInterval))
     CATransaction.commit()
   }
 }
