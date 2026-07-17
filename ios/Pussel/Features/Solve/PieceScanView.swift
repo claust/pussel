@@ -104,12 +104,19 @@ struct PieceScanView: View {
       #if DEBUG
         PieceScanController.debugActive = ctrl
       #endif
-      // Pre-fill the gallery concurrently — the camera shouldn't wait behind
-      // a network round-trip, and the strip appearing a beat later is fine.
-      Task { await ctrl.loadEnrolled() }
+      // Pre-fill the gallery concurrently with camera startup (which can block
+      // on the permission prompt), but as a STRUCTURED child of this `.task`
+      // rather than a detached `Task {}`: if the view disappears mid-request
+      // it's cancelled with the `.task`, so loadEnrolled's await unwinds
+      // instead of mutating `gallery` after the UI is gone. Awaited on every
+      // exit path (early returns cancel-and-await it implicitly).
+      async let galleryPrefill: Void = ctrl.loadEnrolled()
 
       let started = await camera.start()
-      guard !Task.isCancelled else { return }
+      guard !Task.isCancelled else {
+        await galleryPrefill
+        return
+      }
       guard started else {
         #if DEBUG
           if !PieceCameraSession.isCameraAvailable {
@@ -123,6 +130,7 @@ struct PieceScanView: View {
         return
       }
       camera.setPreviewStreamingEnabled(true)
+      await galleryPrefill
     }
     .onDisappear {
       camera.setPreviewStreamingEnabled(false)

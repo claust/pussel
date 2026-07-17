@@ -168,6 +168,32 @@ final class PieceScanControllerTests: XCTestCase {
     XCTAssertEqual(ctrl.gallery.count, 2)
   }
 
+  func testNewVerdictWithoutPieceIdFailsAndDoesNotEnroll() async {
+    // A `new` verdict must carry a backend piece id — the gallery/persistence
+    // link is keyed on it. A missing id is an invalid response, not a reason
+    // to invent a UUID the backend never issued.
+    let client = FakeGeometryClient()
+    client.uploadResponses = [.success(uploadResponse(status: .new, pieceId: nil))]
+    var enrolled: [(String, Data)] = []
+    let box = HapticBox()
+    let ctrl = PieceScanController(
+      puzzleId: { "test-puzzle" },
+      geometryClient: client,
+      capture: { fixtureJPEG },
+      haptic: { [weak box] kind in box?.record(kind) },
+      onEnrolled: { enrolled.append(($0, $1)) },
+      sleep: { _ in }
+    )
+
+    driveToFire(ctrl)
+    await settle()
+
+    XCTAssertEqual(ctrl.gallery.count, 0, "No gallery entry for an id-less enrollment")
+    XCTAssertTrue(enrolled.isEmpty, "onEnrolled must not fire without a piece id")
+    XCTAssertTrue(box.contains(.failure))
+    XCTAssertFalse(box.contains(.success))
+  }
+
   // MARK: - 2. Matched → alreadyScanned
 
   func testMatchedResponseGivesWarningHapticAndDoesNotGrowGallery() async {

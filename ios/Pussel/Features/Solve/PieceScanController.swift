@@ -255,7 +255,17 @@ final class PieceScanController {
   private func applyResponse(_ response: PieceGeometryUploadResponse, jpeg: Data) {
     switch response.status {
     case .new:
-      let pieceId = response.pieceId ?? UUID().uuidString
+      // A `new` verdict must carry the backend's piece id — it's the key the
+      // gallery/persistence link (onEnrolled → scanPieceId → thumbnail
+      // restore, "already scanned" highlighting) is built on. Inventing a
+      // UUID would persist an id the backend never issued and silently break
+      // all of that, so a missing id is treated as an invalid response.
+      guard let pieceId = response.pieceId else {
+        setVerdict(.failure("The server enrolled the piece without an id. Try again."))
+        haptic(.failure)
+        scheduleRearm(delay: Self.rearmDelayFailure)
+        return
+      }
       let edgeTypes = response.edgeTypes
       gallery.append(ScannedPiece(pieceId: pieceId, edgeTypes: edgeTypes, thumbnailJPEG: jpeg))
       pendingUncertainJPEG = nil
