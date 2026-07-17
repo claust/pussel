@@ -78,6 +78,34 @@ make ios-deploy IOS_DEVICE=<name-or-udid>   # device is auto-detected otherwise
 `ios-deploy` needs `DEVELOPMENT_TEAM` set in `Config/Secrets.xcconfig` (device
 signing) and a device that's connected and trusts this Mac.
 
+## Screenshotting a connected device
+
+The Simulator has no camera, so the capture UI can only be exercised on real
+hardware. `make ios-screenshot` grabs the device screen at native resolution
+(~2-3s per shot):
+
+```bash
+make ios-screenshot                     # → /tmp/iphone-<timestamp>.png
+make ios-screenshot OUT=/path/shot.png
+```
+
+The device must be connected via USB, paired/trusted, and **unlocked**. Install
+the one dependency with `uv tool install pymobiledevice3`.
+
+Note that the obvious alternatives do not work on iOS 17+, which moved the
+screenshot service from `lockdownd` to RemoteXPC:
+
+- `idevicescreenshot` fails with "Could not start screenshotr service: Invalid
+  service". Its suggestion to mount the Developer disk image is a red herring —
+  the DDI is already mounted (`ideviceimagemounter list` → `Status: Complete`).
+- `xcrun devicectl` has no screenshot subcommand.
+- The iPhone's AVFoundation entries are Continuity Camera, not the device screen.
+
+`scripts/ios_screenshot.sh` therefore uses `pymobiledevice3 developer dvt
+screenshot --userspace`. The `--userspace` flag opens the required iOS 17+ RSD
+tunnel without root; without it the command demands
+`sudo pymobiledevice3 remote tunneld`.
+
 <details>
 <summary>Equivalent raw <code>xcodebuild</code> / <code>simctl</code> commands</summary>
 
