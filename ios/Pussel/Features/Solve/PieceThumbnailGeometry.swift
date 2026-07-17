@@ -21,7 +21,7 @@ enum PieceThumbnailGeometry {
   /// (pre-rotation) axes, matching what `PieceSpan` describes.
   static func extent(span: PieceSpan, puzzleAspect: CGFloat) -> CGSize {
     guard puzzleAspect > 0 else { return .zero }
-    return CGSize(width: span.width, height: CGFloat(span.height) / puzzleAspect)
+    return CGSize(width: CGFloat(span.width), height: CGFloat(span.height) / puzzleAspect)
   }
 
   /// The largest single dimension any measured piece reaches, in puzzle-width

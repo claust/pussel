@@ -25,15 +25,18 @@ struct PieceQueueView: View {
   ]
 
   /// Divisor that puts every thumbnail on one scale, so the tiles report
-  /// which piece is bigger instead of how close the camera was. Recomputed
-  /// per layout — it's arithmetic over the entries, and it has to follow the
-  /// grid as pieces are measured, added and deleted.
+  /// which piece is bigger instead of how close the camera was. Scans every
+  /// entry, so read it ONCE per layout and hand the result down — reading it
+  /// per tile walks the whole grid for each tile in it.
   private var thumbnailMaxExtent: CGFloat? {
     PieceThumbnailGeometry.maxExtent(
       spans: session.entries.map { $0.result?.pieceSpan }, puzzleAspect: session.puzzleAspect)
   }
 
   var body: some View {
+    // Bound here rather than read inside the ForEach below, which would scan
+    // every entry once per tile — see `thumbnailMaxExtent`.
+    let maxExtent = thumbnailMaxExtent
     VStack(alignment: .leading, spacing: 8) {
       HStack {
         Text("Pieces (\(session.entries.count))")
@@ -63,7 +66,7 @@ struct PieceQueueView: View {
         ForEach(session.entries.reversed()) { entry in
           QueueTile(
             entry: entry,
-            maxExtent: thumbnailMaxExtent,
+            maxExtent: maxExtent,
             puzzleAspect: session.puzzleAspect,
             isDeleteMode: isDeleteMode,
             onRetry: { session.retry(id: entry.id, api: model.api) },
@@ -255,8 +258,12 @@ private struct QueueTile: View {
       // neighbours. The thumbnail sits inside that square rather than filling
       // it: filling would crop the tabs off any non-square piece, and the tabs
       // are what the piece is recognised by. A quarter turn from
-      // `uprightRotation` swaps the drawn image's bounds, which stay within
-      // the square either way.
+      // `uprightRotation` swaps the drawn image's bounds, which rest within
+      // the square either way — though a near-square piece at the grid's
+      // largest scale sweeps a wider box mid-turn and can graze the clip for
+      // part of the quarter-second it animates. Sizing every piece down to
+      // clear its own diagonal would cost the whole grid real size to buy a
+      // transient on one tile, so the animation keeps its reveal.
       Color.clear
         .aspectRatio(1, contentMode: .fit)
         .overlay {
