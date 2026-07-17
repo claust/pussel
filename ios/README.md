@@ -88,17 +88,18 @@ make ios-screenshot                          # → /tmp/iphone-<timestamp>.png
 make ios-screenshot OUT=/path/shot.png
 ```
 
-With no target given it uses whichever one is available. When several are —
-a connected device *and* a Simulator, or two booted Simulators — it lists them
-and exits instead of guessing, since a screenshot of the wrong target looks
-like a successful capture of a broken app. (`simctl io booted` has exactly that
-failure mode: with two Simulators booted it silently picks one.) Pick a target
-with:
+With no target given it uses whichever one is available. When several are — a
+connected device *and* a Simulator, two booted Simulators, or two connected
+devices — it lists them and exits instead of guessing, since a screenshot of
+the wrong target looks like a successful capture of a broken app. (`simctl io
+booted` has exactly that failure mode: with two Simulators booted it silently
+picks one.) Pick a target with:
 
 ```bash
 make ios-screenshot TARGET=device
 make ios-screenshot TARGET=simulator
 make ios-screenshot SIM="iPhone 17 Pro"      # name or udid; implies simulator
+make ios-screenshot DEV=<udid>               # implies device
 ```
 
 A connected device must be paired/trusted and **unlocked**, and needs
