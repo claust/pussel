@@ -110,7 +110,12 @@ final class PieceLiveDetector: Sendable {
       maskBuffer = try observation.generateScaledMaskForImage(
         forInstances: observation.allInstances, from: handler)
     } catch {
-      return nil
+      // Classified like a `perform` failure: a genuine Vision error must not
+      // masquerade as "empty frame" (which would clear the overlay and dodge
+      // the caller's transient-failure demotion).
+      throw
+        Self.isUnavailable(error)
+        ? PieceLiveDetectorUnavailable() : PieceLiveDetectorTransientFailure()
     }
 
     guard let contours = Self.topLevelContours(ofMask: maskBuffer) else { return nil }
