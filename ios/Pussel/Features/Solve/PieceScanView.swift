@@ -88,6 +88,16 @@ struct PieceScanView: View {
           guard let session else { return false }
           await session.reupload(api: model.api)
           return session.errorMessage == nil
+        },
+        // Every enrolled piece also joins the puzzle page's piece list —
+        // predicted, persisted, and drawn on the overlay like any shutter
+        // capture. That persistence is also where the gallery's thumbnails
+        // come back from on later scanner visits (thumbnailForPiece).
+        onEnrolled: { [weak session] pieceId, jpeg in
+          session?.enqueueScanned(jpeg: jpeg, scanPieceId: pieceId, api: model.api)
+        },
+        thumbnailForPiece: { [weak session] pieceId in
+          session?.entry(forScanPieceId: pieceId)?.displayImage
         }
       )
       controller = ctrl

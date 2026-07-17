@@ -89,21 +89,33 @@ struct CaptureEntry: Identifiable, Equatable {
   var trimmedDisplayImage: Data
   var status: Status = .queued
   var result: PieceResponse?
+  /// The geometry store's piece id when this entry was captured by the M10
+  /// scan-and-lock flow (nil for shutter/library captures). Links the entry
+  /// to the scan gallery, which uses it to restore thumbnails for pieces
+  /// enrolled in an earlier scanner visit. Cleared on `reupload` — the
+  /// backend's geometry store died with the old puzzle id, so the ids it
+  /// minted no longer name anything.
+  var scanPieceId: String?
 
-  init(jpeg: Data) {
+  init(jpeg: Data, scanPieceId: String? = nil) {
     self.id = UUID()
     self.uploadJPEG = jpeg
     self.displayImage = jpeg
     self.trimmedDisplayImage = ImageUtilities.alphaTrimmedPNG(from: jpeg)
+    self.scanPieceId = scanPieceId
   }
 
   /// Rehydrates an entry loaded from disk (see PuzzleStore.loadSession).
-  init(id: UUID, uploadJPEG: Data, displayImage: Data, status: Status, result: PieceResponse?) {
+  init(
+    id: UUID, uploadJPEG: Data, displayImage: Data, status: Status, result: PieceResponse?,
+    scanPieceId: String? = nil
+  ) {
     self.id = id
     self.uploadJPEG = uploadJPEG
     self.displayImage = displayImage
     self.trimmedDisplayImage = ImageUtilities.alphaTrimmedPNG(from: displayImage)
     self.status = status
     self.result = result
+    self.scanPieceId = scanPieceId
   }
 }
