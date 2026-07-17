@@ -103,8 +103,8 @@ screenshot service from `lockdownd` to RemoteXPC:
 - The iPhone's AVFoundation entries are Continuity Camera, not the device screen.
 
 `scripts/ios_screenshot.sh` therefore uses `pymobiledevice3 developer dvt
-screenshot --userspace`. The `--userspace` flag opens the required iOS 17+ RSD
-tunnel without root; without it the command demands
+screenshot <out.png> --userspace`. The `--userspace` flag opens the required
+iOS 17+ RSD tunnel without root; without it the command demands
 `sudo pymobiledevice3 remote tunneld`.
 
 <details>

@@ -19,7 +19,15 @@ if ! command -v pymobiledevice3 &> /dev/null; then
     exit 1
 fi
 
-if ! pymobiledevice3 usbmux list 2>/dev/null | grep -q '"Identifier"'; then
+# Keep the two failure modes distinct: a broken usbmuxd is not the same problem
+# as an absent device, and reporting it as one sends you looking at the cable.
+if ! DEVICES="$(pymobiledevice3 usbmux list 2>&1)"; then
+    echo "Error: could not query usbmuxd for connected devices."
+    echo "$DEVICES"
+    exit 1
+fi
+
+if ! grep -q '"Identifier"' <<< "$DEVICES"; then
     echo "Error: no paired iOS device found."
     echo "Connect the device via USB, unlock it, and tap Trust."
     exit 1
