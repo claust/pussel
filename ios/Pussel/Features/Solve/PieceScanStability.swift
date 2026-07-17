@@ -69,8 +69,13 @@ struct PieceScanStabilityTracker {
     }
 
     let bbox = boundingBox(of: polygon)
-    guard isValidBbox(bbox) else {
-      // Degenerate polygon (< 3 points or zero-area bbox) — treat as noise.
+    guard polygon.count >= 3, isValidBbox(bbox) else {
+      // Degenerate polygon (< 3 points, or a line/point whose bbox has zero
+      // area) — treat as noise. The real pipeline already guards count >= 3
+      // in PiecePreviewStreamer.apply, but this value type documents the same
+      // contract, so it enforces it independently rather than trusting the
+      // caller (a 2-point diagonal has a positive-area bbox and would slip
+      // past the area check alone).
       resetStreak()
       return false
     }
@@ -139,9 +144,10 @@ struct PieceScanStabilityTracker {
     return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
   }
 
-  /// A bbox is considered valid (non-degenerate) when the polygon has ≥ 3
-  /// points AND the box has positive area. A 1- or 2-point polygon collapses
-  /// to a line or point, which would produce an IoU of 0 against everything.
+  /// A bbox is non-degenerate when it has positive area. The polygon
+  /// point-count check (≥ 3) lives in `ingest`, where the polygon is still in
+  /// hand; together they reject lines and points, which would produce an IoU
+  /// of 0 against everything.
   private func isValidBbox(_ rect: CGRect) -> Bool {
     rect.width > 0 && rect.height > 0
   }

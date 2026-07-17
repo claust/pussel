@@ -45,7 +45,9 @@ from corner_detect import (
 )
 from scipy.optimize import linear_sum_assignment
 
-DEFAULT_DATASET_ROOT = Path("/Users/claus/Repos/pussel/network/datasets/north_star/v1")
+# Repo-relative default (this script lives in network/experiments/exp28_piece_geometry/,
+# so parents[2] is the network/ dir); override with --dataset-root.
+DEFAULT_DATASET_ROOT = Path(__file__).resolve().parents[2] / "datasets" / "north_star" / "v1"
 
 # Dense resampling used for edge splitting (finer than the detectors' 512).
 SPLIT_RESAMPLE_POINTS = 1024
