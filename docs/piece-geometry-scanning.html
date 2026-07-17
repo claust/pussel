@@ -176,8 +176,8 @@
   <span class="kicker">Pussel · brainstorm &amp; living results log · 2026-07-16</span>
   <h1>The Second Column: Scanning Exact Piece Geometry</h1>
   <p class="subtitle" style="margin-top:0.5rem">
-    <strong>Status: Phases A, B, C complete; Phase D underway — M9 done, M10 built and
-    Simulator-E2E-verified (on-device 10-piece run pending)</strong>
+    <strong>Status: Phases A, B, C complete; Phase D underway — M9 and M10 done (scan-and-lock
+    verified on-device: hands-free lock → enroll → piece list, dedupe on re-scans)</strong>
     (M1–M4, M6, M7 researched in <code>network/experiments/exp28_piece_geometry/</code> — detailed
     log: <code>HANDOFF.md</code> there; M5 deferred, optional; M8 shipped the stack as production
     backend code in <code>backend/app/services/piece_geometry/</code> with E2E verification on real
@@ -185,7 +185,7 @@
     Result blocks (◆) below record what each milestone actually found. The scoring stack:
     rembg contour → polydp corners → typed edges + canonical polylines → shape+spatial-color
     fingerprint → one z-sum score for ranking (95.2% top-1 cross-background) and thresholding
-    (M7 recipe). Next: confirm M10's on-device success criterion, then M11 (neighbor suggestions).
+    (M7 recipe). Next: M11, neighbor suggestions.
   </p>
   <p class="subtitle">
     Today Pussel answers <em>"where in the picture does this piece go?"</em> by matching surface
@@ -642,7 +642,7 @@
 </div>
 
 <div class="milestone">
-  <h4><span class="mtag d">M10</span> Scan-and-lock: the "mark it green" moment <span class="badge done">BUILT ✓ — device run pending</span></h4>
+  <h4><span class="mtag d">M10</span> Scan-and-lock: the "mark it green" moment <span class="badge done">DONE ✓</span></h4>
   <div class="meta">~3–4 sessions · the heart of the vision</div>
   <ul>
     <li>Stability tracking across frames (contour IoU between consecutive detections); when stable + quality-gated (sharpness, size, corner confidence), auto-capture a full-res frame, run full geometry extraction, and flip the overlay to a locked/green state with haptic feedback.</li>
@@ -668,7 +668,22 @@
     uncertain status has a second, fingerprint-less flavor (contour quality gate failed —
     <code>z_score = null</code>) for which the confirm chip would be a dead end
     (<code>on_uncertain=enroll</code> has nothing to enroll); the controller now maps it to a
-    distinct "couldn't read the piece" verdict that just keeps scanning. 110 iOS tests pass.
+    distinct "couldn't read the piece" verdict that just keeps scanning.
+    <br /><br />
+    <strong>Verified on the physical iPhone 15 with real pieces</strong> — and the device run drove
+    three same-day product fixes: (1) a stale (backend-restarted) puzzle id now self-heals — the
+    scanner's 404 triggers a re-upload and one retry, watched live as 404 → upload → lock; (2)
+    enrolled pieces now join the puzzle page's piece list as regular capture entries (position
+    prediction, overlay marker, disk persistence — which is also where gallery thumbnails come back
+    from on later scanner visits), with matched verdicts adding nothing so the list stays
+    duplicate-free; (3) enrollment went hands-free — M7's own measurement (97.9% of new pieces land
+    in the gray zone) meant the confirm chip cost one tap per piece, so <code>t_accept</code> moved
+    to M7's FMR=1% ROC point (−3.98; gray-zone re-scans ~26–30% → ~8% at 1% wrong-lock risk) and
+    gray-zone verdicts auto-enroll. Observed end state on-device: new piece → zero-tap lock →
+    enrolled → predicted → in the piece list; re-pointing at scanned pieces → "Already scanned" with
+    zero duplicates across repeated re-locks. Dark/black surfaces defeat the preview detector (no
+    outline, no lock) exactly as M1 predicted — wood and mid-tones work; the gray mat remains the
+    recommendation. 114 iOS + 212 backend tests pass.
   </div>
 </div>
 
