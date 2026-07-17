@@ -10,6 +10,7 @@ struct PieceQueueView: View {
   let session: SolveSession
   @State private var isDeleteMode = false
   @State private var showCamera = false
+  @State private var showScan = false
   @State private var showLibrary = false
   @State private var photoItem: PhotosPickerItem?
 
@@ -37,6 +38,12 @@ struct PieceQueueView: View {
       // rather than centering against their taller status labels.
       LazyVGrid(columns: Self.columns, alignment: .leading, spacing: 12) {
         AddPieceTile(action: addPiece)
+        ScanPiecesTile(action: openScan)
+          #if !DEBUG
+            // On a non-debug, non-camera device (shouldn't exist in practice)
+            // the tile would open a dead view — hide it to be safe.
+            .opacity(PieceCameraSession.isCameraAvailable ? 1 : 0)
+          #endif
         // Newest first, so a piece appears next to the plus that captured it
         // and the grid ages away from there. The stored order stays oldest
         // first — the prediction queue works through it front to back.
@@ -62,6 +69,9 @@ struct PieceQueueView: View {
     .fullScreenCover(isPresented: cameraCoverIsPresented) {
       PieceCaptureView()
     }
+    .fullScreenCover(isPresented: scanCoverIsPresented) {
+      PieceScanView(session: session)
+    }
     // Simulator path: no camera, so the tile picks from the library directly.
     .photosPicker(isPresented: $showLibrary, selection: $photoItem, matching: .images)
     .onChange(of: photoItem) { _, item in
@@ -81,6 +91,19 @@ struct PieceQueueView: View {
     }
   }
 
+  private func openScan() {
+    // On a real device the camera is available; on the Simulator it's not,
+    // but the DEBUG build still opens the scan view (over a black preview)
+    // so `pusseldebug://scan` can demo the scan-and-lock flow there.
+    #if DEBUG
+      showScan = true
+    #else
+      if PieceCameraSession.isCameraAvailable {
+        showScan = true
+      }
+    #endif
+  }
+
   #if DEBUG
     /// Also presented when `pusseldebug://camera` sets
     /// `session.debugCameraOpen`, so M9's overlay is demoable on the
@@ -95,9 +118,42 @@ struct PieceQueueView: View {
         }
       )
     }
+
+    /// Also presented when `pusseldebug://scan` sets
+    /// `session.debugScanOpen`, mirroring `cameraCoverIsPresented` above.
+    private var scanCoverIsPresented: Binding<Bool> {
+      Binding(
+        get: { showScan || session.debugScanOpen },
+        set: { newValue in
+          showScan = newValue
+          session.debugScanOpen = newValue
+        }
+      )
+    }
   #else
     private var cameraCoverIsPresented: Binding<Bool> { $showCamera }
+    private var scanCoverIsPresented: Binding<Bool> { $showScan }
   #endif
+}
+
+/// Second tile in the grid: opens the hands-free scan-and-lock flow.
+private struct ScanPiecesTile: View {
+  let action: () -> Void
+
+  var body: some View {
+    Button(action: action) {
+      RoundedRectangle(cornerRadius: 10)
+        .strokeBorder(.tint, style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
+        .aspectRatio(1, contentMode: .fit)
+        .overlay {
+          Image(systemName: "dot.viewfinder")
+            .font(.system(size: 28, weight: .light))
+            .foregroundStyle(.tint)
+        }
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel("Scan pieces")
+  }
 }
 
 /// Leading tile in the grid: a big plus that starts a new piece capture.

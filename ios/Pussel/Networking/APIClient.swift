@@ -68,6 +68,39 @@ final class APIClient {
     return try await sendDecoding(request)
   }
 
+  /// Uploads a piece JPEG to the geometry endpoint, which extracts its
+  /// contour, classifies edges, and runs the dedupe fingerprint store.
+  /// `enrollUncertain=true` opts in to storing pieces whose z-score falls
+  /// in the uncertain band (default server behaviour is to report but not
+  /// enroll them — the param is omitted entirely when false so the server's
+  /// own default applies without the client needing to track it).
+  func uploadPieceGeometry(
+    puzzleId: String, jpegData: Data, enrollUncertain: Bool = false
+  ) async throws -> PieceGeometryUploadResponse {
+    var queryItems: [URLQueryItem] = []
+    if enrollUncertain {
+      queryItems.append(URLQueryItem(name: "on_uncertain", value: "enroll"))
+    }
+    let request = makeMultipartRequest(
+      path: "api/v1/puzzle/\(puzzleId)/piece/geometry",
+      queryItems: queryItems,
+      jpegData: jpegData,
+      filename: "piece.jpg"
+    )
+    return try await sendDecoding(request)
+  }
+
+  /// Fetches the geometry summary for every enrolled piece of a puzzle.
+  /// Used by the gallery to show edge-type badges and clean/dirty indicators
+  /// without re-uploading any images.
+  func listPieceGeometry(puzzleId: String) async throws -> PieceGeometryListResponse {
+    let url = baseURL.appending(path: "api/v1/puzzle/\(puzzleId)/piece/geometry")
+    let request = URLRequest(url: url)
+    // Reuse the authenticated send+decode path — no body, plain GET.
+    let data = try await send(request, authenticated: true)
+    return try decoder.decode(PieceGeometryListResponse.self, from: data)
+  }
+
   /// Streams one downscaled live-preview frame to the piece-region
   /// detector. Stateless and lightweight — `PiecePreviewStreamer` calls
   /// this in a throttled loop while the piece camera is open.

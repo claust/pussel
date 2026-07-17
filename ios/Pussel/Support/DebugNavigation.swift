@@ -10,7 +10,9 @@
   /// Commands: trim?puzzle=, accept[?pieces=], piece?path=, reupload, reset,
   ///   open?index=, delete?index= (index into the saved-puzzles list),
   ///   camera[?open=0], previewloop?path=<host image path>[&stop=1] (M9 live
-  ///   preview overlay demo — see PieceCameraSession.startDebugPreviewLoop).
+  ///   preview overlay demo — see PieceCameraSession.startDebugPreviewLoop),
+  ///   scan[?open=0] (M10 scan-and-lock demo — mirrors camera),
+  ///   scanconfirm (taps the M10 uncertain-confirm chip on the open scan view).
   /// Simulator apps can read host file paths directly. Compiled out of
   /// Release builds; the handler runs the same actions as the real UI.
   @MainActor
@@ -67,6 +69,7 @@
 
     // One thin case per command keeps this dispatcher's cyclomatic complexity
     // low; each command's own guards live in its helper below.
+    // swiftlint:disable:next cyclomatic_complexity
     private func runDebugCommand(_ host: String?, value: (String) -> String?) async {
       switch host {
       case "reset":
@@ -85,6 +88,10 @@
         debugDelete(index: value("index"))
       case "camera":
         debugCamera(open: value("open"))
+      case "scan":
+        debugScan(open: value("open"))
+      case "scanconfirm":
+        await PieceScanController.debugActive?.confirmUncertainAsNew()
       case "previewloop":
         debugPreviewLoop(path: value("path"), stop: value("stop"))
       default:
@@ -140,6 +147,13 @@
     private func debugCamera(open: String?) {
       guard case .solving(let session) = flow.phase else { return }
       session.debugCameraOpen = (open.flatMap(Int.init) ?? 1) != 0
+    }
+
+    /// Forces the scan-and-lock cover open (or closed with `?open=0`), even
+    /// on the Simulator — mirrors `debugCamera` for the M10 scan flow.
+    private func debugScan(open: String?) {
+      guard case .solving(let session) = flow.phase else { return }
+      session.debugScanOpen = (open.flatMap(Int.init) ?? 1) != 0
     }
 
     /// Starts (or, with `?stop=1`, stops) a repeating fake-frame loop on the

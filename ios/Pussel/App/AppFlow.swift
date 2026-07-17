@@ -78,6 +78,10 @@ final class SolveSession {
     /// `PieceCameraSession.isCameraAvailable` is false (the Simulator),
     /// so `pusseldebug://camera` can demo M9's live preview overlay there.
     var debugCameraOpen = false
+    /// Forces `PieceQueueView`'s scan cover open even when
+    /// `PieceCameraSession.isCameraAvailable` is false (the Simulator),
+    /// so `pusseldebug://scan` can demo the scan-and-lock flow there.
+    var debugScanOpen = false
   #endif
 
   @ObservationIgnored private let store: PuzzleStore?

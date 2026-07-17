@@ -201,4 +201,188 @@ final class ModelDecodingTests: XCTestCase {
     XCTAssertEqual(ImageUtilities.decodeDataURL("aGVsbG8="), Data("hello".utf8))
     XCTAssertNil(ImageUtilities.decodeDataURL("data:image/png;base64,%%%invalid%%%"))
   }
+
+  // MARK: - PieceGeometryUploadResponse
+
+  func testDecodePieceGeometryUploadResponseMatchedStatus() throws {
+    // Realistic backend payload for a matched piece: includes fields the app
+    // ignores (dominant_dev, polyline, corners, corner_confidences, contour,
+    // n_large_components, border_touching, area_ratio, solidity) to confirm
+    // the decoder tolerates extra keys gracefully.
+    let json = """
+      {
+        "piece_id": "piece-abc",
+        "status": "matched",
+        "match_piece_id": "piece-xyz",
+        "z_score": 1.42,
+        "lockable": true,
+        "quality": {
+          "is_clean": true,
+          "corner_disagreement": false,
+          "n_large_components": 1,
+          "border_touching": false,
+          "area_ratio": 0.87,
+          "solidity": 0.94
+        },
+        "record": {
+          "corners": [
+            {"x": 0.1, "y": 0.1}, {"x": 0.9, "y": 0.1},
+            {"x": 0.9, "y": 0.9}, {"x": 0.1, "y": 0.9}
+          ],
+          "corner_confidences": [0.9, 0.85, 0.92, 0.88],
+          "edges": [
+            {"type": "tab",   "dominant_dev": 0.12, "polyline": []},
+            {"type": "blank", "dominant_dev": -0.11, "polyline": []},
+            {"type": "flat",  "dominant_dev": 0.0, "polyline": []},
+            {"type": "tab",   "dominant_dev": 0.09, "polyline": []}
+          ],
+          "contour": null
+        }
+      }
+      """
+    let response = try decoder.decode(PieceGeometryUploadResponse.self, from: Data(json.utf8))
+
+    XCTAssertEqual(response.pieceId, "piece-abc")
+    XCTAssertEqual(response.status, .matched)
+    XCTAssertEqual(response.matchPieceId, "piece-xyz")
+    XCTAssertEqual(response.zScore, 1.42)
+    XCTAssertTrue(response.lockable)
+    XCTAssertTrue(response.quality.isClean)
+    XCTAssertEqual(response.quality.cornerDisagreement, false)
+    XCTAssertEqual(
+      response.edgeTypes, [.tab, .blank, .flat, .tab],
+      "edgeTypes convenience var must mirror record.edges[].type in order")
+  }
+
+  func testDecodePieceGeometryUploadResponseNewPieceNilOptionals() throws {
+    // A brand-new piece: no match, no z_score, no piece_id yet for uncertain.
+    let json = """
+      {
+        "piece_id": "piece-001",
+        "status": "new",
+        "match_piece_id": null,
+        "z_score": null,
+        "lockable": true,
+        "quality": {
+          "is_clean": true,
+          "corner_disagreement": null,
+          "n_large_components": 1,
+          "border_touching": false,
+          "area_ratio": 0.91,
+          "solidity": 0.97
+        },
+        "record": {
+          "corners": [],
+          "corner_confidences": [],
+          "edges": [
+            {"type": "flat",  "dominant_dev": 0.0,  "polyline": []},
+            {"type": "tab",   "dominant_dev": 0.15, "polyline": []},
+            {"type": "flat",  "dominant_dev": 0.0,  "polyline": []},
+            {"type": "blank", "dominant_dev": -0.08, "polyline": []}
+          ],
+          "contour": null
+        }
+      }
+      """
+    let response = try decoder.decode(PieceGeometryUploadResponse.self, from: Data(json.utf8))
+
+    XCTAssertEqual(response.pieceId, "piece-001")
+    XCTAssertEqual(response.status, .new)
+    XCTAssertNil(response.matchPieceId)
+    XCTAssertNil(response.zScore)
+    XCTAssertNil(response.quality.cornerDisagreement)
+    XCTAssertEqual(response.edgeTypes, [.flat, .tab, .flat, .blank])
+  }
+
+  func testDecodePieceGeometryUploadResponseUncertainNilPieceId() throws {
+    // Uncertain with on_uncertain=report (default): piece_id stays nil.
+    let json = """
+      {
+        "piece_id": null,
+        "status": "uncertain",
+        "match_piece_id": "piece-xyz",
+        "z_score": 2.71,
+        "lockable": false,
+        "quality": {
+          "is_clean": false,
+          "corner_disagreement": true,
+          "n_large_components": 2,
+          "border_touching": true,
+          "area_ratio": 0.55,
+          "solidity": 0.72
+        },
+        "record": {
+          "corners": [],
+          "corner_confidences": [],
+          "edges": [],
+          "contour": null
+        }
+      }
+      """
+    let response = try decoder.decode(PieceGeometryUploadResponse.self, from: Data(json.utf8))
+
+    XCTAssertNil(response.pieceId)
+    XCTAssertEqual(response.status, .uncertain)
+    XCTAssertFalse(response.lockable)
+    XCTAssertFalse(response.quality.isClean)
+    XCTAssertEqual(response.quality.cornerDisagreement, true)
+    XCTAssertTrue(response.edgeTypes.isEmpty)
+  }
+
+  // MARK: - PieceGeometryListResponse
+
+  func testDecodePieceGeometryListResponse() throws {
+    let json = """
+      {
+        "puzzle_id": "puzzle-99",
+        "pieces": [
+          {
+            "piece_id": "piece-001",
+            "edge_types": ["tab", "blank", "flat", "tab"],
+            "is_clean": true,
+            "corner_disagreement": false
+          },
+          {
+            "piece_id": "piece-002",
+            "edge_types": ["flat", "flat", "tab", "blank"],
+            "is_clean": false,
+            "corner_disagreement": true
+          }
+        ]
+      }
+      """
+    let response = try decoder.decode(PieceGeometryListResponse.self, from: Data(json.utf8))
+
+    XCTAssertEqual(response.puzzleId, "puzzle-99")
+    XCTAssertEqual(response.pieces.count, 2)
+
+    let first = response.pieces[0]
+    XCTAssertEqual(first.id, "piece-001")
+    XCTAssertEqual(first.edgeTypes, [.tab, .blank, .flat, .tab])
+    XCTAssertTrue(first.isClean)
+    XCTAssertFalse(first.cornerDisagreement)
+
+    let second = response.pieces[1]
+    XCTAssertEqual(second.id, "piece-002")
+    XCTAssertEqual(second.edgeTypes, [.flat, .flat, .tab, .blank])
+    XCTAssertFalse(second.isClean)
+    XCTAssertTrue(second.cornerDisagreement)
+  }
+
+  func testDecodePieceGeometryListResponseEmptyPieces() throws {
+    let json = """
+      {"puzzle_id": "puzzle-empty", "pieces": []}
+      """
+    let response = try decoder.decode(PieceGeometryListResponse.self, from: Data(json.utf8))
+    XCTAssertEqual(response.puzzleId, "puzzle-empty")
+    XCTAssertTrue(response.pieces.isEmpty)
+  }
+
+  // MARK: - GeometryEdgeType.glyph
+
+  func testGeometryEdgeTypeGlyphs() {
+    XCTAssertEqual(GeometryEdgeType.tab.glyph, "T")
+    XCTAssertEqual(GeometryEdgeType.blank.glyph, "B")
+    XCTAssertEqual(GeometryEdgeType.flat.glyph, "F")
+  }
 }

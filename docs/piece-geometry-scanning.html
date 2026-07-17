@@ -176,7 +176,8 @@
   <span class="kicker">Pussel · brainstorm &amp; living results log · 2026-07-16</span>
   <h1>The Second Column: Scanning Exact Piece Geometry</h1>
   <p class="subtitle" style="margin-top:0.5rem">
-    <strong>Status: Phases A, B, C complete; Phase D underway — M9 done, M10 next</strong>
+    <strong>Status: Phases A, B, C complete; Phase D underway — M9 done, M10 built and
+    Simulator-E2E-verified (on-device 10-piece run pending)</strong>
     (M1–M4, M6, M7 researched in <code>network/experiments/exp28_piece_geometry/</code> — detailed
     log: <code>HANDOFF.md</code> there; M5 deferred, optional; M8 shipped the stack as production
     backend code in <code>backend/app/services/piece_geometry/</code> with E2E verification on real
@@ -184,7 +185,7 @@
     Result blocks (◆) below record what each milestone actually found. The scoring stack:
     rembg contour → polydp corners → typed edges + canonical polylines → shape+spatial-color
     fingerprint → one z-sum score for ranking (95.2% top-1 cross-background) and thresholding
-    (M7 recipe). Next: M10, scan-and-lock.
+    (M7 recipe). Next: confirm M10's on-device success criterion, then M11 (neighbor suggestions).
   </p>
   <p class="subtitle">
     Today Pussel answers <em>"where in the picture does this piece go?"</em> by matching surface
@@ -641,13 +642,34 @@
 </div>
 
 <div class="milestone">
-  <h4><span class="mtag d">M10</span> Scan-and-lock: the "mark it green" moment <span class="badge next">NEXT ▶</span></h4>
+  <h4><span class="mtag d">M10</span> Scan-and-lock: the "mark it green" moment <span class="badge done">BUILT ✓ — device run pending</span></h4>
   <div class="meta">~3–4 sessions · the heart of the vision</div>
   <ul>
     <li>Stability tracking across frames (contour IoU between consecutive detections); when stable + quality-gated (sharpness, size, corner confidence), auto-capture a full-res frame, run full geometry extraction, and flip the overlay to a locked/green state with haptic feedback.</li>
     <li>Scanned pieces accumulate in a session gallery (thumbnail + edge-type glyph, e.g. <code>T·B·F·T</code>).</li>
   </ul>
   <div class="success">Scan 10 physical pieces in under 2 minutes, each locking automatically without pressing a shutter; re-pointing at an already-scanned piece shows "already scanned" instead of duplicating.</div>
+  <div class="outcome">
+    <strong>Implemented and E2E-verified in the Simulator against the real backend; the
+    10-physical-pieces criterion awaits the on-device run.</strong> A hands-free scan screen
+    (<code>PieceScanView</code>, opened from a viewfinder tile in the piece grid) reuses the M9
+    camera/streamer/overlay stack and adds a <code>PieceScanStabilityTracker</code> (bbox-IoU ≥ 0.8
+    between consecutive lockable detections, ≥ 1 s and ≥ 3 samples, latched) feeding a
+    <code>PieceScanController</code> state machine: stable → auto-capture (no shutter) → downscaled
+    JPEG → <code>POST …/piece/geometry</code> → verdict UX. <em>new</em> → green "Piece locked ✓
+    T·B·F·T" capsule + full-screen flash + success haptic + gallery add; <em>matched</em> → orange
+    "Already scanned" + warning haptic + highlight of the matching gallery tile (never a duplicate);
+    <em>uncertain</em> → scanning continues with a one-tap "add as new piece" chip that re-posts with
+    <code>on_uncertain=enroll</code>. The session gallery pre-fills from the GET endpoint (edge-type
+    glyphs; placeholder tile for pieces scanned in an earlier app run). All verdict paths were
+    exercised live in the Simulator via <code>pusseldebug://scan</code> + <code>previewloop</code>
+    with north_star photos: p001 enrolled, re-scan matched, gray-zone p002 confirmed-and-enrolled
+    (backend store verified via GET). The E2E again caught what unit tests couldn't: the backend's
+    uncertain status has a second, fingerprint-less flavor (contour quality gate failed —
+    <code>z_score = null</code>) for which the confirm chip would be a dead end
+    (<code>on_uncertain=enroll</code> has nothing to enroll); the controller now maps it to a
+    distinct "couldn't read the piece" verdict that just keeps scanning. 110 iOS tests pass.
+  </div>
 </div>
 
 <div class="milestone">
