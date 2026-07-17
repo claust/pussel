@@ -132,7 +132,11 @@ final class PieceLiveDetector: Sendable {
     let outline = Self.resampled(
       Self.smoothed(contour, window: Self.smoothingWindow), count: Self.polygonPointCount)
 
-    let borderTouching = outline.contains { point in
+    // Border touching is judged on the RAW contour: smoothing pulls points
+    // inward, so a clipped piece could otherwise sneak past the margin and
+    // read as lockable (mirrors the backend, which checks the unsmoothed
+    // contour too).
+    let borderTouching = contour.contains { point in
       point.x <= Self.borderTouchMargin || point.y <= Self.borderTouchMargin
         || point.x >= 1.0 - Self.borderTouchMargin || point.y >= 1.0 - Self.borderTouchMargin
     }

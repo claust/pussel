@@ -61,8 +61,9 @@ final class PiecePreviewStreamer: @unchecked Sendable {
 
   @MainActor private(set) var state: PiecePreviewState = .none
   /// Pixel size of the frame `state`'s polygon was measured against — the
-  /// upright-portrait downscaled JPEG `PieceCameraSession` sent. Its aspect
-  /// ratio drives the overlay's aspect-fill mapping
+  /// upright-portrait downscaled CGImage `PieceCameraSession` handed to the
+  /// detector (or, on the server fallback path, JPEG-encoded and sent). Its
+  /// aspect ratio drives the overlay's aspect-fill mapping
   /// (`PiecePreviewGeometry.viewPolygon`).
   @MainActor private(set) var frameSize: CGSize = .zero
   /// When `state` was last updated. `PieceCaptureView` hides the overlay
