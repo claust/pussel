@@ -25,6 +25,33 @@ struct PieceResponse: Codable, Equatable {
   let pieceSpan: PieceSpan?
 }
 
+/// Bounding box normalized to [0,1] image coordinates, mirroring the
+/// backend's `BoundingBox` model.
+struct NormalizedBoundingBox: Codable, Equatable {
+  let x: Double
+  let y: Double
+  let width: Double
+  let height: Double
+}
+
+/// Response of POST /api/v1/piece/preview — live piece-region detection in
+/// a downscaled camera frame, streamed from `PiecePreviewStreamer`.
+struct PiecePreviewResponse: Codable, Equatable {
+  let found: Bool
+  /// Outline of the detected region, normalized to the frame that was
+  /// submitted. Empty when `found` is false.
+  let polygon: [NormalizedPoint]
+  let bbox: NormalizedBoundingBox?
+  let confidence: Double
+  /// Best-effort piece-geometry quality flag from a quick corner-detection
+  /// pass; only populated when the request opted in with
+  /// `include_quality=true` (see `APIClient.previewPiece`).
+  let lockable: Bool?
+  /// Whether the quick corner cross-check disagreed; only populated with
+  /// `include_quality=true`.
+  let cornerDisagreement: Bool?
+}
+
 /// A captured piece moving through the prediction queue.
 struct CaptureEntry: Identifiable, Equatable {
   enum Status: Equatable {
@@ -62,21 +89,33 @@ struct CaptureEntry: Identifiable, Equatable {
   var trimmedDisplayImage: Data
   var status: Status = .queued
   var result: PieceResponse?
+  /// The geometry store's piece id when this entry was captured by the M10
+  /// scan-and-lock flow (nil for shutter/library captures). Links the entry
+  /// to the scan gallery, which uses it to restore thumbnails for pieces
+  /// enrolled in an earlier scanner visit. Cleared on `reupload` — the
+  /// backend's geometry store died with the old puzzle id, so the ids it
+  /// minted no longer name anything.
+  var scanPieceId: String?
 
-  init(jpeg: Data) {
+  init(jpeg: Data, scanPieceId: String? = nil) {
     self.id = UUID()
     self.uploadJPEG = jpeg
     self.displayImage = jpeg
     self.trimmedDisplayImage = ImageUtilities.alphaTrimmedPNG(from: jpeg)
+    self.scanPieceId = scanPieceId
   }
 
   /// Rehydrates an entry loaded from disk (see PuzzleStore.loadSession).
-  init(id: UUID, uploadJPEG: Data, displayImage: Data, status: Status, result: PieceResponse?) {
+  init(
+    id: UUID, uploadJPEG: Data, displayImage: Data, status: Status, result: PieceResponse?,
+    scanPieceId: String? = nil
+  ) {
     self.id = id
     self.uploadJPEG = uploadJPEG
     self.displayImage = displayImage
     self.trimmedDisplayImage = ImageUtilities.alphaTrimmedPNG(from: displayImage)
     self.status = status
     self.result = result
+    self.scanPieceId = scanPieceId
   }
 }

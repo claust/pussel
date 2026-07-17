@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Piece Geometry Scanning — Brainstorm &amp; Milestones</title>
+<style>
+  :root {
+    --bg: #f7f6f3;
+    --surface: #ffffff;
+    --ink: #1e2229;
+    --muted: #5c6470;
+    --line: #e3e0d8;
+    --accent: #b4551f;
+    --accent-soft: #f6e3d7;
+    --good: #2c6e49;
+    --good-soft: #e2efe7;
+    --warn: #8a5a00;
+    --warn-soft: #f7ecd4;
+    --risk: #9c2f2f;
+    --risk-soft: #f7e2e2;
+    --code-bg: #eeece6;
+    --phase-a: #2c5f8a;
+    --phase-b: #6d4c9f;
+    --phase-c: #2c6e49;
+    --phase-d: #b4551f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16181d;
+      --surface: #1f232b;
+      --ink: #e8e6e1;
+      --muted: #9aa1ac;
+      --line: #32363f;
+      --accent: #e08a55;
+      --accent-soft: #3a2a1f;
+      --good: #6fbf8f;
+      --good-soft: #1f3328;
+      --warn: #d9a94a;
+      --warn-soft: #362c17;
+      --risk: #e07a7a;
+      --risk-soft: #3a2222;
+      --code-bg: #2a2e37;
+      --phase-a: #6ea3cf;
+      --phase-b: #a98fd6;
+      --phase-c: #6fbf8f;
+      --phase-d: #e08a55;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 3rem 1.5rem 5rem; }
+  header h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 0.5rem; }
+  header .subtitle { color: var(--muted); font-size: 1.05rem; max-width: 46rem; }
+  .kicker {
+    display: inline-block; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--accent); margin-bottom: 0.75rem;
+  }
+  nav.toc {
+    margin: 2rem 0; padding: 1rem 1.25rem; background: var(--surface);
+    border: 1px solid var(--line); border-radius: 10px; font-size: 0.95rem;
+  }
+  nav.toc strong { display: block; margin-bottom: 0.35rem; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  nav.toc ol { margin: 0; padding-left: 1.3rem; columns: 2; column-gap: 2.5rem; }
+  @media (max-width: 640px) { nav.toc ol { columns: 1; } }
+  h2 {
+    font-size: 1.45rem; margin: 3rem 0 1rem; padding-top: 1rem;
+    border-top: 2px solid var(--line);
+  }
+  h3 { font-size: 1.1rem; margin: 1.75rem 0 0.5rem; }
+  p { margin: 0.6rem 0 1rem; }
+  code {
+    font: 0.85em ui-monospace, "SF Mono", Menlo, monospace;
+    background: var(--code-bg); padding: 0.1em 0.35em; border-radius: 4px;
+  }
+  a { color: var(--accent); }
+  table {
+    width: 100%; border-collapse: collapse; margin: 1rem 0 1.5rem;
+    font-size: 0.92rem; background: var(--surface); border: 1px solid var(--line);
+    border-radius: 8px; overflow: hidden;
+  }
+  .tablewrap { overflow-x: auto; }
+  th, td { text-align: left; padding: 0.55rem 0.8rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: var(--code-bg); font-weight: 650; }
+  tr:last-child td { border-bottom: none; }
+  .pill {
+    display: inline-block; padding: 0.05rem 0.55rem; border-radius: 999px;
+    font-size: 0.75rem; font-weight: 650; white-space: nowrap;
+  }
+  .pill.have { background: var(--good-soft); color: var(--good); }
+  .pill.partial { background: var(--warn-soft); color: var(--warn); }
+  .pill.missing { background: var(--risk-soft); color: var(--risk); }
+  .callout {
+    margin: 1.25rem 0; padding: 0.9rem 1.1rem; border-radius: 8px;
+    border-left: 4px solid var(--accent); background: var(--accent-soft);
+  }
+  .callout.insight { border-left-color: var(--good); background: var(--good-soft); }
+  .callout.risk { border-left-color: var(--risk); background: var(--risk-soft); }
+  .callout strong:first-child { display: block; margin-bottom: 0.2rem; }
+
+  /* pipeline diagram */
+  .pipeline {
+    display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: stretch;
+    margin: 1.25rem 0;
+  }
+  .stage {
+    flex: 1 1 130px; min-width: 120px; background: var(--surface);
+    border: 1px solid var(--line); border-radius: 8px; padding: 0.6rem 0.7rem;
+    position: relative;
+  }
+  .stage .num {
+    font-size: 0.7rem; font-weight: 700; color: var(--accent);
+    letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  .stage .name { font-weight: 650; font-size: 0.9rem; margin: 0.1rem 0; }
+  .stage .detail { font-size: 0.78rem; color: var(--muted); line-height: 1.4; }
+
+  /* milestones */
+  .milestone {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    padding: 1.1rem 1.3rem; margin: 1rem 0;
+  }
+  .milestone h4 { margin: 0 0 0.4rem; font-size: 1.02rem; display: flex; gap: 0.6rem; align-items: baseline; flex-wrap: wrap; }
+  .mtag {
+    font-size: 0.72rem; font-weight: 700; padding: 0.1rem 0.55rem; border-radius: 999px;
+    color: #fff; letter-spacing: 0.04em;
+  }
+  .mtag.a { background: var(--phase-a); }
+  .mtag.b { background: var(--phase-b); }
+  .mtag.c { background: var(--phase-c); }
+  .mtag.d { background: var(--phase-d); }
+  .milestone .meta { font-size: 0.85rem; color: var(--muted); margin-bottom: 0.5rem; }
+  .milestone ul { margin: 0.4rem 0; padding-left: 1.2rem; font-size: 0.93rem; }
+  .milestone .success {
+    margin-top: 0.6rem; font-size: 0.88rem; padding: 0.5rem 0.75rem;
+    background: var(--good-soft); color: var(--good); border-radius: 6px;
+  }
+  .milestone .success::before { content: "✓ Done when: "; font-weight: 700; }
+  .milestone .outcome {
+    margin-top: 0.6rem; font-size: 0.88rem; padding: 0.55rem 0.75rem;
+    background: var(--accent-soft); border-left: 3px solid var(--accent); border-radius: 6px;
+  }
+  .milestone .outcome::before { content: "◆ Result (2026-07-16): "; font-weight: 700; color: var(--accent); }
+  .badge {
+    font-size: 0.7rem; font-weight: 700; padding: 0.1rem 0.5rem; border-radius: 999px;
+    letter-spacing: 0.05em;
+  }
+  .badge.done { background: var(--good-soft); color: var(--good); }
+  .badge.next { background: var(--accent-soft); color: var(--accent); }
+  .badge.skip { background: var(--warn-soft); color: var(--warn); }
+  .phasehead {
+    margin: 2.25rem 0 0.25rem; font-size: 0.8rem; font-weight: 700;
+    letter-spacing: 0.1em; text-transform: uppercase;
+  }
+  .phasehead.a { color: var(--phase-a); }
+  .phasehead.b { color: var(--phase-b); }
+  .phasehead.c { color: var(--phase-c); }
+  .phasehead.d { color: var(--phase-d); }
+  .phasedesc { color: var(--muted); font-size: 0.92rem; margin: 0 0 0.75rem; }
+  ul.compact { margin: 0.4rem 0 1rem; padding-left: 1.25rem; }
+  ul.compact li { margin: 0.25rem 0; }
+  footer { margin-top: 3.5rem; padding-top: 1rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <span class="kicker">Pussel · brainstorm &amp; living results log · 2026-07-16</span>
+  <h1>The Second Column: Scanning Exact Piece Geometry</h1>
+  <p class="subtitle" style="margin-top:0.5rem">
+    <strong>Status: Phases A, B, C complete; Phase D underway — M9 and M10 done (scan-and-lock
+    verified on-device: hands-free lock → enroll → piece list, dedupe on re-scans)</strong>
+    (M1–M4, M6, M7 researched in <code>network/experiments/exp28_piece_geometry/</code> — detailed
+    log: <code>HANDOFF.md</code> there; M5 deferred, optional; M8 shipped the stack as production
+    backend code in <code>backend/app/services/piece_geometry/</code> with E2E verification on real
+    photos; M9 put the live outline overlay in the iOS camera, verified on a physical iPhone).
+    Result blocks (◆) below record what each milestone actually found. The scoring stack:
+    rembg contour → polydp corners → typed edges + canonical polylines → shape+spatial-color
+    fingerprint → one z-sum score for ranking (95.2% top-1 cross-background) and thresholding
+    (M7 recipe). Next: M11, neighbor suggestions.
+  </p>
+  <p class="subtitle">
+    Today Pussel answers <em>"where in the picture does this piece go?"</em> by matching surface
+    texture (SIFT→NCC hybrid, 76.7% on real photos). This document explores the complementary
+    column: <em>"what is this piece's exact outer shape?"</em> — extracting the contour, the tabs
+    and blanks per side, fingerprinting pieces uniquely by geometry + color, and eventually doing
+    it live in the iOS camera preview, piece by piece, with scanned pieces highlighted as "locked".
+  </p>
+</header>
+
+<nav class="toc">
+  <strong>Contents</strong>
+  <ol>
+    <li><a href="#why">Why geometry is worth a column</a></li>
+    <li><a href="#have">What we already have</a></li>
+    <li><a href="#field">What the field says</a></li>
+    <li><a href="#pipeline">The proposed pipeline</a></li>
+    <li><a href="#decisions">Key design decisions</a></li>
+    <li><a href="#milestones">Milestones</a></li>
+    <li><a href="#risks">Risks &amp; mitigations</a></li>
+    <li><a href="#next">Suggested first step</a></li>
+  </ol>
+</nav>
+
+<h2 id="why">1 · Why geometry is worth a column</h2>
+<p>
+  The texture matcher answers a <em>global</em> question (position in the finished picture) and needs
+  the box-lid overview photo to do it. Geometry answers a <em>local</em> question — which pieces
+  physically interlock — and needs nothing but the pieces themselves. That makes it useful in
+  situations texture can't reach:
+</p>
+<ul class="compact">
+  <li><strong>Sky and solid-color regions</strong> where texture matching has nothing to grip — shape complementarity still works. (Existence proof: Stuff Made Here's robot assembled a 4000-piece <em>single-color</em> puzzle on shape alone.)</li>
+  <li><strong>Neighbor suggestions</strong>: "these 3 pieces likely attach to the piece you just placed" — shape narrows candidates, texture/color across the seam confirms.</li>
+  <li><strong>Unique piece identity</strong>: a persistent fingerprint (shape + surface color) lets the app remember pieces across frames and across sessions — the foundation for the "scan pieces one by one, mark them green" camera experience.</li>
+  <li><strong>A second, independent signal</strong> to fuse with the texture matcher — the two fail in different ways, so combining them should beat either alone.</li>
+</ul>
+
+<h2 id="have">2 · What we already have (repo inventory)</h2>
+<p>A surprising amount of this column already exists in pieces — including the hardest mathematical part.</p>
+
+<div class="tablewrap">
+<table>
+  <tr><th>Asset</th><th>Where</th><th>Status</th><th>Relevance</th></tr>
+  <tr>
+    <td><strong>Parametric piece model</strong> — 11-parameter <code>TabParameters</code> (neck width, bulb width, height, curvature, asymmetry…), cubic-Bezier edges, <code>PieceConfig</code> with 4 edge types (tab/blank/flat)</td>
+    <td><code>shared/puzzle_shapes/</code> (<code>models.py</code>, <code>geometry.py</code>)</td>
+    <td><span class="pill have">have</span></td>
+    <td>This is exactly the compact, semantic representation a scanned edge should be described in. It's JSON-serializable — a scanned piece becomes a tiny record.</td>
+  </tr>
+  <tr>
+    <td><strong>Contour→parameters fitter</strong> — PyTorch (MPS-capable) gradient optimization of <code>TabParameters</code> against a reference contour via chamfer / soft-Hausdorff loss; plus a scipy L-BFGS-B variant</td>
+    <td><code>network/docs/puzzle_shape_generation/scripts/optimize_torch.py</code>, <code>losses_torch.py</code>, <code>geometry_torch.py</code></td>
+    <td><span class="pill partial">exists, unwired</span></td>
+    <td><strong>The single biggest head start.</strong> "Given a photographed contour, find the parameters that reproduce it" is already solved — but only ever run against 6 curated reference PNGs, never real camera photos, and not wired into the backend.</td>
+  </tr>
+  <tr>
+    <td><strong>Contour comparison toolkit</strong> — contour extraction from masks, arc-length resampling, IoU, mean contour distance, Hausdorff</td>
+    <td><code>network/docs/puzzle_shape_generation/scripts/shape_comparator.py</code></td>
+    <td><span class="pill have">have</span></td>
+    <td>Ready-made metrics for every evaluation milestone below.</td>
+  </tr>
+  <tr>
+    <td><strong>Piece segmentation in photos</strong> — rembg background removal, largest-alpha-component contour, skin rejection, confidence scoring; already powers a live-preview endpoint (<code>/api/v1/piece/preview</code>)</td>
+    <td><code>backend/app/services/piece_detector.py</code>, <code>background_remover.py</code>, <code>piece_classifier.py</code></td>
+    <td><span class="pill partial">coarse</span></td>
+    <td>Finds the piece and a rough ≤60-point polygon for UI overlay. Needs upgrading to a precise, full-resolution closed contour — but the plumbing (frame in → detection out) exists and is production-tested.</td>
+  </tr>
+  <tr>
+    <td><strong>Real-photo evaluation dataset</strong> — north_star: 14 puzzles, 236 pieces, each photographed on 4 different backgrounds, with known grid position per piece</td>
+    <td><code>network/datasets/north_star/v1/</code> (local, regenerated via <code>ingest.py</code>)</td>
+    <td><span class="pill have">have</span></td>
+    <td>Perfect for this column: known grid positions mean <em>true neighbor pairs are known</em> (ground truth for edge matching), and the same piece on 4 backgrounds is a natural re-identification test set.</td>
+  </tr>
+  <tr>
+    <td><strong>iOS camera plumbing</strong> — persistent <code>AVCaptureSession</code>, live preview layer, photo capture, multipart upload to backend</td>
+    <td><code>ios/Pussel/Features/Solve/PieceCameraSession.swift</code>, <code>PieceCaptureView.swift</code>, <code>APIClient.swift</code></td>
+    <td><span class="pill partial">single-shot only</span></td>
+    <td>Live preview exists but no frame analysis or overlay — capture is one manual photo. Notably the web frontend already streams preview frames to the backend for live outline overlay; iOS never adopted that endpoint.</td>
+  </tr>
+  <tr>
+    <td><strong>On-device vision (iOS)</strong> — Vision framework, Core ML, per-frame processing</td>
+    <td>—</td>
+    <td><span class="pill missing">none</span></td>
+    <td>Greenfield. Apple's <code>VNDetectContoursRequest</code> is purpose-built for "find the outline" and is the obvious first thing to spike.</td>
+  </tr>
+  <tr>
+    <td><strong>Corner detection / edge splitting / tab-blank classification from photos</strong></td>
+    <td>—</td>
+    <td><span class="pill missing">none</span></td>
+    <td>The genuinely new algorithmic work of this column (§4, stages 4–5).</td>
+  </tr>
+  <tr>
+    <td><strong>Piece fingerprint / identity database</strong></td>
+    <td>—</td>
+    <td><span class="pill missing">none</span></td>
+    <td>All current matching is piece-vs-overview. There is no concept of "this specific piece, seen before" anywhere.</td>
+  </tr>
+</table>
+</div>
+
+<div class="callout insight">
+  <strong>Key realization</strong>
+  The project already contains both ends of the pipeline — segmentation of real photos (backend) and
+  fitting of the parametric shape model to a contour (shape-generation scripts). What's missing is the
+  middle: turning a raw photo contour into <em>four labeled, normalized edges</em>. That middle is
+  well-trodden ground in the literature (§3), not research risk.
+</div>
+
+<h2 id="field">3 · What the field says (research findings)</h2>
+
+<h3>The consistent recipe across every working real-photo solver</h3>
+<p>
+  Independent projects (Wolfson et&nbsp;al. 1988 — the 104-piece original; kellinwood/PuzzleSolver; Zolver;
+  byWulf/jigsawlutioner; several writeups) converge on essentially the same pipeline, which is strong
+  evidence it's the right default:
+</p>
+<ul class="compact">
+  <li><strong>Capture is everything.</strong> Every successful project controls the background — flatbed scanner with lid open, black mat, or a backlit lightbox. Segmentation is then trivial thresholding. The capture setup, not the algorithm, determines whether downstream steps work.</li>
+  <li><strong>Corner detection is the fragile step.</strong> Every project either documents failure modes or ships a manual-correction UI. Approaches: <code>approxPolyDP</code>, Harris corners + "most rectangular 4-subset" selection, Shi-Tomasi with distance constraints, curvature extrema along the boundary. Plan for occasional human-in-the-loop correction.</li>
+  <li><strong>Tab/blank/flat classification is considered solved.</strong> Draw the chord between adjacent corners; if the contour midpoint bulges away from the centroid → tab, toward it → blank, on the chord → flat. Multiple independent implementations, no reported trouble.</li>
+  <li><strong>Edge matching = arc-length resample + chamfer-style distance.</strong> Normalize each side (translate/rotate to axis-aligned), resample to N equidistant points (~100), compare a side against a <em>flipped</em> candidate side by summed closest-point distance. Some projects use ~6 hand-engineered scalars instead (protrusion width/depth/position) — cheaper, more interpretable, hashable.</li>
+</ul>
+
+<h3>Findings that shape our design</h3>
+<ul class="compact">
+  <li><strong>Shape alone is not a unique fingerprint on most puzzles.</strong> jigsawlutioner's operational finding: geometric matching works reliably only on Ravensburger; most manufacturers reuse near-identical die-cut tab shapes across many pieces. <em>Color/texture disambiguation is mandatory</em> for identity — geometry proposes, appearance confirms. This validates the vision's instinct to combine both.</li>
+  <li><strong>Perspective must be corrected in software.</strong> Hobby projects dodge it with scanners; Stuff Made Here dodged it with a telecentric lens. For a phone, a known mat (ArUco/ChArUco fiducials) gives both metric scale (px→mm) and a homography to rectify tilt. A few degrees of uncorrected tilt distorts tab geometry enough to break matching.</li>
+  <li><strong>ARKit/LiDAR depth is the wrong tool</strong> — ~1–3&nbsp;cm accuracy vs. sub-millimeter-relevant tab features. Use 2D + fiducial. ARKit is still useful as capture <em>guidance</em> (hold flat, hold steady).</li>
+  <li><strong>On-device contouring is available for free:</strong> Apple's <code>VNDetectContoursRequest</code> (iOS 14+) returns outline paths in real time and is explicitly tuned for high-contrast scenes — which our controlled-mat capture provides anyway. Deep segmentation (MobileSAM/FastSAM via Core ML) is the fallback for uncontrolled backgrounds, not the starting point.</li>
+  <li><strong>No prior art found for persistent cross-session piece fingerprinting</strong> — the closest analogue is person/vehicle re-identification (feature vector + nearest-neighbor with threshold, never exact hash equality). This part of the vision is a genuine gap/opportunity.</li>
+</ul>
+
+<div class="callout risk">
+  <strong>The one hard constraint to internalize</strong>
+  Everything downstream of capture degrades together: shadows read as contour, tilt warps tabs, motion
+  blur kills corners. The cheapest, highest-leverage "algorithm" in this whole column is a
+  <em>defined capture protocol</em> — a plain mat (possibly printed with fiducials), near-overhead
+  phone, diffuse light. Milestone 1 exists to establish exactly this before any clever code.
+</div>
+
+<h2 id="pipeline">4 · The proposed pipeline</h2>
+<p>One frame (or photo) in, one structured piece record out:</p>
+
+<div class="pipeline">
+  <div class="stage"><div class="num">1</div><div class="name">Capture</div><div class="detail">Controlled mat, near-overhead. Optional ArUco corners for scale + tilt.</div></div>
+  <div class="stage"><div class="num">2</div><div class="name">Rectify</div><div class="detail">Homography from fiducials (or skip in v1: assume flat overhead).</div></div>
+  <div class="stage"><div class="num">3</div><div class="name">Segment + contour</div><div class="detail">rembg / threshold / VNDetectContours → one closed, full-res contour.</div></div>
+  <div class="stage"><div class="num">4</div><div class="name">Find 4 corners</div><div class="detail">Curvature extrema / Harris + rectangular-subset. The fragile step.</div></div>
+  <div class="stage"><div class="num">5</div><div class="name">Split + classify</div><div class="detail">4 edge segments; chord-midpoint test → tab / blank / flat.</div></div>
+  <div class="stage"><div class="num">6</div><div class="name">Describe</div><div class="detail">Per edge: resampled polyline + fitted TabParameters (our 11-param model).</div></div>
+  <div class="stage"><div class="num">7</div><div class="name">Fingerprint</div><div class="detail">Rotation-invariant shape descriptor + color histogram / patch embedding.</div></div>
+  <div class="stage"><div class="num">8</div><div class="name">Match</div><div class="detail">Identity: nearest-neighbor vs. seen pieces. Fit: edge vs. inverted candidate edges.</div></div>
+</div>
+
+<h3>The piece record (sketch)</h3>
+<p>
+  Each scanned piece becomes a small JSON document — this is what gets stored, deduplicated against,
+  and matched:
+</p>
+<ul class="compact">
+  <li><code>contour</code>: full-res closed polygon (px), plus mm scale if fiducials present</li>
+  <li><code>corners</code>: 4 indices into the contour + confidence</li>
+  <li><code>edges[4]</code>: type (tab/blank/flat), normalized 100-point polyline, fitted <code>TabParameters</code>, fit residual</li>
+  <li><code>appearance</code>: color histogram (LAB) + small patch embedding of the piece face</li>
+  <li><code>fingerprint</code>: rotation-invariant combination of the above (canonical edge ordering, e.g. start from lexicographically smallest edge descriptor)</li>
+  <li><code>quality</code>: sharpness, contour smoothness, corner confidence — gates "locked" status in the live UX</li>
+</ul>
+
+<div class="callout">
+  <strong>Why fit TabParameters at all, when a resampled polyline suffices for matching?</strong>
+  Three reasons: (1) it's a 11-number semantic compression — cheap to store, index, and hash;
+  (2) the fit residual is a built-in <em>quality score</em> ("this contour doesn't look like a puzzle
+  edge" → bad scan, don't lock); (3) it closes the loop with the synthetic training pipeline — real
+  fitted parameter distributions can drive more realistic synthetic data (feeding back into the
+  first column). The polyline stays alongside as ground truth; the parameters are the summary.
+</div>
+
+<h2 id="decisions">5 · Key design decisions (and recommendations)</h2>
+<div class="tablewrap">
+<table>
+  <tr><th>Decision</th><th>Options</th><th>Recommendation</th></tr>
+  <tr>
+    <td>Where does extraction run?</td>
+    <td>Backend (Python/OpenCV, reuse everything) vs. on-device (Vision/Core ML, low latency)</td>
+    <td><strong>Backend first.</strong> The iOS preview-streaming pattern already exists (web frontend uses it). Move on-device only for the frame-rate-critical part (stage 3 rough outline for the live overlay) once the algorithm is settled. Don't fight two problems (algorithm + Swift port) at once.</td>
+  </tr>
+  <tr>
+    <td>Metric scale?</td>
+    <td>Fiducial mat (ArUco) vs. relative-only (normalize by piece size)</td>
+    <td><strong>Relative-only in v1.</strong> Edge <em>matching</em> only needs consistent relative geometry between pieces from the same session/puzzle. Add the printable fiducial mat when cross-session metric identity or tilt correction proves necessary (M2 will tell us).</td>
+  </tr>
+  <tr>
+    <td>Edge representation for matching?</td>
+    <td>Resampled polyline + chamfer vs. fitted parameters vs. hand-engineered scalars</td>
+    <td><strong>Polyline + chamfer as ground truth</strong>, parameters as compression/quality-gate. Benchmark both in M4 — if parameter-space distance ranks neighbors nearly as well, it wins on speed and storage.</td>
+  </tr>
+  <tr>
+    <td>Live scanning UX granularity?</td>
+    <td>Continuous auto-scan of whatever's in frame vs. one-piece-at-a-time with explicit lock</td>
+    <td><strong>One piece at a time with visible lock state</strong> (matches the stated vision). Simpler tracking, natural quality gating, satisfying UX. Multi-piece-in-frame is a later enhancement.</td>
+  </tr>
+  <tr>
+    <td>Identity threshold?</td>
+    <td>Fixed similarity cutoff vs. calibrated per-puzzle</td>
+    <td>Defer — M6/M7 produce the data (impostor vs. genuine similarity distributions on north_star) to choose empirically.</td>
+  </tr>
+</table>
+</div>
+
+<h2 id="milestones">6 · Milestones</h2>
+<p>
+  Ordered so each one is small, independently valuable, and produces a <em>number</em> or a
+  <em>demo</em> — never "infrastructure only". Phases A–B are pure Python against existing photos
+  (no new hardware, no iOS work); the camera experience comes last, once the algorithm is proven.
+</p>
+
+<p class="phasehead a">Phase A · Offline geometry extraction (Python, north_star photos)</p>
+<p class="phasedesc">Prove we can turn an existing real photo into four labeled edges. Everything runs as scripts in <code>network/experiments/</code>, evaluated with contact sheets like exp25.</p>
+
+<div class="milestone">
+  <h4><span class="mtag a">M1</span> High-fidelity contour extraction <span class="badge done">DONE ✓</span></h4>
+  <div class="meta">~2–4 sessions · builds on <code>piece_detector.py</code> + <code>background_remover.py</code></div>
+  <ul>
+    <li>Upgrade the existing rembg pipeline from "≤60-point UI polygon" to a full-resolution, smoothed, closed contour (mask → morphological cleanup → <code>findContours</code> → light smoothing).</li>
+    <li>Run over all 236 north_star pieces × 4 backgrounds; render overlay contact sheets for eyeball review.</li>
+    <li>Note which backgrounds fail (the red carpet will be the stress test) — this <em>defines the capture protocol</em> for the eventual scanning mat.</li>
+  </ul>
+  <div class="success">≥95% of pieces yield a single clean closed contour on at least the 2 friendly backgrounds; failure modes are catalogued.</div>
+  <div class="outcome">
+    <strong>Criterion met on all four backgrounds, not just two.</strong> rembg (u2net) clean rates over
+    944 photos: gray_fabric 98.7%, red_carpet 97.9%, wood 96.2%, cardboard 95.3%. The Otsu-threshold
+    baseline is dead on textured real backgrounds (0.8–22.5%) — rembg is the extraction method, full stop.
+    Gate-failure taxonomy (28 cases): 17 multi-component segmentations, 8 border-touching crops, 3
+    implausible shapes. Visual review found what the gate cannot: on <em>wood</em>, a few pieces per sheet
+    pass the gate but the contour follows dark <em>artwork</em> boundaries instead of the piece edge
+    (dark art blends into wood tones); gray fabric and red carpet sheets are essentially flawless, with
+    drop shadows correctly excluded. <strong>Capture-protocol consequence: the scanning mat should be
+    neutral gray fabric.</strong> These wood "silent failures" resurface as the dominant error source in
+    M3 and M4 — segmentation quality upper-bounds the whole column.
+  </div>
+</div>
+
+<div class="milestone">
+  <h4><span class="mtag a">M2</span> Corner detection bake-off <span class="badge done">DONE ✓</span></h4>
+  <div class="meta">~3–5 sessions · the known-fragile step, so measure it properly</div>
+  <ul>
+    <li>Hand-label 4 corners on a ~60-piece subset (tiny matplotlib click tool — an afternoon).</li>
+    <li>Implement 2–3 candidates: curvature extrema along the contour; Harris/Shi-Tomasi + "most rectangular 4-subset"; <code>approxPolyDP</code> baseline.</li>
+    <li>Benchmark corner error (as % of piece size) per method per background.</li>
+  </ul>
+  <div class="success">Best method places all 4 corners within 3% of piece size on ≥90% of the subset; we know its failure modes well enough to design the manual-nudge fallback.</div>
+  <div class="outcome">
+    <strong>Criterion met — polydp 98.5% and curvature 97.0%</strong> of 200 synthetic pieces (known
+    ground-truth corners, random rotation + blur + noise) within 3% worst-corner error, median ~0.7%.
+    The literature's warning proved exact: naïve subset scoring picked <em>tab-bulb tips</em> (bigger
+    quadrilaterals) — initial rates were just 68% / 29.5%. Three changes fixed it: (1) a
+    <em>cornerness prior</em> — true corners have locally straight contour shoulders on both sides,
+    tab tips curve away immediately (PCA line fits + angle-near-90° score per candidate);
+    (2) quad area normalized by hull area so it can't dominate; (3) corners refined as the
+    <em>intersection of the shoulder lines</em>, recovering the un-rounded corner that corner_radius
+    hides (p97 error 3.6% → 0.8%). Shi-Tomasi is structurally unusable (13.5%): goodFeaturesToTrack
+    never even proposes rounded true corners (~33% missing from its pool). On real photos the corner
+    overlays look excellent; synthetic random pieces are <em>harder</em> than real ones (more extreme
+    tabs), so these numbers are conservative. Quantitative real-photo eval awaits optional hand labels
+    (<code>label_corners.py</code> click tool is ready). Working recipe: <strong>polydp primary,
+    curvature as cross-check</strong> — their disagreement (&gt;3% of bbox diagonal) is the per-piece
+    quality flag.
+  </div>
+</div>
+
+<div class="milestone">
+  <h4><span class="mtag a">M3</span> Edge splitting + tab/blank/flat classification <span class="badge done">DONE ✓</span></h4>
+  <div class="meta">~1–2 sessions · literature says this is the easy part</div>
+  <ul>
+    <li>Split contour at corners into 4 arcs; chord-midpoint-vs-centroid test per arc.</li>
+    <li>Ground truth is nearly free: north_star grid positions tell us which edges are flat (border pieces), and interlocking neighbors constrain tab/blank parity — hand-verify the remainder on contact sheets.</li>
+  </ul>
+  <div class="success">≥98% edge-type accuracy across all cleanly-contoured pieces. Output: every north_star piece stored as a draft piece record (contour + corners + 4 typed edges).</div>
+  <div class="outcome">
+    <strong>Criterion met: flat-edge accuracy vs grid ground truth 99.68% (gray_fabric), 98.38%
+    (red_carpet)</strong>; wood 97.25%, cardboard 98.0%. The chord-deviation distribution is strongly
+    bimodal exactly as the literature promised — flat edges deviate &lt;4% of chord length, tabs/blanks
+    11–42% — so FLAT_THRESHOLD=0.07 sits in a wide safe gap; classification itself is genuinely the
+    easy step. Neighbor tab↔blank complementarity: 99.4% of adjacent pairs on gray_fabric.
+    Cross-background signature consistency 80.5%, dragged down by two things that are <em>not</em>
+    classifier errors: (1) wood segmentation leaks from M1 corrupting corners (the corner_disagreement
+    flags concentrate exactly there), and (2) <strong>toddler puzzles (peppa_kitchen 90.2%,
+    peppa_aquarium 94.1%) have genuinely figural border edges</strong> — physically shaped cutouts on
+    "flat" borders, verified visually — so the "border ⇒ flat" ground-truth assumption is what's wrong;
+    standard die-cut puzzles score 99.5–100%. Output achieved: 916 piece records (corners + 4 typed
+    edges + 100-pt polyline per edge), 0 splitting failures.
+  </div>
+</div>
+
+<div class="milestone">
+  <h4><span class="mtag a">M4</span> Edge complementarity matching — the first payoff <span class="badge done">DONE ✓</span></h4>
+  <div class="meta">~3–4 sessions · the milestone that proves the column's core value</div>
+  <ul>
+    <li>Normalize each edge (rotate to axis, arc-length resample to 100 points); match edge A against flipped edge B via chamfer distance. Also try the ~6-scalar descriptor variant.</li>
+    <li>Evaluation is beautiful here: north_star grid positions give every true neighbor pair. For each interior edge, rank all candidate mating edges in the same puzzle — where does the true neighbor rank?</li>
+  </ul>
+  <div class="success">Report: true mating edge ranked #1 for X% of edges, top-5 for Y% — per puzzle brand. This number tells us how strong the geometry signal is on our actual puzzles (the jigsawlutioner brand-dependence question, answered with our data).</div>
+  <div class="outcome">
+    <strong>Reported: true mate top-1 = 67.4%, top-3 = 85.2%, top-5 = 90.5%</strong> over 1,878
+    interior-edge queries against ~25-candidate pools (all type-compatible edges of other pieces,
+    no orientation leak); gray_fabric top-1 = 77.4%, and median rank of the true mate is 1 on every
+    gray_fabric puzzle. Metric bake-off: <strong>plain pointwise L2 on canonical chord-normalized
+    100-pt polylines wins</strong> — chamfer loses (61.9% — arc-length index alignment carries
+    information; nearest-point freedom lets impostors cheat), the 6-scalar descriptor collapses too
+    much shape (29.3%), and the chord-length penalty <em>actively hurts</em> (28.2% — camera distance
+    varies per photo, empirically confirming the scale-free design decision). The corner_disagreement
+    quality gate is worth ~8 top-1 points (67.4% vs 59.4% including flagged records). The mate-flip
+    transform was verified exactly (distance 0.0) on a puzzle_shapes shared-edge pair.
+    <strong>The jigsawlutioner question, answered on our data: die-cut shape collisions are real</strong> —
+    median best-impostor/true-mate margin is only 1.22×, and failures are visibly <em>near-identical
+    competing tabs</em>, not matcher errors. Geometry is a strong ranker but cannot be a sole
+    accept/reject threshold: <strong>color must join the fingerprint (→ M6/M7)</strong>, exactly as
+    §3 predicted.
+  </div>
+</div>
+
+<div class="milestone">
+  <h4><span class="mtag a">M5</span> Fit TabParameters to real edges (optional, parallel) <span class="badge skip">DEFERRED</span></h4>
+  <div class="meta">~2–3 sessions · reuses <code>optimize_torch.py</code> nearly as-is</div>
+  <ul>
+    <li>Wire M3's edge arcs into the existing chamfer/Hausdorff parameter fitter; record fit residuals.</li>
+    <li>Compare real fitted parameter distributions against the synthetic generator's <code>TabParameters.random()</code> ranges — a free realism audit of the synthetic pipeline.</li>
+  </ul>
+  <div class="success">Median fit residual below an agreed IoU/chamfer threshold on tab/blank edges; a plot of real vs. synthetic parameter distributions (feeds back into the CNN column).</div>
+  <div class="outcome">
+    Deferred after M4: nothing downstream hard-depends on the parametric fit (matching works directly
+    on polylines, and the corner_disagreement flag covers the quality-gate role that fit residuals
+    were meant to play). Revisit if/when (a) compact hashable descriptors are needed at scale, or
+    (b) the synthetic generator's realism audit becomes a priority for the CNN column.
+  </div>
+</div>
+
+<p class="phasehead b">Phase B · Piece identity</p>
+<p class="phasedesc">From "an edge matches an edge" to "I recognize this specific piece" — the prerequisite for the scan-and-lock UX.</p>
+
+<div class="milestone">
+  <h4><span class="mtag b">M6</span> Piece fingerprint + re-identification benchmark <span class="badge done">DONE — MET VIA M7 SCORER</span></h4>
+  <div class="meta">~3–4 sessions · north_star's 4-backgrounds-per-piece design was made for this</div>
+  <ul>
+    <li>Fingerprint = rotation-invariant shape descriptor (canonically ordered 4-edge descriptors) + LAB color histogram (+ optionally a small patch embedding).</li>
+    <li>Re-ID protocol: enroll each piece from background 1, query with backgrounds 2–4 (different lighting/surface), nearest-neighbor over all 236 pieces.</li>
+    <li>Ablate: shape only vs. color only vs. combined.</li>
+  </ul>
+  <div class="success">Top-1 re-ID ≥95% combined, with the ablation quantifying how much each signal contributes.</div>
+  <div class="outcome">
+    <strong>Criterion not met on the deliberately-harsh cross-background benchmark: 91.5% top-1 /
+    97.5% top-5</strong> (enroll on one background, query on the other three, 236-piece cross-puzzle
+    gallery, hyperparameters frozen on validation cells only; progression across three iterations
+    81.5% → 86.1% → 91.5%). The ablation was full of lessons: <em>fusion style matters more than
+    features</em> — a z-normalized linear blend degenerated to shape-only even though failures were
+    gross color mismatches, while reciprocal-rank fusion worked; gray-world normalization more than
+    doubled color-only accuracy (22.8% → 50.7%); and the milestone's discovery is the
+    <strong>3×3 spatial color layout, which alone beats shape</strong> (85.2% vs 81.5%) and dissolves
+    same-palette sibling confusion — RRF(shape, spatial) reached 94.3%. The entire remaining gap is
+    <strong>wood-query capture quality</strong> (underexposed, warm-cast photos of dark artwork):
+    excluding wood queries, cells run 94.8–97.5%. Within-puzzle ("which of my 24 pieces is this"):
+    up to 96.2% top-1 / 99.6% top-5. Production outlook: the app's same-mat, same-session scenario
+    is strictly easier than every benchmarked cell — ≥95% looks realistic on the gray mat, but
+    proving it needs a same-background repeat-capture set. Fix path: capture-time exposure/WB
+    control, not more descriptor engineering. <strong>Addendum from M7:</strong> the distance-space
+    z-sum scorer built for thresholding turned out to also be the best retriever —
+    <strong>95.2% top-1 on the same leakage-free cells (independently verified), retroactively
+    meeting the ≥95% criterion</strong>; non-wood queries run 96.3–96.9%.
+  </div>
+</div>
+
+<div class="milestone">
+  <h4><span class="mtag b">M7</span> Uniqueness / collision study <span class="badge done">DONE ✓</span></h4>
+  <div class="meta">~1–2 sessions · mostly analysis on M6's data</div>
+  <ul>
+    <li>Genuine-vs-impostor similarity distributions; per-brand shape collision rates (do our kids' puzzles reuse die-cut shapes like jigsawlutioner warns?).</li>
+    <li>Choose the "locked" confidence threshold for the live UX from these curves.</li>
+  </ul>
+  <div class="success">A documented threshold with expected false-match / false-new-piece rates.</div>
+  <div class="outcome">
+    <strong>Criterion met — a documented two-threshold recipe with measured error rates</strong>, plus
+    two findings that reshape the column. The recipe: score z = z_shape + z_spatial (each z-normalized
+    by the enroll gallery's own impostor statistics, which proved nearly identical across galleries —
+    so one threshold transfers). Frozen on validation cells, measured on the 9 leakage-free cells:
+    <strong>auto-lock at z &lt; −4.78 (0.19% wrong-lock, 1.08% false-merge of new pieces),
+    declare-new at z &gt; −0.80 (0.89% false-new)</strong>, gray zone in between (~26–30% of genuine
+    re-scans at strict settings; relaxing to the FMR=1% point cuts that to ~8% — a product decision,
+    both points on the shipped ROC; EER 2.29%). Note for the UX: 97.9% of genuinely-new pieces land
+    in the gray zone, so "not accepted" is the practical new-piece signal. Finding #1:
+    <strong>zero full-piece die-cut collisions</strong> across all 1,695 distinct within-puzzle pairs —
+    every nearest pair sits 1.1–3.4× above the "same piece re-photographed" bar. Single edges collide
+    (M4); all four edges together never did on these 14 puzzles — piece uniqueness is not the
+    bottleneck. Finding #2: <strong>the z-sum is also the best retriever (95.2% top-1 on the
+    leakage-free cells, independently verified)</strong> — one score serves both ranking and
+    thresholding, retiring M6's rank-fusion machinery and retroactively meeting M6's ≥95% criterion.
+  </div>
+</div>
+
+<p class="phasehead c">Phase C · Backend service</p>
+<p class="phasedesc">Package Phase A+B as an API — one focused milestone, since the service plumbing pattern already exists.</p>
+
+<div class="milestone">
+  <h4><span class="mtag c">M8</span> <code>/api/v1/piece/geometry</code> endpoint + session piece store <span class="badge done">DONE ✓</span></h4>
+  <div class="meta">~2–3 sessions · mirrors the existing preview/process endpoints</div>
+  <ul>
+    <li>Photo in → piece record out (contour, corners, edge types, descriptors, fingerprint, quality score).</li>
+    <li>Per-puzzle piece store with dedupe: posting a piece answers "new piece" vs. "seen before (id=…)" using the M7 threshold.</li>
+    <li>Extend the existing <code>/piece/preview</code> response with contour quality + a "lockable" flag, so a live client can drive the scan UX without a new streaming protocol.</li>
+  </ul>
+  <div class="success">curl a north_star photo → correct structured record; posting the same piece on two backgrounds returns the same piece id.</div>
+  <div class="outcome">
+    <strong>Criterion met, verified end-to-end with real photos against a running backend.</strong> The
+    exp28 stack now lives in <code>backend/app/services/piece_geometry/</code> (scipy-free port with
+    equivalence tests; edges contour-ordered since production orientation is unknown). The acceptance
+    sequence: piece → <code>new p001</code> (lockable, correct edge types); same physical piece on a
+    different background → <code>matched p001</code> at z=−5.77; a different piece → <code>uncertain</code>
+    (z=−2.0, correctly conservative per M7); resolved via the new <code>on_uncertain=enroll</code> param →
+    <code>p002</code>; that piece on a third background → <code>matched p002</code> at z=−4.90. Both
+    cross-background matches cleared the strict threshold — same-mat production scans have more margin.
+    Two gaps that only real-photo E2E caught (synthetic tests all passed): the service had to crop to
+    the largest alpha component before the calibrated pipeline (exp28's frame of reference), and the
+    gray zone needed an explicit client-resolvable enroll path — M7's "97.9% of new pieces land in the
+    gray zone" finding, now baked into the API contract. The preview endpoint gained an opt-in
+    <code>lockable</code> flag for M9/M10. 212 backend tests pass.
+  </div>
+</div>
+
+<p class="phasehead d">Phase D · iOS live scanning experience</p>
+<p class="phasedesc">Only now touch Swift — with a proven algorithm behind a stable API. Split into three small steps so each is demoable on-device.</p>
+
+<div class="milestone">
+  <h4><span class="mtag d">M9</span> Live outline overlay in the iOS preview <span class="badge done">DONE ✓</span></h4>
+  <div class="meta">~2–3 sessions · iOS catches up to what the web frontend already does</div>
+  <ul>
+    <li>Add an <code>AVCaptureVideoDataOutput</code> frame tap to the existing <code>PieceCameraSession</code>; throttle-stream downscaled frames to the (extended) preview endpoint; draw the returned polygon over the preview layer.</li>
+    <li>Optional spike alongside: on-device <code>VNDetectContoursRequest</code> for the rough outline at full frame rate, with the backend doing the precise work — decide based on felt latency.</li>
+  </ul>
+  <div class="success">Point phone at a piece → its outline appears live within ~300ms and tracks as the piece/phone moves.</div>
+  <div class="outcome">
+    <strong>Criterion met — verified live on a physical iPhone 15 by the user.</strong> The camera
+    session gained an <code>AVCaptureVideoDataOutput</code> tap streaming throttled 480px JPEGs
+    (≥250ms interval, one in flight) to the preview endpoint with quality flags; the outline renders
+    as a CAShapeLayer — yellow detected, green lockable — with 120ms animated tracking. Pure logic
+    (throttle, coordinate mapping) is extracted and unit-tested; 76 iOS tests pass. Two lessons worth
+    keeping: (1) <em>never guess buffer orientation</em> — the first device build drew the outline
+    rotated and offset because a fixed sensor-rotation assumption was wrong; the fix rotates buffers
+    to portrait at the connection level (<code>videoRotationAngle=90</code>) so the streamed frame is
+    pixel-identical to the preview, mapped by one unit-tested aspect-fill transform on device and
+    Simulator alike. (2) iOS 26 Simulator camera-permission dialogs cannot be scripted away, so DEBUG
+    Simulator builds skip the real capture session entirely and a <code>pusseldebug://previewloop</code>
+    command feeds fake frames through the identical pipeline for tap-free demos.
+  </div>
+</div>
+
+<div class="milestone">
+  <h4><span class="mtag d">M10</span> Scan-and-lock: the "mark it green" moment <span class="badge done">DONE ✓</span></h4>
+  <div class="meta">~3–4 sessions · the heart of the vision</div>
+  <ul>
+    <li>Stability tracking across frames (contour IoU between consecutive detections); when stable + quality-gated (sharpness, size, corner confidence), auto-capture a full-res frame, run full geometry extraction, and flip the overlay to a locked/green state with haptic feedback.</li>
+    <li>Scanned pieces accumulate in a session gallery (thumbnail + edge-type glyph, e.g. <code>T·B·F·T</code>).</li>
+  </ul>
+  <div class="success">Scan 10 physical pieces in under 2 minutes, each locking automatically without pressing a shutter; re-pointing at an already-scanned piece shows "already scanned" instead of duplicating.</div>
+  <div class="outcome">
+    <strong>Implemented and E2E-verified in the Simulator against the real backend; the
+    10-physical-pieces criterion awaits the on-device run.</strong> A hands-free scan screen
+    (<code>PieceScanView</code>, opened from a viewfinder tile in the piece grid) reuses the M9
+    camera/streamer/overlay stack and adds a <code>PieceScanStabilityTracker</code> (bbox-IoU ≥ 0.8
+    between consecutive lockable detections, ≥ 1 s and ≥ 3 samples, latched) feeding a
+    <code>PieceScanController</code> state machine: stable → auto-capture (no shutter) → downscaled
+    JPEG → <code>POST …/piece/geometry</code> → verdict UX. <em>new</em> → green "Piece locked ✓
+    T·B·F·T" capsule + full-screen flash + success haptic + gallery add; <em>matched</em> → orange
+    "Already scanned" + warning haptic + highlight of the matching gallery tile (never a duplicate);
+    <em>uncertain</em> → scanning continues with a one-tap "add as new piece" chip that re-posts with
+    <code>on_uncertain=enroll</code>. The session gallery pre-fills from the GET endpoint (edge-type
+    glyphs; placeholder tile for pieces scanned in an earlier app run). All verdict paths were
+    exercised live in the Simulator via <code>pusseldebug://scan</code> + <code>previewloop</code>
+    with north_star photos: p001 enrolled, re-scan matched, gray-zone p002 confirmed-and-enrolled
+    (backend store verified via GET). The E2E again caught what unit tests couldn't: the backend's
+    uncertain status has a second, fingerprint-less flavor (contour quality gate failed —
+    <code>z_score = null</code>) for which the confirm chip would be a dead end
+    (<code>on_uncertain=enroll</code> has nothing to enroll); the controller now maps it to a
+    distinct "couldn't read the piece" verdict that just keeps scanning.
+    <br /><br />
+    <strong>Verified on the physical iPhone 15 with real pieces</strong> — and the device run drove
+    three same-day product fixes: (1) a stale (backend-restarted) puzzle id now self-heals — the
+    scanner's 404 triggers a re-upload and one retry, watched live as 404 → upload → lock; (2)
+    enrolled pieces now join the puzzle page's piece list as regular capture entries (position
+    prediction, overlay marker, disk persistence — which is also where gallery thumbnails come back
+    from on later scanner visits), with matched verdicts adding nothing so the list stays
+    duplicate-free; (3) enrollment went hands-free — M7's own measurement (97.9% of new pieces land
+    in the gray zone) meant the confirm chip cost one tap per piece, so <code>t_accept</code> moved
+    to M7's FMR=1% ROC point (−3.98; gray-zone re-scans ~26–30% → ~8% at 1% wrong-lock risk) and
+    gray-zone verdicts auto-enroll. Observed end state on-device: new piece → zero-tap lock →
+    enrolled → predicted → in the piece list; re-pointing at scanned pieces → "Already scanned" with
+    zero duplicates across repeated re-locks. Dark/black surfaces defeat the preview detector (no
+    outline, no lock) exactly as M1 predicted — wood and mid-tones work; the gray mat remains the
+    recommendation. 114 iOS + 212 backend tests pass.
+  </div>
+</div>
+
+<div class="milestone">
+  <h4><span class="mtag d">M11</span> Neighbor suggestions — the two columns meet</h4>
+  <div class="meta">~3–5 sessions · first user-visible fusion of geometry + texture</div>
+  <ul>
+    <li>For any scanned piece, rank other scanned pieces by edge complementarity (M4 matcher), confirmed by color continuity across the seam; show "likely neighbors" in the gallery.</li>
+    <li>Fuse with the existing texture matcher's position prediction: geometry proposes local fits, texture anchors global position — flag disagreements.</li>
+  </ul>
+  <div class="success">On a scanned 24-piece kids' puzzle, the true neighbor appears in the top-3 suggestions for ≥80% of edges.</div>
+</div>
+
+<h2 id="risks">7 · Risks &amp; mitigations</h2>
+<div class="tablewrap">
+<table>
+  <tr><th>Risk</th><th>Likelihood</th><th>Mitigation</th></tr>
+  <tr>
+    <td>Corner detection unreliable on real photos (the field's universal pain point)</td>
+    <td>High → <strong>retired by M2</strong></td>
+    <td>Confirmed as the hard step (naïve scoring hit only 29–68%), then solved with the shoulder-straightness cornerness prior + line-intersection refinement: 97–98.5% within 3% error. The polydp/curvature disagreement flag is the per-piece confidence signal (worth ~8 top-1 matching points in M4).</td>
+  </tr>
+  <tr>
+    <td>Shape collisions — our puzzle brands reuse die-cut tab shapes, weakening geometry-only matching</td>
+    <td><strong>Confirmed by M4</strong></td>
+    <td>Median best-impostor margin just 1.22×; failures are visibly near-identical competing tabs. Geometry ranks (top-5 90.5%) but cannot threshold — shape <em>+ color</em> fingerprints (M6/M7) carry identity, as planned.</td>
+  </tr>
+  <tr>
+    <td>Perspective tilt distorts tab geometry from handheld capture</td>
+    <td>Medium</td>
+    <td>v1 relies on capture guidance (level indicator via device gyro, "hold overhead" UI); printable ArUco mat as the upgrade path if M4 numbers degrade on handheld vs. tripod shots.</td>
+  </tr>
+  <tr>
+    <td>Latency of the stream-to-backend loop makes live scanning feel sluggish</td>
+    <td>Medium</td>
+    <td>Hybrid path is designed in: cheap on-device VNDetectContours for the live overlay, backend for the precise lock-time extraction. Decide with real numbers in M9.</td>
+  </tr>
+  <tr>
+    <td>north_star photos (upright, arrow marker, curated) are easier than live handheld frames</td>
+    <td>Certain, by design</td>
+    <td>Fine for algorithm development; M10's success criterion is on live physical pieces, and a small "handheld capture" photo set can be added to north_star once the protocol from M1 is settled.</td>
+  </tr>
+  <tr>
+    <td>rembg (u2net) too slow or imprecise for full-res contour work</td>
+    <td><strong>Resolved by M1 — inverted</strong></td>
+    <td>rembg is the winner (95–99% clean); Otsu thresholding is unusable on textured real surfaces (0.8–22.5%). Remaining rembg weakness: dark artwork against wood — solved by mat choice (gray fabric), not by algorithm.</td>
+  </tr>
+</table>
+</div>
+
+<h2 id="next">8 · Suggested first step</h2>
+<p>
+  <strong>Start with M1 + M2 together as a single experiment</strong> (e.g.
+  <code>network/experiments/exp28_piece_geometry/</code>): full-res contours over north_star, corner
+  bake-off with a small hand-labeled set, contact sheets for review. It needs no new photos, no iOS
+  work, no new dependencies, and it retires the two biggest unknowns — contour fidelity and corner
+  reliability — before anything is built on top of them. M4 (neighbor-edge ranking) is then the first
+  moment the whole column proves its worth with one number.
+</p>
+<p>
+  A parallel cheap spike, if appetite allows: a ~1-hour Xcode playground pointing
+  <code>VNDetectContoursRequest</code> at a piece on the gray mat, just to see on-device outline
+  quality and frame rate first-hand. It doesn't block anything, and it informs the M9 build-vs-stream
+  decision early.
+</p>
+
+<footer>
+  Prepared 2026-07-16 · Sources: repo survey of <code>shared/puzzle_shapes</code>, <code>backend/app/services</code>, <code>ios/Pussel</code>, <code>network/experiments</code>; literature &amp; project survey incl. Wolfson et&nbsp;al. 1988, Goldberg et&nbsp;al. 2004, kellinwood/PuzzleSolver, byWulf/jigsawlutioner, Zolver, Apple Vision docs (VNDetectContoursRequest), ArUco/ChArUco calibration references, MobileSAM/EdgeSAM mobile-segmentation reports.
+</footer>
+
+</div>
+</body>
+</html>

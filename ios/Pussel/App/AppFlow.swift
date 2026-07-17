@@ -90,6 +90,16 @@ final class SolveSession {
   var isProcessing = false
   var puzzleExpired = false
   var errorMessage: String?
+  #if DEBUG
+    /// Forces `PieceQueueView`'s camera cover open even when
+    /// `PieceCameraSession.isCameraAvailable` is false (the Simulator),
+    /// so `pusseldebug://camera` can demo M9's live preview overlay there.
+    var debugCameraOpen = false
+    /// Forces `PieceQueueView`'s scan cover open even when
+    /// `PieceCameraSession.isCameraAvailable` is false (the Simulator),
+    /// so `pusseldebug://scan` can demo the scan-and-lock flow there.
+    var debugScanOpen = false
+  #endif
 
   @ObservationIgnored private let store: PuzzleStore?
 
@@ -136,6 +146,22 @@ final class SolveSession {
     entries.append(CaptureEntry(jpeg: jpeg))
     persist()
     processNext(api: api)
+  }
+
+  /// Queues a piece captured by the M10 scan-and-lock flow. Same pipeline as
+  /// `enqueue` (position prediction, persistence, overlay marker), plus the
+  /// geometry-store piece id so the scan gallery can find this entry's image
+  /// again on later scanner visits. The scan flow only calls this for `new`
+  /// verdicts, so the dedupe keeps the piece list duplicate-free too.
+  func enqueueScanned(jpeg: Data, scanPieceId: String, api: APIClient) {
+    entries.append(CaptureEntry(jpeg: jpeg, scanPieceId: scanPieceId))
+    persist()
+    processNext(api: api)
+  }
+
+  /// The entry photographed for a geometry-store piece id, if any.
+  func entry(forScanPieceId pieceId: String) -> CaptureEntry? {
+    entries.first { $0.scanPieceId == pieceId }
   }
 
   /// Resumes any pieces left `.queued` from a reloaded session.
@@ -199,6 +225,12 @@ final class SolveSession {
       puzzleExpired = false
       for index in entries.indices where entries[index].status == .expired {
         entries[index].status = .queued
+      }
+      // The old backend's geometry store died with the old puzzle id, and the
+      // fresh store will mint p001, p002, … again for different physical
+      // pieces — stale links would attach old thumbnails to the wrong pieces.
+      for index in entries.indices {
+        entries[index].scanPieceId = nil
       }
       persist()
       processNext(api: api)
