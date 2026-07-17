@@ -56,7 +56,7 @@ struct PieceQueueView: View {
             entry: entry,
             isDeleteMode: isDeleteMode,
             onRetry: { session.retry(id: entry.id, api: model.api) },
-            onDelete: { withAnimation { session.remove(id: entry.id) } },
+            onDelete: { withAnimation { session.remove(id: entry.id, api: model.api) } },
             onEnterDeleteMode: { withAnimation { isDeleteMode = true } },
             onExitDeleteMode: { withAnimation { isDeleteMode = false } },
             onZoom: { onZoomToPiece(entry.id) }

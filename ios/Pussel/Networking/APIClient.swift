@@ -101,6 +101,17 @@ final class APIClient {
     return try decoder.decode(PieceGeometryListResponse.self, from: data)
   }
 
+  /// Un-enrolls a piece from the puzzle's geometry store, so it stops
+  /// appearing in the scanner's gallery and a fresh photo of it reads as new
+  /// again. Called when the user deletes a scanned piece from the piece list.
+  func deletePieceGeometry(puzzleId: String, pieceId: String) async throws {
+    var request = URLRequest(
+      url: baseURL.appending(path: "api/v1/puzzle/\(puzzleId)/piece/geometry/\(pieceId)"))
+    request.httpMethod = "DELETE"
+    // 204, no body to decode.
+    _ = try await send(request, authenticated: true)
+  }
+
   /// Streams one downscaled live-preview frame to the piece-region
   /// detector. Stateless and lightweight — `PiecePreviewStreamer` calls
   /// this in a throttled loop while the piece camera is open.
