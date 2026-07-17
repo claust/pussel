@@ -40,10 +40,11 @@ final class PieceCameraSession: NSObject, AVCapturePhotoCaptureDelegate {
   private static let ciContext = CIContext()
 
   /// Long side, in pixels, live-preview frames are downscaled to before
-  /// JPEG-encoding and sending — small enough to keep the ~4Hz stream
-  /// cheap, large enough for the backend's region detector to work with.
-  private static let previewFrameMaxLongSide: CGFloat = 480
-  private static let previewFrameJPEGQuality: CGFloat = 0.6
+  /// on-device analysis. Larger than the old 480px streaming size: no JPEG
+  /// crosses the network anymore, Vision's subject lift downsamples
+  /// internally anyway, and the extra resolution goes straight into contour
+  /// fidelity (the mask is upscaled to this size before tracing).
+  private static let previewFrameMaxLongSide: CGFloat = 720
 
   /// Wires the streamer this session forwards frames to. Call once after
   /// creating the session (before `start()`), from the main actor.
@@ -187,20 +188,19 @@ final class PieceCameraSession: NSObject, AVCapturePhotoCaptureDelegate {
   }
 
   /// Downscales a captured frame to ~`previewFrameMaxLongSide` on its long
-  /// side and JPEG-encodes it for the preview endpoint. Pure/CPU-only, so
-  /// it's shared by both the real camera path (below) and the DEBUG
-  /// preview loop.
-  private static func downscaledJPEG(ciImage: CIImage) -> (data: Data, size: CGSize)? {
+  /// side and renders it to a CGImage for on-device analysis (the render
+  /// also detaches the frame from AVFoundation's recycled pixel-buffer
+  /// pool, so `PieceLiveDetector` can work on it asynchronously).
+  /// Pure/CPU-only, so it's shared by both the real camera path (below) and
+  /// the DEBUG preview loop.
+  private static func downscaledFrame(ciImage: CIImage) -> (cgImage: CGImage, size: CGSize)? {
     let extent = ciImage.extent
     guard extent.width > 0, extent.height > 0 else { return nil }
     let scale = min(1, previewFrameMaxLongSide / max(extent.width, extent.height))
     let scaled =
       scale < 1 ? ciImage.transformed(by: CGAffineTransform(scaleX: scale, y: scale)) : ciImage
     guard let cgImage = ciContext.createCGImage(scaled, from: scaled.extent) else { return nil }
-    let size = CGSize(width: cgImage.width, height: cgImage.height)
-    guard let data = UIImage(cgImage: cgImage).jpegData(compressionQuality: previewFrameJPEGQuality)
-    else { return nil }
-    return (data, size)
+    return (cgImage, CGSize(width: cgImage.width, height: cgImage.height))
   }
 
   #if DEBUG
@@ -265,8 +265,8 @@ final class PieceCameraSession: NSObject, AVCapturePhotoCaptureDelegate {
         }
         let now = Date()
         guard previewStreamer.shouldAcceptFrame(now: now) else { return }
-        guard let frame = Self.downscaledJPEG(ciImage: ciImage) else { return }
-        previewStreamer.submit(jpegData: frame.data, frameSize: frame.size, now: now)
+        guard let frame = Self.downscaledFrame(ciImage: ciImage) else { return }
+        previewStreamer.submit(cgImage: frame.cgImage, frameSize: frame.size, now: now)
       }
     }
   #endif
@@ -274,7 +274,7 @@ final class PieceCameraSession: NSObject, AVCapturePhotoCaptureDelegate {
 
 extension PieceCameraSession: AVCaptureVideoDataOutputSampleBufferDelegate {
   /// Runs on `videoQueue`. Checks the throttle *before* downscaling so a
-  /// frame that would just be dropped never pays for the JPEG encode.
+  /// frame that would just be dropped never pays for the render.
   func captureOutput(
     _ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer,
     from connection: AVCaptureConnection
@@ -284,9 +284,9 @@ extension PieceCameraSession: AVCaptureVideoDataOutputSampleBufferDelegate {
     else { return }
     let now = Date()
     guard previewStreamer.shouldAcceptFrame(now: now) else { return }
-    guard let frame = Self.downscaledJPEG(ciImage: CIImage(cvPixelBuffer: pixelBuffer)) else {
+    guard let frame = Self.downscaledFrame(ciImage: CIImage(cvPixelBuffer: pixelBuffer)) else {
       return
     }
-    previewStreamer.submit(jpegData: frame.data, frameSize: frame.size, now: now)
+    previewStreamer.submit(cgImage: frame.cgImage, frameSize: frame.size, now: now)
   }
 }
