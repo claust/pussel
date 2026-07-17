@@ -15,6 +15,7 @@ from piece_geometry_fixtures import (
 from app.services.piece_geometry.contour import mask_to_contour
 from app.services.piece_geometry.edges import split_edges
 from app.services.piece_geometry.fingerprint import (
+    PieceFingerprint,
     build_fingerprint,
     chi_square_distance,
     shape_pair_distance,
@@ -23,7 +24,7 @@ from app.services.piece_geometry.fingerprint import (
 from app.services.piece_geometry.scoring import FALLBACK_STATS, combined_z
 
 
-def _build_fingerprint(edge_types: list[str], colors: list[tuple[int, int, int]]):
+def _build_fingerprint(edge_types: list[str], colors: list[tuple[int, int, int]]) -> PieceFingerprint:
     """Build a PieceFingerprint for a synthetic piece."""
     config = deterministic_config(edge_types)
     mask, _ = rasterize_piece(config)
