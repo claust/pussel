@@ -135,5 +135,10 @@ Debug builds accept two escape hatches, both compiled out of Release:
 
   Commands: `trim?puzzle=<path>`, `accept`, `piece?path=<path>`, `reupload`,
   `reset`, `open?index=<n>` / `delete?index=<n>` (index into the saved-puzzles
-  list on the home screen). Simulator apps can read host file paths directly,
-  so fixtures can live anywhere (e.g. `frontend/public/test-puzzles/`).
+  list on the home screen), `camera[?open=0]` (force the piece camera cover
+  open/closed — needed on the Simulator, which has no
+  `PieceCameraSession.isCameraAvailable`), `previewloop?path=<path>` /
+  `previewloop?stop=1` (feed a host image through the live piece-preview
+  overlay pipeline on a ~3Hz timer, since the Simulator has no camera to
+  stream real frames from). Simulator apps can read host file paths
+  directly, so fixtures can live anywhere (e.g. `frontend/public/test-puzzles/`).

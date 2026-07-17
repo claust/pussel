@@ -136,6 +136,67 @@ final class ModelDecodingTests: XCTestCase {
     XCTAssertNil(response.pieceSpan)
   }
 
+  func testDecodePiecePreviewResponseFound() throws {
+    let json = """
+      {
+        "found": true,
+        "polygon": [
+          {"x": 0.1, "y": 0.2},
+          {"x": 0.8, "y": 0.2},
+          {"x": 0.8, "y": 0.9},
+          {"x": 0.1, "y": 0.9}
+        ],
+        "bbox": {"x": 0.1, "y": 0.2, "width": 0.7, "height": 0.7},
+        "confidence": 0.82,
+        "lockable": true,
+        "corner_disagreement": false
+      }
+      """
+    let response = try decoder.decode(PiecePreviewResponse.self, from: Data(json.utf8))
+    XCTAssertTrue(response.found)
+    XCTAssertEqual(response.polygon.count, 4)
+    XCTAssertEqual(response.polygon.first, NormalizedPoint(x: 0.1, y: 0.2))
+    XCTAssertEqual(
+      response.bbox, NormalizedBoundingBox(x: 0.1, y: 0.2, width: 0.7, height: 0.7))
+    XCTAssertEqual(response.confidence, 0.82)
+    XCTAssertEqual(response.lockable, true)
+    XCTAssertEqual(response.cornerDisagreement, false)
+  }
+
+  func testDecodePiecePreviewResponseNotFound() throws {
+    // The backend's actual shape when found=false: an empty polygon, no
+    // bbox, confidence defaulted to 0.0.
+    let json = """
+      {"found": false, "polygon": [], "bbox": null, "confidence": 0.0}
+      """
+    let response = try decoder.decode(PiecePreviewResponse.self, from: Data(json.utf8))
+    XCTAssertFalse(response.found)
+    XCTAssertTrue(response.polygon.isEmpty)
+    XCTAssertNil(response.bbox)
+    XCTAssertEqual(response.confidence, 0.0)
+    XCTAssertNil(response.lockable)
+    XCTAssertNil(response.cornerDisagreement)
+  }
+
+  func testDecodePiecePreviewResponseWithoutQualityFields() throws {
+    // include_quality=false (or omitted): lockable/corner_disagreement are
+    // present but null, matching the backend's default response shape.
+    let json = """
+      {
+        "found": true,
+        "polygon": [{"x": 0.0, "y": 0.0}, {"x": 1.0, "y": 0.0}, {"x": 1.0, "y": 1.0}],
+        "bbox": {"x": 0.0, "y": 0.0, "width": 1.0, "height": 1.0},
+        "confidence": 0.5,
+        "lockable": null,
+        "corner_disagreement": null
+      }
+      """
+    let response = try decoder.decode(PiecePreviewResponse.self, from: Data(json.utf8))
+    XCTAssertTrue(response.found)
+    XCTAssertNil(response.lockable)
+    XCTAssertNil(response.cornerDisagreement)
+  }
+
   func testDecodeBareBase64DataURL() {
     XCTAssertEqual(ImageUtilities.decodeDataURL("aGVsbG8="), Data("hello".utf8))
     XCTAssertNil(ImageUtilities.decodeDataURL("data:image/png;base64,%%%invalid%%%"))

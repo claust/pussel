@@ -291,14 +291,42 @@ strict accept threshold — production same-mat scans have more margin than this
 
 Tests: 212 backend tests pass (new-package coverage 87–96%); `make check-backend` clean.
 
-## Recommendation going into Phase D (M9: iOS live outline overlay)
+## M9 — iOS live piece-outline overlay (Phase D, first milestone)
 
-- iOS catches up to the web client first: stream downscaled `AVCaptureVideoDataOutput` frames to
-  `/api/v1/piece/preview?include_quality=true`, draw the polygon + lockable state over the preview
-  layer. The backend side is fully ready.
-- M10 (scan-and-lock) then drives the geometry endpoint on a stable, quality-gated frame and uses
-  `status`/`on_uncertain` for the enroll flow; M7's gray-zone rates predict the confirmation-UX
-  frequency.
+iOS now streams live camera frames and draws the piece outline over the preview — verified
+working on a physical iPhone 15 by the user ("looks much better" after the orientation fix;
+outline sits on the piece and tracks movement).
+
+Implementation (`ios/Pussel/Features/Solve/`): an `AVCaptureVideoDataOutput` tap on the existing
+capture session, throttled (≥250ms interval, one request in flight) downscale-to-480px JPEG
+streaming to `POST /api/v1/piece/preview?include_quality=true`; overlay is a `CAShapeLayer`
+(yellow = detected, green = lockable, 120ms animated tracking, hides when stale >1.5s). Pure
+logic extracted and unit-tested: `PiecePreviewThrottle`, `PiecePreviewGeometry` (76 iOS tests
+pass; `make check-ios` clean).
+
+Two hard-won lessons recorded for posterity:
+
+1. **Never guess buffer orientation.** The first device build drew the outline rotated and offset
+   — the fixed 90° sensor-rotation assumption was wrong for the device/connection. Fix: rotate
+   buffers to portrait at the connection level (`videoRotationAngle = 90`), so the streamed JPEG
+   is pixel-identical to what the preview shows, and map with ONE unit-tested aspect-fill
+   transform (`viewPolygon`) on both device and Simulator. The rotation-math path was deleted.
+2. **iOS 26 Simulator camera-permission dialogs cannot be scripted away** (`simctl privacy grant`
+   does not suppress the prompt; headless environments have no window to tap). DEBUG Simulator
+   builds therefore never start a real capture session; the `pusseldebug://previewloop?path=…`
+   command feeds fake frames through the identical pipeline for tap-free demos.
+
+Deploy recipe used (device): build with `API_BASE_URL=http://<mac LAN IP>:8001`, backend on
+`--host 0.0.0.0`; `devicectl device install app` + `process launch`.
+
+## Recommendation going into M10 (scan-and-lock)
+
+- Track stability across preview responses (contour IoU or polygon-center drift between
+  consecutive frames); when stable + `lockable`, auto-capture a full-res frame, POST it to
+  `/api/v1/puzzle/{id}/piece/geometry`, and flip the overlay to a locked state with haptics.
+- Use `status` (`matched` → "already scanned", `new` → enroll + green flash, `uncertain` →
+  keep scanning / confirm dialog with `on_uncertain=enroll`). M7 predicts the gray-zone rates.
+- Session gallery: `GET …/piece/geometry` already returns the enrolled list with edge types.
 - Still open (unchanged): capture-time exposure/white-balance on dark surfaces; a same-background
   repeat-capture set would measure true same-session accuracy (expected >95%).
 
