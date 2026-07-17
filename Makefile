@@ -5,7 +5,7 @@
         format format-backend format-network format-shared format-frontend format-ios \
         test-backend install-dev-backend install-dev-network \
         start-backend start-frontend stop-backend stop-frontend \
-        ios-generate ios-run ios-deploy ios-test
+        ios-generate ios-run ios-deploy ios-test ios-screenshot
 
 # Run all checks (Python + Next.js + iOS)
 # check-ios self-skips where swift-format is unavailable (non-macOS), so this
@@ -190,3 +190,8 @@ ios-deploy: ios-generate
 	xcrun devicectl device install app --device "$$DEVICE" \
 		"$(IOS_DERIVED)/Build/Products/Debug-iphoneos/$(IOS_APP_NAME).app" && \
 	xcrun devicectl device process launch --device "$$DEVICE" "$(IOS_BUNDLE_ID)"
+
+# Screenshot the connected (physical) device. The device must be unlocked.
+# Override the destination with OUT=<path>; defaults to a timestamped /tmp file.
+ios-screenshot:
+	@./scripts/ios_screenshot.sh $(OUT)
