@@ -38,12 +38,13 @@ struct PieceQueueView: View {
       // rather than centering against their taller status labels.
       LazyVGrid(columns: Self.columns, alignment: .leading, spacing: 12) {
         AddPieceTile(action: addPiece)
-        ScanPiecesTile(action: openScan)
-          #if !DEBUG
-            // On a non-debug, non-camera device (shouldn't exist in practice)
-            // the tile would open a dead view — hide it to be safe.
-            .opacity(PieceCameraSession.isCameraAvailable ? 1 : 0)
-          #endif
+        // Omit the tile entirely when it can't be used, rather than rendering
+        // it invisible — an .opacity(0) tile still takes taps and is announced
+        // by VoiceOver. Always present in DEBUG (the Simulator scan demo opens
+        // it over a black preview); in release only when there's a camera.
+        if showScanTile {
+          ScanPiecesTile(action: openScan)
+        }
         // Newest first, so a piece appears next to the plus that captured it
         // and the grid ages away from there. The stored order stays oldest
         // first — the prediction queue works through it front to back.
@@ -89,6 +90,18 @@ struct PieceQueueView: View {
     } else {
       showLibrary = true
     }
+  }
+
+  /// Whether the scan-and-lock tile is shown. Always in DEBUG so the
+  /// Simulator scan demo (`pusseldebug://scan`) has an entry point over its
+  /// black preview; in release only when a camera exists to drive it, so it
+  /// is never a dead, VoiceOver-discoverable control.
+  private var showScanTile: Bool {
+    #if DEBUG
+      return true
+    #else
+      return PieceCameraSession.isCameraAvailable
+    #endif
   }
 
   private func openScan() {
