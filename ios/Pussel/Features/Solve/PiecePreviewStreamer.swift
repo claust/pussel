@@ -1,6 +1,7 @@
 import CoreGraphics
 import Foundation
 import Observation
+import UIKit
 
 /// The latest live-preview detection, published by `PiecePreviewStreamer`.
 /// Mirrors the backend's quality flags: a plain `detected` region (yellow
@@ -24,10 +25,17 @@ enum PiecePreviewState: Equatable {
   }
 }
 
-/// Owns the throttle/in-flight state machine for streaming live camera
-/// frames to `POST /api/v1/piece/preview`, and publishes the latest
-/// detection so `PieceCaptureView` can draw it. One instance per piece
-/// capture screen, created alongside its `PieceCameraSession`.
+/// Owns the throttle/in-flight state machine for the live piece-outline
+/// pipeline, and publishes the latest detection so `PieceCaptureView` can
+/// draw it. One instance per piece capture screen, created alongside its
+/// `PieceCameraSession`.
+///
+/// Frames are analyzed **on-device** by `PieceLiveDetector` (Vision
+/// subject-lift + contours) — no network round-trip, so the outline tracks
+/// the camera at inference speed rather than upload speed. When Vision's
+/// subject lifting isn't available at all (e.g. the Simulator), the streamer
+/// falls back — permanently, per instance — to the legacy
+/// `POST /api/v1/piece/preview` server path with a JPEG-encoded frame.
 ///
 /// Split isolation by design: `shouldAcceptFrame`/`submit` are safe to call
 /// from any thread (lock-guarded, matching `StubURLProtocol`'s precedent
@@ -40,13 +48,30 @@ enum PiecePreviewState: Equatable {
 @Observable
 final class PiecePreviewStreamer: @unchecked Sendable {
   private let api: APIClient
+  private let detector = PieceLiveDetector()
   private let lock = NSLock()
   private var throttle = PiecePreviewThrottle()
+  /// Latched (lock-guarded) once on-device detection is judged unusable —
+  /// either an explicit `PieceLiveDetectorUnavailable`, or
+  /// `maxConsecutiveTransientFailures` transient Vision failures in a row —
+  /// so every later frame goes straight to the server path instead of
+  /// paying a doomed Vision attempt per frame.
+  private var visionUnavailable = false
+  /// Lock-guarded run of `PieceLiveDetectorTransientFailure`s; reset by any
+  /// successful detection.
+  private var consecutiveTransientFailures = 0
+  /// One transient Vision failure is a dropped frame; this many in a row is
+  /// a platform that can't really do this, so demote to the server path.
+  private static let maxConsecutiveTransientFailures = 3
+  /// JPEG quality for frames sent down the server fallback path (matches the
+  /// pre-on-device streaming pipeline).
+  private static let fallbackJPEGQuality: CGFloat = 0.6
 
   @MainActor private(set) var state: PiecePreviewState = .none
   /// Pixel size of the frame `state`'s polygon was measured against — the
-  /// upright-portrait downscaled JPEG `PieceCameraSession` sent. Its aspect
-  /// ratio drives the overlay's aspect-fill mapping
+  /// upright-portrait downscaled CGImage `PieceCameraSession` handed to the
+  /// detector (or, on the server fallback path, JPEG-encoded and sent). Its
+  /// aspect ratio drives the overlay's aspect-fill mapping
   /// (`PiecePreviewGeometry.viewPolygon`).
   @MainActor private(set) var frameSize: CGSize = .zero
   /// When `state` was last updated. `PieceCaptureView` hides the overlay
@@ -64,28 +89,67 @@ final class PiecePreviewStreamer: @unchecked Sendable {
     lock.withLock { throttle.shouldSend(now: now) }
   }
 
-  /// Sends an already-downscaled JPEG frame and publishes the result. Safe
-  /// to call from any thread (typically the video-capture queue); the
-  /// network call and state publication both hop to the main actor
-  /// internally. A no-op if the throttle would reject the frame (e.g. it
-  /// raced another accepted frame between `shouldAcceptFrame` and here).
-  func submit(jpegData: Data, frameSize: CGSize, now: Date = Date()) {
+  /// Analyzes an already-downscaled upright frame and publishes the result.
+  /// Safe to call from any thread (typically the video-capture queue); the
+  /// detection runs on a detached background task and the state publication
+  /// hops to the main actor. A no-op if the throttle would reject the frame
+  /// (e.g. it raced another accepted frame between `shouldAcceptFrame` and
+  /// here).
+  func submit(cgImage: CGImage, frameSize: CGSize, now: Date = Date()) {
     let accepted = lock.withLock { () -> Bool in
       guard throttle.shouldSend(now: now) else { return false }
       throttle.markSent(at: now)
       return true
     }
     guard accepted else { return }
-    Task { @MainActor in
+    let useServerPath = lock.withLock { visionUnavailable }
+    Task.detached(priority: .userInitiated) { [weak self] in
+      guard let self else { return }
       defer { self.lock.withLock { self.throttle.markCompleted() } }
-      do {
-        let response = try await self.api.previewPiece(imageData: jpegData)
-        self.apply(response, frameSize: frameSize, now: Date())
-      } catch {
-        // Leave the last-known state on a transient error — a single
-        // dropped frame shouldn't blank the outline mid-track. The
-        // staleness check in PieceCaptureView hides it if errors persist.
+      var fallBack = useServerPath
+      if !fallBack {
+        do {
+          let detection = try self.detector.detect(cgImage: cgImage)
+          self.lock.withLock { self.consecutiveTransientFailures = 0 }
+          await MainActor.run { self.apply(detection, frameSize: frameSize, now: Date()) }
+        } catch is PieceLiveDetectorUnavailable {
+          // Vision subject lifting can't run here at all (e.g. Simulator) —
+          // latch so this and every later frame use the server path.
+          self.lock.withLock { self.visionUnavailable = true }
+          fallBack = true
+        } catch {
+          // A transient Vision failure is a dropped frame (keep the
+          // last-known state, retry on-device next frame) — unless they
+          // keep coming, which means this platform can't really do
+          // on-device detection and should demote to the server path.
+          fallBack = self.lock.withLock {
+            self.consecutiveTransientFailures += 1
+            let latch = self.consecutiveTransientFailures >= Self.maxConsecutiveTransientFailures
+            if latch { self.visionUnavailable = true }
+            return latch
+          }
+        }
       }
+      if fallBack {
+        await self.submitToServer(cgImage: cgImage, frameSize: frameSize)
+      }
+    }
+  }
+
+  /// Legacy server-side preview: JPEG-encode the frame and POST it to
+  /// `/api/v1/piece/preview`. Only reached when on-device Vision is
+  /// unavailable on this platform.
+  private func submitToServer(cgImage: CGImage, frameSize: CGSize) async {
+    let jpegData = UIImage(cgImage: cgImage).jpegData(
+      compressionQuality: Self.fallbackJPEGQuality)
+    guard let jpegData else { return }
+    do {
+      let response = try await api.previewPiece(imageData: jpegData)
+      await MainActor.run { self.apply(response, frameSize: frameSize, now: Date()) }
+    } catch {
+      // Leave the last-known state on a transient error — a single
+      // dropped frame shouldn't blank the outline mid-track. The
+      // staleness check in PieceCaptureView hides it if errors persist.
     }
   }
 
@@ -98,6 +162,20 @@ final class PiecePreviewStreamer: @unchecked Sendable {
     state = .none
     frameSize = .zero
     updatedAt = .distantPast
+  }
+
+  @MainActor
+  private func apply(_ detection: PieceLiveDetection?, frameSize: CGSize, now: Date) {
+    self.frameSize = frameSize
+    updatedAt = now
+    guard let detection, detection.polygon.count >= 3 else {
+      state = .none
+      return
+    }
+    state =
+      detection.lockable
+      ? .lockable(polygon: detection.polygon, confidence: detection.confidence)
+      : .detected(polygon: detection.polygon, confidence: detection.confidence)
   }
 
   @MainActor
