@@ -9,7 +9,12 @@ MatchStatus = Literal["matched", "new", "uncertain"]
 
 
 class GeometryPoint(BaseModel):
-    """A single point, normalized to [0, 1] relative to the piece image's width/height."""
+    """A single point, normalized to [0, 1] against the uploaded piece photo's width/height.
+
+    The service extracts geometry within a crop but maps every coordinate back to the full
+    uploaded image before normalizing (see `_normalize_points`), so these are full-photo fractions,
+    not fractions of a cropped piece image.
+    """
 
     x: float
     y: float
