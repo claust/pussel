@@ -107,7 +107,7 @@ jobs:
 
       - name: Setup Bicep
         if: steps.check_changes.outputs.infra_changed == 'true'
-        uses: anthony-c-martin/setup-bicep@v0.3
+        uses: anthony-c-martin/setup-bicep@v1
 
       - name: Deploy infrastructure
         if: steps.check_changes.outputs.infra_changed == 'true'
