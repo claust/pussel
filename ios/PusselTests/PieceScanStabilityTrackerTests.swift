@@ -162,6 +162,29 @@ final class PieceScanStabilityTrackerTests: XCTestCase {
     XCTAssertFalse(tracker.ingest(lockableNear(), at: t0.addingTimeInterval(1.5)))
   }
 
+  func testTwoPointDiagonalWithPositiveAreaBboxResetsStreak() {
+    // A 2-point diagonal has a positive-area bbox (non-zero width AND height),
+    // so the area check alone would accept it — only the explicit point-count
+    // guard rejects it. This is the case Copilot flagged: without count >= 3
+    // a 2-point "polygon" could contribute to a lock.
+    var tracker = PieceScanStabilityTracker(minDuration: 1.0, minSamples: 2, minIoU: 0.0)
+    let t0 = Date(timeIntervalSince1970: 0)
+
+    XCTAssertFalse(tracker.ingest(lockableSquare(), at: t0))
+    let twoPointDiagonal: [NormalizedPoint] = [
+      NormalizedPoint(x: 0.1, y: 0.1),
+      NormalizedPoint(x: 0.9, y: 0.9),
+    ]
+    // Even with minSamples=2, minDuration met, and minIoU=0 (so IoU can't be
+    // the blocker), the diagonal must not count — it resets the streak.
+    XCTAssertFalse(
+      tracker.ingest(
+        .lockable(polygon: twoPointDiagonal, confidence: 0.9), at: t0.addingTimeInterval(1.0)))
+    // Proof the streak was reset (not merely non-firing): a single fresh frame
+    // after it cannot immediately satisfy minSamples=2.
+    XCTAssertFalse(tracker.ingest(lockableSquare(), at: t0.addingTimeInterval(1.1)))
+  }
+
   func testZeroAreaBboxPolygonResetsStreak() {
     var tracker = PieceScanStabilityTracker(minDuration: 1.0, minSamples: 3, minIoU: 0.8)
     let t0 = Date(timeIntervalSince1970: 0)

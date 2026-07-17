@@ -33,7 +33,9 @@ import cv2
 import numpy as np
 from common import PieceRecord, assemble_grid_sheet, crop_with_margin, load_metadata, make_titled_cell
 
-DEFAULT_DATASET_ROOT = Path("/Users/claus/Repos/pussel/network/datasets/north_star/v1")
+# Repo-relative default (this script lives in network/experiments/exp28_piece_geometry/,
+# so parents[2] is the network/ dir); override with --dataset-root.
+DEFAULT_DATASET_ROOT = Path(__file__).resolve().parents[2] / "datasets" / "north_star" / "v1"
 DIRECTIONS = ("N", "E", "S", "W")
 EDGE_COLORS = {  # BGR
     "flat": (0, 255, 255),

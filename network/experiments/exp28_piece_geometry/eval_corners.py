@@ -36,7 +36,9 @@ from corner_detect import (
 )
 from synth_benchmark import score_corners
 
-DEFAULT_DATASET_ROOT = Path("/Users/claus/Repos/pussel/network/datasets/north_star/v1")
+# Repo-relative default (this script lives in network/experiments/exp28_piece_geometry/,
+# so parents[2] is the network/ dir); override with --dataset-root.
+DEFAULT_DATASET_ROOT = Path(__file__).resolve().parents[2] / "datasets" / "north_star" / "v1"
 ALL_METHODS = ("curvature", "polydp", "shitomasi")
 METHOD_COLORS = {  # BGR
     "curvature": (0, 0, 255),
