@@ -2,6 +2,8 @@
 
 from typing import List, Tuple
 
+import cv2
+import numpy as np
 import pytest
 from PIL import Image, ImageDraw
 
@@ -16,8 +18,8 @@ CORNER_TOLERANCE = 0.03
 
 @pytest.fixture
 def detector() -> PuzzleFrameDetector:
-    """Provide a detector instance without the (slow) rembg salient-object fallback."""
-    return PuzzleFrameDetector(salient_fallback=False)
+    """Provide a detector instance."""
+    return PuzzleFrameDetector()
 
 
 def make_rectangle_image() -> Image.Image:
@@ -93,9 +95,6 @@ class TestDetectCorners:
         because the picture's internal edges fragment its outline, and brightness-based
         segmentation included the shadow.
         """
-        import cv2
-        import numpy as np
-
         rng = np.random.default_rng(7)
         width, height = 1600, 1200
         background = np.full((height, width, 3), (92, 64, 48), dtype=np.uint8)
@@ -189,68 +188,79 @@ class TestWarp:
         assert abs(warped.height - image.height) <= 2
 
 
-class TestSalientFallback:
-    """Tests for the rembg salient-object fallback path."""
+class TestEdgeFallback:
+    """Tests for the edge-based rectangle fallback (no uniform background)."""
 
     @staticmethod
-    def make_cluttered_photo() -> Image.Image:
-        """Create a photo whose border is too varied for background segmentation."""
-        import numpy as np
+    def make_edge_to_edge_puzzle(with_subject: bool) -> Tuple[Image.Image, "np.ndarray"]:
+        """Render a tilted, bordered puzzle rectangle that fills the frame.
 
-        rng = np.random.default_rng(3)
-        clutter = rng.integers(0, 255, (600, 800, 3), dtype=np.uint8)
-        image = Image.fromarray(clutter)
-        draw = ImageDraw.Draw(image)
-        draw.rectangle(RECT_BOUNDS, fill=(220, 210, 190))
-        return image
+        The border ring is not a uniform background (the puzzle nearly reaches
+        every edge), so the chroma fast path bails and the edge fallback runs.
+        This reproduces the real handheld-overview failure mode from issue #110.
 
-    def test_salient_fallback_detects_subject(self) -> None:
-        """When the border is cluttered, the rembg mask drives detection."""
-        from unittest.mock import MagicMock, patch
+        Args:
+            with_subject: When true, paint a large blob of a single colour in
+                the middle of the artwork — a stand-in for the salient subject
+                (Dumbo, Simba) that a salient-object model wrongly crops to.
 
-        import numpy as np
+        Returns:
+            The photo and the destination quad (4x2, TL/TR/BR/BL) of the
+            puzzle's outline in pixel coordinates.
+        """
+        rng = np.random.default_rng(11)
+        width, height = 900, 700
+        # Slightly non-uniform, mid-tone surround so the border ring is not "background"
+        photo = np.full((height, width, 3), (110, 118, 130), dtype=np.uint8)
+        photo = np.clip(photo.astype(np.int16) + rng.normal(0, 6, (height, width, 3)), 0, 255).astype(np.uint8)
 
-        # Fake rembg output: alpha covering exactly the drawn rectangle
-        alpha = np.zeros((600, 800), dtype=np.uint8)
-        left, top, right, bottom = RECT_BOUNDS
-        alpha[top:bottom, left:right] = 255
-        rgba = np.dstack([np.zeros((600, 800, 3), dtype=np.uint8), alpha])
-        remover = MagicMock()
-        remover.remove_background.return_value = Image.fromarray(rgba, mode="RGBA")
+        # Busy artwork with a dark border, warped to a tilted quad that nearly fills the frame
+        art = np.full((512, 512, 3), (235, 225, 205), dtype=np.uint8)
+        art[:, :, 0] = np.linspace(60, 230, 512, dtype=np.uint8)[None, :]
+        art[::40] = (60, 90, 160)
+        art[:, ::40] = (170, 70, 60)
+        cv2.rectangle(art, (0, 0), (511, 511), (25, 25, 25), 14)  # the puzzle's own border
+        if with_subject:
+            cv2.circle(art, (256, 256), 150, (240, 40, 40), -1)  # salient "subject"
 
-        detector = PuzzleFrameDetector(salient_fallback=True)
-        with patch("app.services.puzzle_detector.get_background_remover", return_value=remover):
-            corners, confidence = detector.detect_corners(self.make_cluttered_photo())
+        dst_quad = np.array([[70, 90], [840, 55], [860, 640], [55, 660]], dtype=np.float32)
+        src_quad = np.array([[0, 0], [512, 0], [512, 512], [0, 512]], dtype=np.float32)
+        matrix = cv2.getPerspectiveTransform(src_quad, dst_quad)
+        warped = cv2.warpPerspective(art, matrix, (width, height))
+        mask = cv2.warpPerspective(np.full((512, 512), 255, np.uint8), matrix, (width, height))
+        photo = np.where(mask[..., None] > 0, warped, photo)
+        return Image.fromarray(photo), dst_quad
 
-        remover.remove_background.assert_called_once()
+    def test_edge_fallback_traces_puzzle_rectangle(self, detector: PuzzleFrameDetector) -> None:
+        """A bordered puzzle that fills the frame is detected by its rectangle."""
+        photo, dst_quad = self.make_edge_to_edge_puzzle(with_subject=False)
+        width, height = photo.size
+
+        corners, confidence = detector.detect_corners(photo)
+
+        expected = [(float(x) / width, float(y) / height) for x, y in dst_quad.tolist()]
         assert confidence > 0.4
-        assert_corners_close(corners, expected_corners())
+        assert_corners_close(corners, expected, tolerance=0.05)
 
-    def test_salient_fallback_failure_returns_full_frame(self) -> None:
-        """If rembg raises, detection degrades gracefully to the full-frame fallback."""
-        from unittest.mock import MagicMock, patch
+    def test_traces_rectangle_not_the_salient_subject(self, detector: PuzzleFrameDetector) -> None:
+        """The puzzle outline wins over a large salient blob inside the artwork.
 
-        remover = MagicMock()
-        remover.remove_background.side_effect = RuntimeError("model unavailable")
+        Regression for issue #110: a salient-object model cropped overviews to
+        the artwork's subject (an elephant, a lion). The edge detector must
+        trace the puzzle's rectangular border instead, so the returned quad
+        covers the whole puzzle rather than the central blob.
+        """
+        photo, dst_quad = self.make_edge_to_edge_puzzle(with_subject=True)
+        width, height = photo.size
 
-        detector = PuzzleFrameDetector(salient_fallback=True)
-        with patch("app.services.puzzle_detector.get_background_remover", return_value=remover):
-            corners, confidence = detector.detect_corners(self.make_cluttered_photo())
+        corners, confidence = detector.detect_corners(photo)
 
-        assert corners == FULL_IMAGE_CORNERS
-        assert confidence == 0.0
-
-    def test_no_fallback_when_disabled(self) -> None:
-        """With salient_fallback=False a cluttered border goes straight to full frame."""
-        from unittest.mock import patch
-
-        detector = PuzzleFrameDetector(salient_fallback=False)
-        with patch("app.services.puzzle_detector.get_background_remover") as mock_get:
-            corners, confidence = detector.detect_corners(self.make_cluttered_photo())
-
-        mock_get.assert_not_called()
-        assert corners == FULL_IMAGE_CORNERS
-        assert confidence == 0.0
+        expected = [(float(x) / width, float(y) / height) for x, y in dst_quad.tolist()]
+        assert confidence > 0.4
+        assert_corners_close(corners, expected, tolerance=0.05)
+        # The detected region covers the whole puzzle, not the ~0.09-area central blob
+        area = cv2.contourArea(np.array([(x * width, y * height) for x, y in corners], dtype=np.float32))
+        assert area / (width * height) > 0.5
 
 
 def test_get_puzzle_detector_is_singleton() -> None:
