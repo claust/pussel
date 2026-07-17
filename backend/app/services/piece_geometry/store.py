@@ -83,6 +83,13 @@ class PuzzlePieceStore:
 
     _pieces: List[EnrolledPiece] = field(default_factory=list)
     _next_id: int = 1
+    # Cached impostor stats and the gallery size they were computed for.
+    # `_gallery_stats` is O(n^2) in the gallery and runs on every locked frame,
+    # but the stats only change when a piece is enrolled — so cache them and let
+    # `_enroll` invalidate. The gallery is append-only (pieces are never removed
+    # or mutated in place), so the size is a sufficient cache key.
+    _cached_stats: Optional[GalleryStats] = None
+    _cached_stats_n: int = -1
 
     def _mint_piece_id(self) -> str:
         """Allocate the next stable piece id for this puzzle.
@@ -94,6 +101,25 @@ class PuzzlePieceStore:
         self._next_id += 1
         return piece_id
 
+    def _enroll(self, fingerprint: PieceFingerprint, is_clean: bool, corner_disagreement: bool) -> str:
+        """Mint an id, append the piece, and invalidate the cached impostor stats.
+
+        All enrollments route through here so the `_gallery_stats` cache can
+        never go stale behind an append.
+
+        Args:
+            fingerprint: The new piece's fingerprint.
+            is_clean: The enrolling photo's contour-quality gate result.
+            corner_disagreement: The enrolling photo's corner_disagreement flag.
+
+        Returns:
+            The freshly minted piece id.
+        """
+        piece_id = self._mint_piece_id()
+        self._pieces.append(EnrolledPiece(piece_id, fingerprint, is_clean, corner_disagreement))
+        self._cached_stats = None
+        return piece_id
+
     def _gallery_stats(self) -> GalleryStats:
         """Impostor shape/spatial statistics for the current gallery, or the M7 fallback.
 
@@ -103,6 +129,9 @@ class PuzzlePieceStore:
         """
         if len(self._pieces) < MIN_GALLERY_FOR_STATS:
             return FALLBACK_STATS
+
+        if self._cached_stats is not None and self._cached_stats_n == len(self._pieces):
+            return self._cached_stats
 
         pairwise_shape: List[float] = []
         pairwise_spatial: List[float] = []
@@ -117,7 +146,10 @@ class PuzzlePieceStore:
                 d_spatial = spatial_pair_distance(piece_a.fingerprint, piece_b.fingerprint, k)
                 pairwise_shape.append(d_shape)
                 pairwise_spatial.append(d_spatial)
-        return gallery_impostor_stats(pairwise_shape, pairwise_spatial)
+        stats = gallery_impostor_stats(pairwise_shape, pairwise_spatial)
+        self._cached_stats = stats
+        self._cached_stats_n = len(self._pieces)
+        return stats
 
     def _closest_match(self, fingerprint: PieceFingerprint, stats: GalleryStats) -> Tuple[str, float]:
         """Find the enrolled piece closest to `fingerprint` by combined z-score.
@@ -170,8 +202,7 @@ class PuzzlePieceStore:
             The `MatchResult`. See the module docstring for the verdict semantics.
         """
         if not self._pieces:
-            piece_id = self._mint_piece_id()
-            self._pieces.append(EnrolledPiece(piece_id, fingerprint, is_clean, corner_disagreement))
+            piece_id = self._enroll(fingerprint, is_clean, corner_disagreement)
             return MatchResult(MatchVerdict.NEW, piece_id, None, None)
 
         stats = self._gallery_stats()
@@ -181,8 +212,7 @@ class PuzzlePieceStore:
             return MatchResult(MatchVerdict.MATCHED, match_piece_id, match_piece_id, z_score)
 
         if z_score > settings.PIECE_GEOMETRY_T_NEW or enroll_uncertain:
-            piece_id = self._mint_piece_id()
-            self._pieces.append(EnrolledPiece(piece_id, fingerprint, is_clean, corner_disagreement))
+            piece_id = self._enroll(fingerprint, is_clean, corner_disagreement)
             return MatchResult(MatchVerdict.NEW, piece_id, None, z_score)
 
         return MatchResult(MatchVerdict.UNCERTAIN, None, match_piece_id, z_score)
