@@ -39,7 +39,7 @@ jobs:
       DESTINATION: 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest'
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Pin the toolchain to the latest Xcode 26.x (the iOS 26 SDK this app's
       # deployment target requires) rather than a hard-coded /Applications path,
