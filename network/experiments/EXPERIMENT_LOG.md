@@ -624,6 +624,58 @@ classical hybrid meanwhile.
 
 ---
 
+## Exp 27: Frozen Pretrained Features (DINOv2) Under the Correlation Heads
+
+**Date:** July 2026 **Status:** ZERO-SHOT SUCCESS, TRAINED FAILED on the
+real task (zero-shot **49.2% both** on north_star; trained readout
+collapses to **7.0%** despite 64.3% synthetic)
+
+Attacked the exp25/exp26 sim-to-real collapse with critical-review item #8:
+replace the synthetic-trained backbones with a frozen self-supervised ViT
+(DINOv2-S/14) under the validated correlation heads.
+
+**Stage 0 — zero-shot probe.** Before any training, frozen DINOv2 patch
+tokens with a *non-learned* cosine readout were evaluated on north_star v1
+under the exact exp25 protocol. Dense feature-space template matching
+(piece token grid cross-correlated against the puzzle grid, masked, scale
+sweep) scored **52.1% cell / 70.1% rotation / 49.2% both** — 3.3× the
+trained exp20 CNN (14.8%), level with NCC (48.9%), robust across
+backgrounds, failing on the same low-texture puzzles as classical methods.
+A pooled-descriptor variant managed only 18.0%, confirming the signal
+lives in *dense spatial* correlation. Features hypothesis confirmed:
+generic pretrained features beat everything ever trained on the synthetic
+data, on the real task.
+
+**Stage 1 — trained adapters + heads.** One shared frozen encoder, ~1.9M
+trainable params (per-branch adapters, dense heatmap position head,
+rotation-by-re-encoding through the exp20 comparison net), trained on the
+exp26 DR data under the frozen-split harness (RunPod 4090, 25 epochs).
+Three run-time defects were found by measurement and fixed: fp16 overflow
+in the dense correlation (nan under AMP → fp32 island); MSE-through-
+expectation starving the 625-window heatmap (val_cell 11.6% at epoch 3 →
+switched to SiamFC-style window cross-entropy → 31.5% at epoch 3); and
+BatchNorm running stats permanently stale downstream of a frozen encoder
+(48% eval rotation vs 97% with batch stats → GroupNorm). Final:
+val 64.2% both (epoch 24, still improving); synthetic test (once)
+**70.4% cell / 89.5% rotation / 64.3% both**; north_star (once)
+**16.3% cell / 35.1% rotation / 7.0% both** — below the zero-shot probe
+and even below exp20, uniformly across backgrounds and puzzles, with the
+exp26-style biased rotation confusion.
+
+Key finding: **the sim-to-real failure lives in whatever parameters are
+trained on synthetic data — not in the features.** Same frozen encoder,
+three readouts: non-learned cosine 49.2% real; 1.9M-param readout trained
+on synthetic-DR 7.0% real (while 64.3% synthetic); fully-trained CNNs 12.7–
+14.8% real. Non-learned readouts survive the camera (SIFT 76.7%, cosine
+49.2%); every synthetic-trained one collapses, and DR does not save it.
+Next lever by elimination: give the (small) readout **real training data**
+— a second real-capture set from train-split-style puzzles, never
+north_star — and/or constrain the readout toward the non-learned cosine
+form. Durable engineering lessons are in the exp27 README (fp16 correlation
+overflow, heatmap CE vs MSE, the frozen-encoder BatchNorm trap).
+
+---
+
 ## Summary Table
 
 | Exp | Focus                       | Test Result            | Key Finding                                    |
@@ -654,6 +706,7 @@ classical hybrid meanwhile.
 | 24  | Piece/not-piece classifier  | **99.1% bal. acc**     | Kills preview false positives (faces at 0.000) |
 | 25  | North-star real-photo eval  | **77% both (hybrid)**  | CNN collapses on real photos (14.8% both)      |
 | 26  | Domain randomization (4x4)  | 76% synth / 13% real   | Realism augs lift synthetic, don't transfer    |
+| 27  | Frozen DINOv2 + corr heads  | **49% real zero-shot** / 7% real trained | Sim-to-real gap lives in the trained readout, not the features |
 
 ---
 
@@ -701,9 +754,18 @@ exp26 hardened this conclusion: input-level domain randomization
 *synthetic* benchmark to 76.2% both — the best learned synthetic result on
 the realistic 4x4 benchmark — but leaves the real task unchanged (12.7%
 both). Whatever separates digital crops from photographed physical pieces
-is not reachable by augmenting digital pixels; the promising remaining
-levers are pretrained robust features (DINOv2/LoFTR, review item #8), a
-small real-capture training set, and print-and-photograph simulation.
+is not reachable by augmenting digital pixels.
+
+exp27 then isolated *where* the failure lives: frozen DINOv2 features with
+a non-learned cosine readout score **49.2% both on north_star zero-shot**
+(the best learned-feature real result to date, level with NCC), but
+training even a tiny 1.9M-parameter readout on top of the same frozen
+features — on domain-randomized synthetic data, under the full harness —
+collapses the real result to 7.0% while reaching 64.3% synthetic. The
+features transfer; **any parameters trained on synthetic data become the
+contaminant**. The remaining levers are a small real-capture *training*
+set for the readout (never north_star), constraining the readout toward
+the non-learned cosine form, and print-and-photograph simulation.
 
 **Key Learnings:**
 1. **Data quantity AND quality matter** (exp17): Must see all cells per puzzle
