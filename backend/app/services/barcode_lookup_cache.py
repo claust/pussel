@@ -21,13 +21,16 @@ class BarcodeLookupRecord:
     """The outcome of one EAN lookup, hit or miss.
 
     Attributes:
-        found: Whether a box image was found for the EAN.
-        box_image_jpeg: The JPEG-converted box image when found, else None.
+        found: Whether a product image was found for the EAN.
+        image_jpeg: The JPEG-converted product image when found, else None.
+        image_kind: "motif" (clean puzzle artwork) or "box" when found,
+            else None.
         article_number: The resolved article number when found, else None.
     """
 
     found: bool
-    box_image_jpeg: Optional[bytes]
+    image_jpeg: Optional[bytes]
+    image_kind: Optional[str]
     article_number: Optional[str]
 
 

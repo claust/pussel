@@ -357,14 +357,15 @@ async def detect_frame(
     ],
 )
 async def lookup_barcode(ean: str) -> BarcodeLookupResponse:
-    """Look up a Ravensburger box image by EAN-13 barcode.
+    """Look up a Ravensburger product image by EAN-13 barcode.
 
     Stateless from the caller's perspective: derives candidate article
     numbers from the EAN (see `app.services.ravensburger_lookup`), probes
-    the Ravensburger image CDN concurrently, and returns the first real
-    image (converted webp -> JPEG data URL). Results — hits and misses —
-    are cached in-process so a barcode held in front of the camera doesn't
-    re-probe the CDN.
+    ravensburger.org concurrently, and returns the first real image as a
+    JPEG data URL — the clean puzzle motif when the product has one, else
+    the box shot (see `image_kind`). Results — hits and misses — are
+    cached in-process so a barcode held in front of the camera doesn't
+    re-probe the site.
 
     Requires authentication and is rate-limited per-user (see the route's
     ``dependencies``); doesn't need the caller's identity beyond that.
@@ -373,9 +374,9 @@ async def lookup_barcode(ean: str) -> BarcodeLookupResponse:
         ean: The scanned EAN-13 barcode payload.
 
     Returns:
-        BarcodeLookupResponse with found=True plus the box image and
-        resolved article number, or found=False when the EAN isn't a
-        (known) Ravensburger product.
+        BarcodeLookupResponse with found=True plus the product image, its
+        kind, and the resolved article number, or found=False when the EAN
+        isn't a (known) Ravensburger product.
 
     Raises:
         HTTPException: If the EAN is malformed (400), or the caller has
@@ -390,50 +391,54 @@ async def lookup_barcode(ean: str) -> BarcodeLookupResponse:
         cached = await _resolve_barcode(ean)
         cache.put(ean, cached)
 
-    if not cached.found or cached.box_image_jpeg is None:
+    if not cached.found or cached.image_jpeg is None:
         return BarcodeLookupResponse(found=False)
-    box_image_base64 = base64.b64encode(cached.box_image_jpeg).decode()
+    image_base64 = base64.b64encode(cached.image_jpeg).decode()
     return BarcodeLookupResponse(
         found=True,
-        box_image=f"data:image/jpeg;base64,{box_image_base64}",
+        box_image=f"data:image/jpeg;base64,{image_base64}",
+        image_kind=cached.image_kind,
         article_number=cached.article_number,
     )
 
 
 async def _resolve_barcode(ean: str) -> BarcodeLookupRecord:
-    """Probe the Ravensburger CDN for a valid EAN and build a cacheable record.
+    """Probe ravensburger.org for a valid EAN and build a cacheable record.
 
     Args:
         ean: A checksum-valid EAN-13.
 
     Returns:
-        A BarcodeLookupRecord holding the JPEG-converted box image of the
-        first candidate article number that hit (in preference order), or a
-        miss record when no candidate produced a real image.
+        A BarcodeLookupRecord holding the JPEG-converted product image
+        (motif preferred, box fallback) of the first candidate article
+        number that hit (in preference order), or a miss record when no
+        candidate produced a real image.
     """
     candidates = candidate_article_numbers(ean, settings.RAVENSBURGER_SERIES_PREFIXES)
     if not candidates:
-        return BarcodeLookupRecord(found=False, box_image_jpeg=None, article_number=None)
+        return BarcodeLookupRecord(found=False, image_jpeg=None, image_kind=None, article_number=None)
 
     client = get_ravensburger_client()
-    results = await asyncio.gather(*(client.fetch_box_image(candidate) for candidate in candidates))
-    for candidate, image_bytes in zip(candidates, results):
-        if image_bytes is None:
+    results = await asyncio.gather(*(client.fetch_puzzle_image(candidate) for candidate in candidates))
+    for candidate, fetched in zip(candidates, results):
+        if fetched is None:
             continue
         try:
-            image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+            image = Image.open(io.BytesIO(fetched.content)).convert("RGB")
         except (UnidentifiedImageError, OSError, ValueError):
-            logger.warning("Ravensburger CDN returned an undecodable image for article %s", candidate)
+            logger.warning("ravensburger.org returned an undecodable image for article %s", candidate)
             continue
         buffer = io.BytesIO()
         image.save(buffer, format="JPEG", quality=90)
-        return BarcodeLookupRecord(found=True, box_image_jpeg=buffer.getvalue(), article_number=candidate)
+        return BarcodeLookupRecord(
+            found=True, image_jpeg=buffer.getvalue(), image_kind=fetched.kind, article_number=candidate
+        )
 
     if ean.startswith(RAVENSBURGER_ADULT_PREFIX):
         # Adult-line article numbers aren't fully derivable from the EAN; log
         # all-candidate misses so gaps in RAVENSBURGER_SERIES_PREFIXES surface.
-        logger.info("No box image for adult-line EAN %s (tried series prefixes %s)", ean, candidates)
-    return BarcodeLookupRecord(found=False, box_image_jpeg=None, article_number=None)
+        logger.info("No product image for adult-line EAN %s (tried series prefixes %s)", ean, candidates)
+    return BarcodeLookupRecord(found=False, image_jpeg=None, image_kind=None, article_number=None)
 
 
 @app.post(
