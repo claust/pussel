@@ -16,8 +16,8 @@ photograph a loose piece to get its position, rotation, and confidence.
 
 Piece matching defaults to a classical SIFT → NCC hybrid
 (`MATCHER=classical` in `backend/app/config.py`,
-`app/services/classical_matcher.py`); the CNN in `app/services/image_processor.py`
-is opt-in via `MATCHER=cnn`.
+`backend/app/services/classical_matcher.py`); the CNN in
+`backend/app/services/image_processor.py` is opt-in via `MATCHER=cnn`.
 
 The backend's puzzle store is in-memory — a `puzzle_id` does not survive a
 restart.

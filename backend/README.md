@@ -14,8 +14,8 @@ uv sync --all-extras
 pre-commit install
 ```
 
-Copy `.env` into place for local runs (Google auth, JWT secret, storage — see
-`app/config.py` for the full set of settings).
+Copy `.env.example` to `.env` for local runs (Google auth, JWT secret,
+storage — see `app/config.py` for the full set of settings).
 
 ## Running
 
