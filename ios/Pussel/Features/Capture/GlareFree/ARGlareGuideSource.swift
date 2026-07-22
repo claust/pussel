@@ -188,7 +188,7 @@ final class ARGlareGuideSource: NSObject, GlareGuideSource, ARSessionDelegate {
 
   // MARK: - GlareGuideSource
 
-  func beginGuiding(reference: UIImage) {
+  func beginGuiding(reference _: UIImage) {
     // The reference image itself is not needed — world tracking replaces
     // image registration. What matters is the quad under the screen at the
     // moment the shot fired, snapshotted by `captureStill`.
