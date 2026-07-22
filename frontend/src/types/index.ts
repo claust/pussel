@@ -14,11 +14,19 @@ export interface Position {
 
 export interface Piece {
   id?: string; // stable identifier when the piece originates from the capture queue
-  position: Position;
+  position: Position; // raw predicted position
   positionConfidence: number; // 0-1
   rotation: 0 | 90 | 180 | 270;
   rotationConfidence: number; // 0-1
   imageData?: string; // base64 or blob URL
+  gridRow?: number | null; // 0-based nearest grid cell row; null when the puzzle grid is unknown
+  gridCol?: number | null; // 0-based nearest grid cell column; null when the puzzle grid is unknown
+  snappedPosition?: Position | null; // center of the nearest grid cell; null when the puzzle grid is unknown
+}
+
+/** Position to display the piece at: the grid-snapped position when known, else the raw prediction. */
+export function getDisplayPosition(piece: Piece): Position {
+  return piece.snappedPosition ?? piece.position;
 }
 
 export interface Puzzle {
