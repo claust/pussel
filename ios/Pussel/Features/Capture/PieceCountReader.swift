@@ -15,12 +15,13 @@ struct PieceCountToken: Equatable {
   let height: Float
 }
 
-/// The closed-set count filter, ported verbatim from the Python estimator
-/// (`_extract_candidates` in backend/app/services/piece_count_estimator.py) so
-/// the "no wrong guesses" guarantee is identical here: only tokens that exactly
-/// match a piece count Ravensburger actually sells — plus "N x M" kids
-/// multipacks, where the per-puzzle M is the count — survive, and the tallest
-/// survivor wins.
+/// The closed-set count filter, ported from the Python estimator
+/// (backend/app/services/piece_count_estimator.py) so the "no wrong guesses"
+/// guarantee is identical here: only tokens that exactly match a piece count
+/// Ravensburger actually sells — plus "N x M" kids multipacks, where the
+/// per-puzzle M is the count — survive (`_extract_candidates`), and the tallest
+/// survivor wins, confidence breaking height ties, exactly as
+/// `estimate_piece_count` selects `(height, confidence)`.
 ///
 /// Kept separate from the Vision request so it is testable without a running
 /// Vision context: it operates on plain `PieceCountToken`s.
@@ -45,19 +46,30 @@ enum PieceCountFilter {
   /// Leading/trailing punctuation Vision sometimes glues onto a numeral.
   private static let stripCharacters = CharacterSet(charactersIn: "\"'.,;:()|«»\u{201C}\u{201D}*")
 
+  /// The winning candidate so far: its count plus the height/confidence keys
+  /// that ranked it (tallest wins, confidence breaks height ties).
+  private struct Best {
+    let value: Int
+    let height: Float
+    let confidence: Float
+  }
+
   /// Picks the most likely piece count from a photo's OCR tokens, or nil when
   /// nothing on the box confidently matches a known count — never a
   /// low-confidence guess.
   static func estimate(from tokens: [PieceCountToken]) -> Int? {
-    var best: (value: Int, height: Float)?
+    var best: Best?
     for token in tokens where token.confidence >= minConfidence {
       // A single observation can hold several words ("1000 Teile"); the height
       // is the line's, so every word in it competes on the same scale — as the
       // Python tokens (tesseract words) and the Vision benchmark both do.
       for word in token.text.split(whereSeparator: { $0.isWhitespace }) {
         guard let value = countValue(from: String(word)) else { continue }
-        if best == nil || token.height > best!.height {
-          best = (value, token.height)
+        // Tallest wins (the count is the biggest number on the box), with
+        // confidence breaking exact-height ties — matching the backend
+        // estimator's `(height, confidence)` selection.
+        if best == nil || (token.height, token.confidence) > (best!.height, best!.confidence) {
+          best = Best(value: value, height: token.height, confidence: token.confidence)
         }
       }
     }

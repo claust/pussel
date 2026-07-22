@@ -86,6 +86,18 @@ final class PieceCountReaderTests: XCTestCase {
     XCTAssertEqual(PieceCountFilter.estimate(from: tokens), 500)
   }
 
+  func testBreaksEqualHeightTiesByConfidence() {
+    // Two different counts at exactly equal height: the higher-confidence one
+    // wins regardless of encounter order, matching the backend's
+    // (height, confidence) selection rather than first-seen.
+    let lowFirst = [
+      token("500", confidence: 0.6, height: 0.1),
+      token("1000", confidence: 0.95, height: 0.1),
+    ]
+    XCTAssertEqual(PieceCountFilter.estimate(from: lowFirst), 1000)
+    XCTAssertEqual(PieceCountFilter.estimate(from: lowFirst.reversed()), 1000)
+  }
+
   func testPicksTheCountWordOutOfAMultiWordLine() {
     // Vision returns "1000 Teile" as one observation; the numeral still reads.
     XCTAssertEqual(PieceCountFilter.estimate(from: [token("1000 Teile")]), 1000)
