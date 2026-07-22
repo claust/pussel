@@ -162,6 +162,9 @@ interface PieceApiResponse {
   rotation: 0 | 90 | 180 | 270;
   rotation_confidence: number;
   cleaned_image?: string; // Base64 PNG with background removed
+  grid_row?: number | null; // 0-based nearest grid cell row; null when the grid is unknown
+  grid_col?: number | null; // 0-based nearest grid cell column; null when the grid is unknown
+  snapped_position?: { x: number; y: number } | null; // nearest cell center; null when the grid is unknown
 }
 
 export async function processPiece(
@@ -194,6 +197,9 @@ export async function processPiece(
     rotation: data.rotation,
     rotationConfidence: data.rotation_confidence,
     imageData: data.cleaned_image, // Use cleaned image with background removed
+    gridRow: data.grid_row ?? null,
+    gridCol: data.grid_col ?? null,
+    snappedPosition: data.snapped_position ? { ...data.snapped_position, normalized: true } : null,
   };
 }
 

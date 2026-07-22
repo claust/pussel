@@ -3,6 +3,7 @@
 import { AlertCircle, Check, Loader2, RotateCcw, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { CaptureEntry } from '@/stores/capture-queue-store';
+import { getDisplayPosition } from '@/types';
 import { cn } from '@/lib/utils';
 
 interface PieceQueueProps {
@@ -92,8 +93,8 @@ export function PieceQueue({ entries, onRetry, onDelete, className }: PieceQueue
                   <>
                     <Check className="h-3 w-3 text-green-600" />
                     <span>
-                      ({(entry.piece.position.x * 100).toFixed(0)}%,{' '}
-                      {(entry.piece.position.y * 100).toFixed(0)}%)
+                      ({(getDisplayPosition(entry.piece).x * 100).toFixed(0)}%,{' '}
+                      {(getDisplayPosition(entry.piece).y * 100).toFixed(0)}%)
                     </span>
                   </>
                 )}
