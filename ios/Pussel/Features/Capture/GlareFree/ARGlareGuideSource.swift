@@ -171,6 +171,12 @@ final class ARGlareGuideSource: NSObject, GlareGuideSource, ARSessionDelegate {
     activeStep = nil
     overlay = nil
     wasTracking = false
+    // Drop the scanning state too: the restart may happen over a different
+    // surface, and reacquiring one takes only a couple of seconds — better
+    // than a ready state resting on a stale height.
+    pendingQuad = nil
+    surfaceHeight = nil
+    isReady = false
   }
 
   // MARK: - ARSessionDelegate
