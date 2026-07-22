@@ -23,8 +23,24 @@ def word(text: str, height: int = 150, confidence: float = 95.0) -> _OcrWord:
     return _OcrWord(text=text, height=height, confidence=confidence)
 
 
-def synthetic_box_jpeg(text: str, color: tuple[int, int, int] = (0, 0, 0)) -> bytes:
+def synthetic_box(text: str, color: tuple[int, int, int] = (0, 0, 0)) -> np.ndarray:
     """Render a box-shot stand-in: `text` large in the top-left, like the real badge.
+
+    Args:
+        text: The badge text to print (empty for a blank box).
+        color: BGR text color.
+
+    Returns:
+        The rendered BGR image.
+    """
+    image = np.full((750, 1000, 3), 255, dtype=np.uint8)
+    if text:
+        cv2.putText(image, text, (60, 190), cv2.FONT_HERSHEY_DUPLEX, 5.5, color, 14, cv2.LINE_AA)
+    return image
+
+
+def synthetic_box_jpeg(text: str, color: tuple[int, int, int] = (0, 0, 0)) -> bytes:
+    """Encode `synthetic_box` as a product shot — the box filling the frame.
 
     Args:
         text: The badge text to print (empty for a blank box).
@@ -33,10 +49,7 @@ def synthetic_box_jpeg(text: str, color: tuple[int, int, int] = (0, 0, 0)) -> by
     Returns:
         JPEG bytes of the rendered image.
     """
-    image = np.full((750, 1000, 3), 255, dtype=np.uint8)
-    if text:
-        cv2.putText(image, text, (60, 190), cv2.FONT_HERSHEY_DUPLEX, 5.5, color, 14, cv2.LINE_AA)
-    _, encoded = cv2.imencode(".jpg", image)
+    _, encoded = cv2.imencode(".jpg", synthetic_box(text, color))
     return encoded.tobytes()
 
 

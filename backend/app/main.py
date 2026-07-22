@@ -63,6 +63,12 @@ from app.services.puzzle_store import PuzzleRecord, get_puzzle_store
 from app.services.ravensburger_client import get_ravensburger_client
 from app.services.ravensburger_lookup import RAVENSBURGER_ADULT_PREFIX, candidate_article_numbers, ean_checksum_valid
 
+# uvicorn configures handlers for its own loggers only, leaving the root
+# logger at WARNING with no handler — so every `logger.info` in this app was
+# silently discarded. Configure the root logger here so app-level INFO
+# actually reaches the console.
+logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(name)s - %(message)s")
+
 logger = logging.getLogger(__name__)
 
 # Initialize FastAPI app
@@ -292,6 +298,9 @@ async def detect_frame(
     trimmed image and, once accepted, uploads it via the regular upload endpoint.
     When ``corners`` is provided (manual adjustment), detection is skipped and
     the supplied corners are used for the warp with confidence 1.0.
+
+    The printed piece count is read from the photo on-device (iOS Vision, see
+    the app's `PieceCountReader`), so this endpoint no longer OCRs it.
 
     Requires authentication (see the route's ``dependencies``), but doesn't
     need the caller's identity — it doesn't persist or look up anything.

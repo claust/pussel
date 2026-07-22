@@ -1,20 +1,26 @@
-"""OCR-based piece-count estimation from Ravensburger box shots.
+"""OCR-based piece-count estimation from Ravensburger product-box shots.
 
 Every Ravensburger box prints its piece count prominently near the top-left
 corner of the front (8-digit "12xxxxxx" boxes and square gift boxes) or
 rotated 90° along the left edge (classic 5-digit softclick boxes, Nathan
 boxes). The clean puzzle motif (`_1` shot) deliberately has no text, so the
-estimate always reads the box shot.
+estimate always reads a box, never a motif.
 
-The pipeline OCRs a few targeted crops of the box shot with tesseract and
-keeps tokens that exactly match a piece count Ravensburger actually sells
-(plus "N x M" kids multipacks, where the per-puzzle M is the estimate).
-The tallest such token wins — the count is always the biggest number on the
-box, which is what beats look-alike numerals like the "Since 1891" tagline,
-age badges, and centimetre dimensions. Validated against 21 live box shots
-(19 matching the expected label, 2 conservative Nones, 0 wrong guesses):
-an unreadable box returns None rather than a wrong guess, so the app's
-piece-count field just stays empty.
+The input is a `PRODUCT` shot fetched from ravensburger.org after a barcode
+scan, where the box fills the frame edge to edge. (The other source — a photo
+the user takes of the box — is OCR'd on-device by the app's Vision-based
+`PieceCountReader`, which reads real photos far better than tesseract; this
+module used to carry a `PHOTO` layout for it, since removed.)
+
+The pipeline OCRs a few targeted crops with tesseract and keeps tokens that
+exactly match a piece count Ravensburger actually sells (plus "N x M" kids
+multipacks, where the per-puzzle M is the estimate). The tallest such token
+wins — the count is always the biggest number on the box, which is what
+beats look-alike numerals like the "Since 1891" tagline, age badges, and
+centimetre dimensions. Validated against 21 live box shots (19 matching the
+expected label, 2 conservative Nones, 0 wrong guesses): an unreadable box
+returns None rather than a wrong guess, so the app's piece-count field just
+stays empty.
 
 Tesseract is invoked via subprocess (no extra Python dependency); when the
 binary is not installed the estimator degrades to always returning None.
@@ -66,6 +72,26 @@ _MIN_IMAGE_DIMENSION = 200
 
 _TESSERACT_TIMEOUT_SECONDS = 20.0
 _warned_missing_tesseract = False
+
+
+@dataclass(frozen=True)
+class _Bands:
+    """The fractions of the frame the crops cover.
+
+    Attributes:
+        top: Height fraction of the upright band, catching counts printed
+            across the top of the box.
+        left: Width fraction of the side band, catching counts printed
+            rotated 90° along the box's left edge.
+    """
+
+    top: float
+    left: float
+
+
+# The bands where a product shot's count badge lands, validated on 21 live
+# box shots (the box fills the frame, so the badge sits high and far left).
+_BANDS = _Bands(top=0.32, left=0.30)
 
 
 @dataclass(frozen=True)
@@ -195,15 +221,15 @@ def _attempts(image: np.ndarray) -> Iterator[tuple[np.ndarray, int]]:
     boxes).
 
     Args:
-        image: The full BGR box shot.
+        image: The full BGR box image.
 
     Yields:
         (single-channel image, tesseract psm) pairs.
     """
     height, width = image.shape[:2]
-    top_band = image[: int(height * 0.32), :]
-    left_band = image[:, : int(width * 0.30)]
-    top_left = image[: int(height * 0.32), : width // 2]
+    top_band = image[: int(height * _BANDS.top), :]
+    left_band = image[:, : int(width * _BANDS.left)]
+    top_left = image[: int(height * _BANDS.top), : width // 2]
     for variant in _channel_variants(top_band, scale=3):
         yield variant, 11
     for rotation in (cv2.ROTATE_90_CLOCKWISE, cv2.ROTATE_90_COUNTERCLOCKWISE):
@@ -214,10 +240,10 @@ def _attempts(image: np.ndarray) -> Iterator[tuple[np.ndarray, int]]:
 
 
 def estimate_piece_count(box_jpeg: bytes) -> Optional[int]:
-    """Estimate a puzzle's piece count from its Ravensburger box shot.
+    """Estimate a puzzle's piece count from a product shot of its box.
 
     Args:
-        box_jpeg: The box-shot image bytes as fetched from ravensburger.org.
+        box_jpeg: The image bytes — a box shot fetched from ravensburger.org.
 
     Returns:
         The most likely piece count, or None when no confident reading exists
