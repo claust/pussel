@@ -1,43 +1,50 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with
-[`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Pussel Frontend
 
-## Getting Started
+The web client for Pussel: capture a puzzle, add pieces, and see where each one
+belongs. Next.js 16 (App Router, Turbopack) on Bun, with NextAuth for Google
+sign-in against the FastAPI backend.
 
-First, run the development server:
+This app is a development and test client — it is **not deployed anywhere**. The
+shipped mobile client is the native SwiftUI app in [`../ios`](../ios/README.md).
+
+## Setup
 
 ```bash
-bun dev
+bun install
+cp .env.example .env.local     # then fill in the values
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the
-result.
+`.env.local` needs Google OAuth credentials (`GOOGLE_CLIENT_ID`,
+`GOOGLE_CLIENT_SECRET`), an `AUTH_SECRET` (`openssl rand -base64 32`),
+`AUTH_URL`, and `NEXT_PUBLIC_API_URL` pointing at the backend — `http://localhost:8000`
+locally, or the Azure backend. See `.env.example` for the full list.
 
-You can start editing the page by modifying `app/page.tsx`. The page
-auto-updates as you edit the file.
+Start the backend first (`make start-backend` from the repo root), then:
 
-This project uses
-[`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts)
-to automatically optimize and load [Geist](https://vercel.com/font), a new font
-family for Vercel.
+```bash
+bun run dev                    # http://localhost:3000
+```
 
-## Learn More
+## Scripts
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+bun run dev            # dev server (Turbopack)
+bun run build          # production build
+bun run check          # oxlint (type-aware) + tsc + prettier check
+bun run format         # auto-format with Prettier
+bun run test           # unit tests (Vitest)
+bun run test:e2e       # end-to-end tests (Playwright, needs a running backend)
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js
-  features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+`make check-frontend` / `make format-frontend` from the repo root wrap the same
+tooling, and are what CI runs.
 
-You can check out
-[the Next.js GitHub repository](https://github.com/vercel/next.js) - your
-feedback and contributions are welcome!
+## Structure
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the
-[Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme)
-from the creators of Next.js.
-
-Check out our
-[Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying)
-for more details.
+- `src/app/` — App Router pages: home, `puzzle/` (main capture + solve flow),
+  `test-mode/` (bundled sample puzzles, no camera needed), `about/`
+- `src/components/` — `camera/` (capture + upload), `puzzle/` (display, piece
+  cards, grid overlay), `ui/` (shadcn/ui primitives)
+- `src/hooks/`, `src/stores/` (Zustand), `src/lib/` (API client, image utils),
+  `src/types/`
+- `e2e/` — Playwright specs
