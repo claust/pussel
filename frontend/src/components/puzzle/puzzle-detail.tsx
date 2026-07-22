@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import type { Piece, GridSize } from '@/types';
-import { GRID_DIMENSIONS } from '@/types';
+import { GRID_DIMENSIONS, getDisplayPosition } from '@/types';
 import { cn } from '@/lib/utils';
 
 interface PuzzleDetailProps {
@@ -58,8 +58,8 @@ export function PuzzleDetail({
               key={index}
               className="absolute border-2 border-green-500 shadow-lg"
               style={{
-                left: `${piece.position.x * 100}%`,
-                top: `${piece.position.y * 100}%`,
+                left: `${getDisplayPosition(piece).x * 100}%`,
+                top: `${getDisplayPosition(piece).y * 100}%`,
                 width: `${pieceSize}%`,
                 height: `${pieceSize}%`,
                 transform: `translate(-50%, -50%) rotate(${-piece.rotation}deg)`,

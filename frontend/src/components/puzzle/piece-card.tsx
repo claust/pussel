@@ -1,6 +1,7 @@
 'use client';
 
 import type { Piece } from '@/types';
+import { getDisplayPosition } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 
@@ -41,7 +42,8 @@ export function PieceCard({ piece, index, className }: PieceCardProps) {
           <div className="flex justify-between">
             <span className="text-muted-foreground">Position:</span>
             <span>
-              ({(piece.position.x * 100).toFixed(0)}%, {(piece.position.y * 100).toFixed(0)}%)
+              ({(getDisplayPosition(piece).x * 100).toFixed(0)}%,{' '}
+              {(getDisplayPosition(piece).y * 100).toFixed(0)}%)
             </span>
           </div>
           <div className="flex justify-between">
