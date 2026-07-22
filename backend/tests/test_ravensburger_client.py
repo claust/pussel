@@ -26,14 +26,16 @@ def mock_async_client(responses: Optional[list[MagicMock]] = None, exc: Optional
 
     Args:
         responses: The responses successive `get()` calls should resolve to.
+            Exactly one of `responses` and `exc` must be provided.
         exc: An exception `get()` should raise instead.
 
     Returns:
         A MagicMock usable as a replacement for the AsyncClient constructor,
         whose instances work as async context managers.
     """
+    assert (responses is None) != (exc is None), "provide exactly one of responses/exc"
     inner = MagicMock()
-    inner.get = AsyncMock(side_effect=exc) if exc else AsyncMock(side_effect=responses)
+    inner.get = AsyncMock(side_effect=exc if exc is not None else responses)
     context_manager = MagicMock()
     context_manager.__aenter__ = AsyncMock(return_value=inner)
     context_manager.__aexit__ = AsyncMock(return_value=False)

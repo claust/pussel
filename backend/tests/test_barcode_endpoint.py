@@ -10,7 +10,7 @@ Mirrors the token helper in tests/test_rate_limit.py.
 
 import io
 from datetime import datetime, timedelta, timezone
-from typing import Generator, Optional, cast
+from typing import Generator, Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import jwt
@@ -56,7 +56,7 @@ def auth_headers(user_id: str = "test-user-id") -> dict[str, str]:
     return {"Authorization": f"Bearer {create_test_token(user_id)}"}
 
 
-def make_fake_ravensburger_client(hit_articles: dict[str, bytes], kind: str = "motif") -> MagicMock:
+def make_fake_ravensburger_client(hit_articles: dict[str, bytes], kind: ImageKind = "motif") -> MagicMock:
     """Build a fake RavensburgerClient hitting only the given article numbers.
 
     Args:
@@ -72,7 +72,7 @@ def make_fake_ravensburger_client(hit_articles: dict[str, bytes], kind: str = "m
         content = hit_articles.get(article_number)
         if content is None:
             return None
-        return RavensburgerImage(content=content, kind=cast(ImageKind, kind))
+        return RavensburgerImage(content=content, kind=kind)
 
     fake = MagicMock()
     fake.fetch_puzzle_image = AsyncMock(side_effect=fetch_puzzle_image)
