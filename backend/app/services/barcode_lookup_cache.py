@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import Optional
 
+from app.services.ravensburger_client import ImageKind
+
 # Cap on cached lookups. Each hit holds one ~1000px JPEG (~100-300 KB), so
 # 100 entries bounds memory at a few tens of MB in the worst case.
 MAX_ENTRIES = 100
@@ -30,7 +32,7 @@ class BarcodeLookupRecord:
 
     found: bool
     image_jpeg: Optional[bytes]
-    image_kind: Optional[str]
+    image_kind: Optional[ImageKind]
     article_number: Optional[str]
 
 

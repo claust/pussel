@@ -101,7 +101,7 @@ class Settings(BaseSettings):
     #
     # Known 3-digit series prefixes for the adult line (GS1 prefix 4005555),
     # whose 8-digit article numbers aren't fully recoverable from the EAN;
-    # each is probed against the CDN in order. Empirical list — a 4005555 EAN
+    # each is probed against ravensburger.org in order. Empirical list — a 4005555 EAN
     # that misses on all of these is logged so gaps become discoverable.
     RAVENSBURGER_SERIES_PREFIXES: list[str] = ["120", "130", "132", "150", "160", "170"]
     # Per-request timeout. Candidates are probed concurrently, so this also
@@ -110,8 +110,10 @@ class Settings(BaseSettings):
     RAVENSBURGER_CDN_TIMEOUT_SECONDS: float = Field(default=3.0, gt=0)
     # Requested image size bucket (long edge). NOT arbitrary: the site serves
     # pre-rendered buckets 75/100/240/360/1024 only and 404s every other size
-    # (verified live 2026-07-22); 1024 is the largest available.
-    RAVENSBURGER_IMAGE_SIZE: int = Field(default=1024, gt=0)
+    # (verified live 2026-07-22); 1024 is the largest available. Constrained
+    # to the supported buckets so a misconfigured size fails at startup
+    # instead of silently 404ing every lookup.
+    RAVENSBURGER_IMAGE_SIZE: Literal[75, 100, 240, 360, 1024] = 1024
     # Per-user, guards GET /api/v1/puzzle/barcode/{ean}. The iOS client
     # debounces to at most one lookup per stable barcode read and caches
     # misses per session, so normal use is a handful of requests per minute;
