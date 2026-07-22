@@ -35,6 +35,24 @@ class PieceResponse(BaseModel):
             "exists (CNN path, or matcher failure fallback)."
         ),
     )
+    grid_row: Optional[int] = Field(
+        default=None,
+        description=(
+            "0-based row of the grid cell nearest to the predicted position. Null when the "
+            "puzzle's grid is unknown (no piece_count at upload)."
+        ),
+    )
+    grid_col: Optional[int] = Field(
+        default=None, description="0-based column of the nearest grid cell; null when the grid is unknown"
+    )
+    snapped_position: Optional[Position] = Field(
+        default=None,
+        description=(
+            "Center of the (grid_row, grid_col) cell, normalized to the puzzle image — the "
+            "display position, always inside the puzzle. `position` remains the raw prediction. "
+            "Null when the grid is unknown."
+        ),
+    )
 
 
 class PuzzleResponse(BaseModel):
