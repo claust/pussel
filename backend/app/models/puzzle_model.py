@@ -183,6 +183,13 @@ class BarcodeLookupResponse(BaseModel):
     article_number: Optional[str] = Field(
         default=None, description="Resolved Ravensburger article number; present when found"
     )
+    piece_count_estimate: Optional[int] = Field(
+        default=None,
+        description=(
+            "Piece count read off the box shot by OCR, for prefilling the piece-count input; "
+            "None when the box couldn't be read confidently (never a low-confidence guess)"
+        ),
+    )
 
 
 class GeneratePieceRequest(BaseModel):

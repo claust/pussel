@@ -30,6 +30,9 @@ struct BarcodeLookupResponse: Codable, Equatable {
   let boxImage: String?
   /// The resolved Ravensburger article number; present when found.
   let articleNumber: String?
+  /// Piece count the backend OCR'd off the box shot, for prefilling the
+  /// piece-count input; nil when the box couldn't be read confidently.
+  let pieceCountEstimate: Int?
 }
 
 /// Response of POST /api/v1/puzzle/upload.

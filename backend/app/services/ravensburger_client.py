@@ -89,6 +89,30 @@ class RavensburgerClient:
             logger.warning("Ravensburger image fetch failed for article %s: %s", article_number, exc)
         return None
 
+    async def fetch_box_image(self, article_number: str) -> Optional[bytes]:
+        """Fetch the box shot for an article number.
+
+        Used when `fetch_puzzle_image` returned the motif: the piece-count
+        estimator needs the box shot, which is where the count is printed
+        (the motif deliberately carries no text).
+
+        Args:
+            article_number: A Ravensburger article number known to exist.
+
+        Returns:
+            The box-shot JPEG bytes, or None when the article has no box
+            shot or on any transport error/timeout — a miss is never an
+            exception.
+        """
+        try:
+            async with httpx.AsyncClient(timeout=settings.RAVENSBURGER_CDN_TIMEOUT_SECONDS) as client:
+                response = await client.get(self.image_url(article_number, BOX_SUFFIX))
+                if response.status_code == 200 and response.content:
+                    return response.content
+        except httpx.HTTPError as exc:
+            logger.warning("Ravensburger box-shot fetch failed for article %s: %s", article_number, exc)
+        return None
+
 
 @lru_cache()
 def get_ravensburger_client() -> RavensburgerClient:

@@ -24,6 +24,11 @@ struct ConfirmTrimView: View {
   init(candidate: TrimCandidate) {
     self.candidate = candidate
     self.previewImage = candidate.trimmedJPEG.flatMap(UIImage.init(data:))
+    // Prefill from the barcode lookup's OCR'd box count so a correct read
+    // means zero typing — the user can still edit or tap a preset chip.
+    if let estimate = candidate.pieceCountEstimate, Self.pieceCountRange.contains(estimate) {
+      _pieceCountText = State(initialValue: String(estimate))
+    }
   }
 
   /// The entered piece count, or nil while the field is empty/out of range.
