@@ -125,7 +125,7 @@ class TestBarcodeLookupEndpoint:
         assert body["image_kind"] == "box"
 
     def test_standard_line_miss(self) -> None:
-        """A standard-line EAN whose article has no CDN image returns found=False."""
+        """A standard-line EAN whose article has no product image returns found=False."""
         fake = make_fake_ravensburger_client({})
         with patch("app.main.get_ravensburger_client", return_value=fake):
             response = client.get(f"/api/v1/puzzle/barcode/{FROZEN_EAN}", headers=auth_headers())
@@ -145,7 +145,7 @@ class TestBarcodeLookupEndpoint:
         assert probed == [f"{series}00622" for series in settings.RAVENSBURGER_SERIES_PREFIXES]
 
     def test_non_ravensburger_prefix_never_probes_cdn(self) -> None:
-        """A valid EAN with a foreign GS1 prefix is a miss without any CDN call."""
+        """A valid EAN with a foreign GS1 prefix is a miss without contacting ravensburger.org."""
         fake = make_fake_ravensburger_client({"anything": make_jpeg_bytes()})
         with patch("app.main.get_ravensburger_client", return_value=fake):
             response = client.get(f"/api/v1/puzzle/barcode/{OTHER_BRAND_EAN}", headers=auth_headers())
@@ -154,7 +154,7 @@ class TestBarcodeLookupEndpoint:
         fake.fetch_puzzle_image.assert_not_awaited()
 
     def test_second_lookup_served_from_cache(self) -> None:
-        """Repeating a lookup (hit or miss) doesn't re-probe the CDN."""
+        """Repeating a lookup (hit or miss) doesn't re-probe ravensburger.org."""
         fake = make_fake_ravensburger_client({"05009": make_jpeg_bytes()})
         with patch("app.main.get_ravensburger_client", return_value=fake):
             first = client.get(f"/api/v1/puzzle/barcode/{FROZEN_EAN}", headers=auth_headers())
@@ -164,7 +164,7 @@ class TestBarcodeLookupEndpoint:
         assert fake.fetch_puzzle_image.await_count == 1
 
     def test_undecodable_cdn_image_is_a_miss(self) -> None:
-        """Bytes the CDN returns that aren't a decodable image yield found=False."""
+        """Fetched bytes that aren't a decodable image yield found=False."""
         fake = make_fake_ravensburger_client({"05009": b"not-an-image" * 400})
         with patch("app.main.get_ravensburger_client", return_value=fake):
             response = client.get(f"/api/v1/puzzle/barcode/{FROZEN_EAN}", headers=auth_headers())

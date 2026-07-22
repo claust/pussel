@@ -3,7 +3,7 @@
 Mirrors `app.services.puzzle_store`: an `OrderedDict` capped at `MAX_ENTRIES`
 with oldest-first eviction, exposed through an `@lru_cache()` singleton
 getter. Both hits and misses are cached, so a barcode held in front of the
-camera doesn't re-probe the Ravensburger CDN on every stable read.
+camera doesn't re-probe ravensburger.org on every stable read.
 """
 
 from collections import OrderedDict
