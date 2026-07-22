@@ -331,12 +331,20 @@ final class ARGlareGuideSource: NSObject, GlareGuideSource, ARSessionDelegate {
     return quad
   }
 
+  /// A hit's estimated surface normal must be at least this vertical to
+  /// count as the puzzle's surface — cos(~30°), rejecting walls without
+  /// demanding a perfectly level estimate.
+  private static let minSurfaceNormalY: Float = 0.85
+
   /// The center's hit on the puzzle's surface: a detected plane when one
   /// exists, otherwise ARKit's estimated plane from the current frame's
   /// scene geometry. The fallback is load-bearing — over a glossy puzzle
   /// filling the view, plane *detection* can take arbitrarily long or
   /// never converge (observed in the field: tracking normal, zero plane
   /// anchors for 30+ s), while the estimate is available almost at once.
+  /// The estimate is queried unconstrained (`.any` — the alignment filter
+  /// itself was unreliable in the field) but accepted only when its
+  /// normal is near-vertical, so a wall cannot masquerade as the surface.
   /// The quad is only frozen once at the shutter, so estimate jitter does
   /// not move anchored targets.
   private func raycastSurfacePoint(from point: CGPoint) -> SIMD3<Float>? {
@@ -344,17 +352,26 @@ final class ARGlareGuideSource: NSObject, GlareGuideSource, ARSessionDelegate {
       (.existingPlaneInfinite, .horizontal),
       (.estimatedPlane, .any),
     ]
+    // Default reason; a rejected hit below records a more specific one.
+    lastRaycastFailure = "no surface hit at \(Int(point.x)),\(Int(point.y))"
     for (target, alignment) in attempts {
       guard
         let query = sceneView.raycastQuery(from: point, allowing: target, alignment: alignment),
         let hit = session.raycast(query).first
       else { continue }
+      // The result's y-axis is the surface normal. The horizontal-plane
+      // attempt is constrained already; the unconstrained estimate must
+      // prove it hit a horizontal surface, not a wall.
+      guard alignment == .horizontal || hit.worldTransform.columns.1.y > Self.minSurfaceNormalY
+      else {
+        lastRaycastFailure = "non-horizontal hit at \(Int(point.x)),\(Int(point.y))"
+        continue
+      }
       return SIMD3(
         hit.worldTransform.columns.3.x,
         hit.worldTransform.columns.3.y,
         hit.worldTransform.columns.3.z)
     }
-    lastRaycastFailure = "no surface hit at \(Int(point.x)),\(Int(point.y))"
     return nil
   }
 
