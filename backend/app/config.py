@@ -94,28 +94,24 @@ class Settings(BaseSettings):
     # never gets 429'd, while still bounding a runaway or malicious client.
     RATE_LIMIT_PREVIEW_PER_MINUTE: int = Field(default=300, ge=0)
 
-    # Ravensburger barcode lookup (GET /api/v1/puzzle/barcode/{ean}). The box
-    # image CDN (see app/services/ravensburger_client.py) serves images keyed
-    # by article number and returns a tiny placeholder (~458 bytes observed)
-    # with HTTP 200 for unknown articles, so hits are judged by payload size.
+    # Ravensburger barcode lookup (GET /api/v1/puzzle/barcode/{ean}). Product
+    # images (see app/services/ravensburger_client.py) are served as static
+    # files on www.ravensburger.org keyed by article number; misses are
+    # genuine HTTP 404s.
     #
     # Known 3-digit series prefixes for the adult line (GS1 prefix 4005555),
     # whose 8-digit article numbers aren't fully recoverable from the EAN;
     # each is probed against the CDN in order. Empirical list — a 4005555 EAN
     # that misses on all of these is logged so gaps become discoverable.
     RAVENSBURGER_SERIES_PREFIXES: list[str] = ["120", "130", "132", "150", "160", "170"]
-    # Per-request CDN timeout. Candidates are probed concurrently, so this
-    # also bounds the whole lookup's worst-case CDN wait.
+    # Per-request timeout. Candidates are probed concurrently, so this also
+    # bounds the whole lookup's worst-case wait (up to two sequential GETs
+    # per candidate: motif then box fallback).
     RAVENSBURGER_CDN_TIMEOUT_SECONDS: float = Field(default=3.0, gt=0)
-    # Requested image dimensions. NOT arbitrary: the CDN serves pre-rendered
-    # sizes only and answers every other size with the placeholder (verified
-    # live 2026-07-22: 520x445 returns real images for both 5- and 8-digit
-    # articles; 1000x850, 1040x890, 260x223 etc. all return the placeholder).
-    RAVENSBURGER_IMAGE_WIDTH: int = Field(default=520, gt=0)
-    RAVENSBURGER_IMAGE_HEIGHT: int = Field(default=445, gt=0)
-    # Responses at or below this size are treated as the "unknown article"
-    # placeholder (misses). Real box images observed at 15-45 KB.
-    RAVENSBURGER_PLACEHOLDER_MAX_BYTES: int = Field(default=2000, gt=0)
+    # Requested image size bucket (long edge). NOT arbitrary: the site serves
+    # pre-rendered buckets 75/100/240/360/1024 only and 404s every other size
+    # (verified live 2026-07-22); 1024 is the largest available.
+    RAVENSBURGER_IMAGE_SIZE: int = Field(default=1024, gt=0)
     # Per-user, guards GET /api/v1/puzzle/barcode/{ean}. The iOS client
     # debounces to at most one lookup per stable barcode read and caches
     # misses per session, so normal use is a handful of requests per minute;

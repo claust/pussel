@@ -2,8 +2,8 @@
 
 from app.services.barcode_lookup_cache import MAX_ENTRIES, BarcodeLookupCache, BarcodeLookupRecord
 
-HIT = BarcodeLookupRecord(found=True, box_image_jpeg=b"jpeg-bytes", article_number="05009")
-MISS = BarcodeLookupRecord(found=False, box_image_jpeg=None, article_number=None)
+HIT = BarcodeLookupRecord(found=True, image_jpeg=b"jpeg-bytes", image_kind="motif", article_number="05009")
+MISS = BarcodeLookupRecord(found=False, image_jpeg=None, image_kind=None, article_number=None)
 
 
 class TestBarcodeLookupCache:
