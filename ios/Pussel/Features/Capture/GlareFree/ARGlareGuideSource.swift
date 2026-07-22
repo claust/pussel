@@ -22,9 +22,13 @@ enum ARGuideGeometry {
   /// Whether a world point lies in front of the camera (ARKit cameras look
   /// along their −z axis). Projecting a behind-the-camera point yields a
   /// mirrored garbage position, so callers must filter with this first.
+  /// A dot product against the forward axis, not a matrix inverse — this
+  /// runs per projected point every AR frame, and a camera transform is
+  /// rigid, so the axis read is equivalent.
   static func isInFront(ofCameraAt transform: simd_float4x4, point: SIMD3<Float>) -> Bool {
-    let local = simd_mul(simd_inverse(transform), SIMD4(point, 1))
-    return local.z < 0
+    let position = SIMD3(transform.columns.3.x, transform.columns.3.y, transform.columns.3.z)
+    let forward = -SIMD3(transform.columns.2.x, transform.columns.2.y, transform.columns.2.z)
+    return simd_dot(point - position, forward) > 0
   }
 }
 
