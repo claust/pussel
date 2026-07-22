@@ -4,8 +4,9 @@ import UIKit
 
 /// Persistent camera session for the live box-capture screen: a manual
 /// shutter for photographing the puzzle box, plus a live low-res frame
-/// stream that feeds `BarcodeScanStreamer` so a box barcode held in view is
-/// read and looked up automatically. Device-only for the photo/streaming
+/// stream that feeds the attached `LiveFrameConsumer` — the barcode
+/// streamer on the box screen, the glare-guide tracker on the glare-free
+/// screen. Device-only for the photo/streaming
 /// path — on the Simulator `isCameraAvailable` is false and the UI falls
 /// back to PhotosPicker (the DEBUG preview loop below is the Simulator's
 /// stand-in for live frames; see `startDebugPreviewLoop`).
@@ -41,9 +42,9 @@ final class BoxCameraSession: NSObject, AVCapturePhotoCaptureDelegate {
   private let videoQueue = DispatchQueue(label: "dk.delectosoft.pussel.box-camera.video")
   /// videoQueue-confined.
   private var isStreaming = false
-  /// videoQueue-confined. `BarcodeScanStreamer` itself is thread-safe for
-  /// the calls made here (see its doc comment).
-  private weak var barcodeStreamer: BarcodeScanStreamer?
+  /// videoQueue-confined. Consumers themselves are thread-safe for the
+  /// calls made here (see `LiveFrameConsumer`).
+  private weak var frameConsumer: (any LiveFrameConsumer)?
   private static let ciContext = CIContext()
 
   /// Long side, in pixels, live frames are downscaled to before barcode
@@ -52,15 +53,17 @@ final class BoxCameraSession: NSObject, AVCapturePhotoCaptureDelegate {
   /// go straight into decode reliability at arm's length.
   private static let frameMaxLongSide: CGFloat = 1080
 
-  /// Wires the streamer this session forwards frames to. Call once after
-  /// creating the session (before `start()`), from the main actor.
-  func attachBarcodeStreamer(_ streamer: BarcodeScanStreamer) {
+  /// Wires the consumer this session forwards frames to — the barcode
+  /// streamer or the glare-guide tracker, depending on the presenting
+  /// screen. Call once after creating the session (before `start()`), from
+  /// the main actor.
+  func attachFrameConsumer(_ consumer: any LiveFrameConsumer) {
     videoQueue.async { [weak self] in
-      self?.barcodeStreamer = streamer
+      self?.frameConsumer = consumer
     }
   }
 
-  /// Starts/stops forwarding camera frames to the barcode streamer. The
+  /// Starts/stops forwarding camera frames to the frame consumer. The
   /// capture view pauses this during photo capture (see `capturePhoto()`)
   /// and while it isn't visible.
   func setStreamingEnabled(_ enabled: Bool) {
@@ -243,13 +246,13 @@ final class BoxCameraSession: NSObject, AVCapturePhotoCaptureDelegate {
 
     private func feedDebugFrame(_ ciImage: CIImage) {
       videoQueue.async { [weak self] in
-        guard let self, self.isStreaming, let barcodeStreamer = self.barcodeStreamer else {
+        guard let self, self.isStreaming, let frameConsumer = self.frameConsumer else {
           return
         }
         let now = Date()
-        guard barcodeStreamer.shouldAcceptFrame(now: now) else { return }
+        guard frameConsumer.shouldAcceptFrame(now: now) else { return }
         guard let frame = Self.downscaledFrame(ciImage: ciImage) else { return }
-        barcodeStreamer.submit(cgImage: frame, now: now)
+        frameConsumer.submit(cgImage: frame, now: now)
       }
     }
   #endif
@@ -262,14 +265,14 @@ extension BoxCameraSession: AVCaptureVideoDataOutputSampleBufferDelegate {
     _ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer,
     from connection: AVCaptureConnection
   ) {
-    guard isStreaming, let barcodeStreamer,
+    guard isStreaming, let frameConsumer,
       let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer)
     else { return }
     let now = Date()
-    guard barcodeStreamer.shouldAcceptFrame(now: now) else { return }
+    guard frameConsumer.shouldAcceptFrame(now: now) else { return }
     guard let frame = Self.downscaledFrame(ciImage: CIImage(cvPixelBuffer: pixelBuffer)) else {
       return
     }
-    barcodeStreamer.submit(cgImage: frame, now: now)
+    frameConsumer.submit(cgImage: frame, now: now)
   }
 }
