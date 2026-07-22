@@ -15,6 +15,9 @@ enum AppPhase {
 enum CaptureSource {
   case camera
   case library
+  /// Resolved automatically from a scanned box barcode (see
+  /// `BarcodeCaptureController`); "Retake" reopens the live box camera.
+  case barcodeLookup
 }
 
 /// A detect-frame result awaiting user confirmation.
@@ -38,6 +41,29 @@ struct TrimCandidate {
   var trimmedJPEG: Data? {
     ImageUtilities.decodeDataURL(detection.trimmedImage)
   }
+
+  /// Synthetic candidate for an image obtained without a detect-frame round
+  /// trip — the barcode lookup's box image is already a clean product shot,
+  /// so the whole image *is* the trim: identity corners, confidence 1.0
+  /// (suppressing the low-confidence banner), and the same JPEG as its own
+  /// zoom source (the identity re-warp is a no-op crop).
+  static func wholeImage(jpeg: Data, source: CaptureSource) -> TrimCandidate {
+    TrimCandidate(
+      rawJPEG: jpeg,
+      zoomSourceJPEG: jpeg,
+      detection: DetectFrameResponse(
+        trimmedImage: "data:image/jpeg;base64,\(jpeg.base64EncodedString())",
+        corners: QuadCorners(
+          topLeft: NormalizedPoint(x: 0, y: 0),
+          topRight: NormalizedPoint(x: 1, y: 0),
+          bottomRight: NormalizedPoint(x: 1, y: 1),
+          bottomLeft: NormalizedPoint(x: 0, y: 1)
+        ),
+        confidence: 1.0
+      ),
+      source: source
+    )
+  }
 }
 
 @Observable
@@ -50,6 +76,14 @@ final class AppFlowStore {
   /// Set when the user taps "Retake" so CapturePuzzleView reopens the same
   /// picker on appear; cleared once consumed.
   var pendingRetake: CaptureSource?
+
+  #if DEBUG
+    /// Forces CapturePuzzleView's box-camera cover open even when
+    /// `BoxCameraSession.isCameraAvailable` is false (the Simulator), so
+    /// `pusseldebug://boxcamera` can drive the barcode capture flow there —
+    /// mirrors `SolveSession.debugCameraOpen` for the piece camera.
+    var debugBoxCameraOpen = false
+  #endif
 
   func reset() {
     phase = .capturePuzzle

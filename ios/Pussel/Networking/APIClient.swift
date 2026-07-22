@@ -40,6 +40,15 @@ final class APIClient {
     return try decoder.decode(AuthResponse.self, from: data)
   }
 
+  /// Looks up the Ravensburger box image for a scanned EAN-13 barcode.
+  func lookupBarcode(ean: String) async throws -> BarcodeLookupResponse {
+    let url = baseURL.appending(path: "api/v1/puzzle/barcode/\(ean)")
+    let request = URLRequest(url: url)
+    // Reuse the authenticated send+decode path — no body, plain GET.
+    let data = try await send(request, authenticated: true)
+    return try decoder.decode(BarcodeLookupResponse.self, from: data)
+  }
+
   func detectFrame(jpegData: Data) async throws -> DetectFrameResponse {
     let request = makeMultipartRequest(
       path: "api/v1/puzzle/detect-frame", jpegData: jpegData, filename: "puzzle.jpg")

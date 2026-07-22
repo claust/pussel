@@ -257,6 +257,29 @@ final class APIClientTests: XCTestCase {
     XCTAssertEqual(response.pieces[0].edgeTypes, [.tab, .blank, .flat, .tab])
   }
 
+  func testLookupBarcodeHitsCorrectPathWithAuthenticatedGet() async throws {
+    authStore.backendToken = "barcodetoken"
+    let json =
+      #"{"found": true, "box_image": "data:image/jpeg;base64,Qk9Y", "article_number": "05009"}"#
+    StubURLProtocol.handler = { _ in (200, Data(json.utf8)) }
+    let response = try await client.lookupBarcode(ean: "4005556050093")
+    let req = try XCTUnwrap(StubURLProtocol.receivedRequests.first)
+    XCTAssertEqual(req.url?.path, "/api/v1/puzzle/barcode/4005556050093")
+    XCTAssertNotEqual(req.httpMethod, "POST")
+    XCTAssertEqual(req.value(forHTTPHeaderField: "Authorization"), "Bearer barcodetoken")
+    XCTAssertEqual(response.found, true)
+    XCTAssertEqual(response.articleNumber, "05009")
+    XCTAssertEqual(response.boxImage, "data:image/jpeg;base64,Qk9Y")
+  }
+
+  func testLookupBarcodeDecodesMissResponse() async throws {
+    authStore.backendToken = "tok"
+    let json = #"{"found": false, "box_image": null, "article_number": null}"#
+    StubURLProtocol.handler = { _ in (200, Data(json.utf8)) }
+    let response = try await client.lookupBarcode(ean: "4006381333931")
+    XCTAssertEqual(response, BarcodeLookupResponse(found: false, boxImage: nil, articleNumber: nil))
+  }
+
   // MARK: - JSON fixtures
 
   private static let geometryUploadJSON: Data = {

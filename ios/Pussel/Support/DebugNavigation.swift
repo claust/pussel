@@ -10,9 +10,13 @@
   /// Commands: trim?puzzle=, accept[?pieces=], piece?path=, reupload, reset,
   ///   open?index=, delete?index= (index into the saved-puzzles list),
   ///   camera[?open=0], previewloop?path=<host image path>[&stop=1] (M9 live
-  ///   preview overlay demo — see PieceCameraSession.startDebugPreviewLoop),
+  ///   preview overlay demo — see PieceCameraSession.startDebugPreviewLoop;
+  ///   also drives the box camera's barcode flow when that screen is open,
+  ///   see BoxCameraSession.startDebugPreviewLoop),
   ///   scan[?open=0] (M10 scan-and-lock demo — mirrors camera),
-  ///   scanconfirm (taps the M10 uncertain-confirm chip on the open scan view).
+  ///   scanconfirm (taps the M10 uncertain-confirm chip on the open scan view),
+  ///   boxcamera[?open=0] (forces the capture screen's live box-camera cover
+  ///   open, for the barcode auto-lookup flow — mirrors camera).
   /// Simulator apps can read host file paths directly. Compiled out of
   /// Release builds; the handler runs the same actions as the real UI.
   @MainActor
@@ -88,6 +92,8 @@
         debugDelete(index: value("index"))
       case "camera":
         debugCamera(open: value("open"))
+      case "boxcamera":
+        debugBoxCamera(open: value("open"))
       case "scan":
         debugScan(open: value("open"))
       case "scanconfirm":
@@ -156,14 +162,33 @@
       session.debugScanOpen = (open.flatMap(Int.init) ?? 1) != 0
     }
 
+    /// Forces the capture screen's live box-camera cover open (or closed
+    /// with `?open=0`), even on the Simulator where
+    /// `BoxCameraSession.isCameraAvailable` is false — see
+    /// `CapturePuzzleView.cameraCoverIsPresented`. Must be in the
+    /// capture-puzzle phase (`reset` gets there).
+    private func debugBoxCamera(open: String?) {
+      flow.debugBoxCameraOpen = (open.flatMap(Int.init) ?? 1) != 0
+    }
+
     /// Starts (or, with `?stop=1`, stops) a repeating fake-frame loop on the
-    /// active piece camera session, feeding `path` through the same
-    /// downscale → stream → overlay pipeline a real camera frame takes —
-    /// the Simulator's stand-in for a live camera, so M9's outline overlay
-    /// is demoable there. Requires the piece camera to already be open
-    /// (`camera`, or the real shutter screen on a device).
+    /// active live camera session, feeding `path` through the same
+    /// downscale → analyze pipeline a real camera frame takes — the
+    /// Simulator's stand-in for a live camera. Targets whichever session is
+    /// open: the piece camera (M9 overlay demo) or the box camera (barcode
+    /// auto-lookup flow). Requires that screen to already be open (`camera`
+    /// / `boxcamera`, or the real screens on a device).
     private func debugPreviewLoop(path: String?, stop: String?) {
-      guard let camera = PieceCameraSession.debugActive else { return }
+      if let camera = PieceCameraSession.debugActive {
+        if (stop.flatMap(Int.init) ?? 0) != 0 {
+          camera.stopDebugPreviewLoop()
+          return
+        }
+        guard let image = Self.hostImage(path) else { return }
+        camera.startDebugPreviewLoop(image: image)
+        return
+      }
+      guard let camera = BoxCameraSession.debugActive else { return }
       if (stop.flatMap(Int.init) ?? 0) != 0 {
         camera.stopDebugPreviewLoop()
         return

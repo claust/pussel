@@ -39,7 +39,7 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
-        NSCameraUsageDescription: Pussel uses the camera to photograph your puzzle and its pieces.
+        NSCameraUsageDescription: Pussel uses the camera to photograph your puzzle and its pieces, and to scan puzzle box barcodes.
         # Allows plain-http backends on the local network (Mac LAN IP during
         # device testing). Public hosts still require HTTPS.
         NSAppTransportSecurity:
