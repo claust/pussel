@@ -46,20 +46,22 @@ Either way the result is snapped to the puzzle's grid when one is known.
 Auth is a Google ID token exchanged for a backend JWT; most endpoints require
 the resulting `Bearer` token.
 
-| Endpoint                                         | Purpose                                        |
-| ------------------------------------------------ | ---------------------------------------------- |
-| `GET /health`                                    | Health check                                   |
-| `POST /api/v1/auth/google`                       | Exchange a Google ID token for a backend JWT   |
-| `GET /api/v1/auth/me`                            | Current user                                   |
-| `POST /api/v1/puzzle/upload`                     | Upload the assembled puzzle, get a `puzzle_id` |
-| `GET /api/v1/puzzles`                            | List stored puzzles                            |
-| `POST /api/v1/puzzle/detect-frame`               | Detect the puzzle's frame for trimming         |
-| `GET /api/v1/puzzle/barcode/{ean}`               | Look up a puzzle by barcode                    |
-| `POST /api/v1/piece/preview`                     | Live piece preview (detection only)            |
-| `POST /api/v1/puzzle/{puzzle_id}/piece`          | Match a piece → position, rotation, confidence |
-| `.../piece/geometry` (POST/GET/DELETE)           | Per-piece geometry records                     |
-| `POST /api/v1/puzzle/{puzzle_id}/generate-piece` | Generate a synthetic piece                     |
-| `POST /api/v1/puzzle/{puzzle_id}/cut-all`        | Cut the puzzle into all its pieces             |
+| Method & path                                                 | Purpose                                        |
+| ------------------------------------------------------------- | ---------------------------------------------- |
+| `GET /health`                                                 | Health check                                   |
+| `POST /api/v1/auth/google`                                    | Exchange a Google ID token for a backend JWT   |
+| `GET /api/v1/auth/me`                                         | Current user                                   |
+| `POST /api/v1/puzzle/upload`                                  | Upload the assembled puzzle, get a `puzzle_id` |
+| `GET /api/v1/puzzles`                                         | List stored puzzles                            |
+| `POST /api/v1/puzzle/detect-frame`                            | Detect the puzzle's frame for trimming         |
+| `GET /api/v1/puzzle/barcode/{ean}`                            | Look up a puzzle by barcode                    |
+| `POST /api/v1/piece/preview`                                  | Live piece preview (detection only)            |
+| `POST /api/v1/puzzle/{puzzle_id}/piece`                       | Match a piece → position, rotation, confidence |
+| `POST /api/v1/puzzle/{puzzle_id}/piece/geometry`              | Save a piece's geometry record                 |
+| `GET /api/v1/puzzle/{puzzle_id}/piece/geometry`               | List geometry records                          |
+| `DELETE /api/v1/puzzle/{puzzle_id}/piece/geometry/{piece_id}` | Delete a geometry record                       |
+| `POST /api/v1/puzzle/{puzzle_id}/generate-piece`              | Generate a synthetic piece                     |
+| `POST /api/v1/puzzle/{puzzle_id}/cut-all`                     | Cut the puzzle into all its pieces             |
 
 Uploads are capped at 10MB and must be images. The puzzle store is
 **in-memory**: a `puzzle_id` does not survive a backend restart.
