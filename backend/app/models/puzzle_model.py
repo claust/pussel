@@ -1,6 +1,6 @@
 """Data models for puzzle-related operations."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -177,7 +177,7 @@ class BarcodeLookupResponse(BaseModel):
             "this is the clean puzzle motif when available (image_kind='motif') and the box shot otherwise."
         ),
     )
-    image_kind: Optional[str] = Field(
+    image_kind: Optional[Literal["motif", "box"]] = Field(
         default=None, description="'motif' (clean puzzle artwork) or 'box' (box-shot fallback); present when found"
     )
     article_number: Optional[str] = Field(
