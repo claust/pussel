@@ -86,15 +86,3 @@ repos:
         files: ^network/.*\.py$
         pass_filenames: false
         require_serial: true
-
-  # Flutter/Dart hooks
-  - repo: https://github.com/pedrox-hs/dart-pre-commit
-    rev: v1.1.0
-    hooks:
-      - id: dart-analyze
-        files: ^frontend/.*\.dart$
-      - id: dart-format
-        files: ^frontend/.*\.dart$
-        args: ["--output=write"]
-      - id: dart-fix
-        files: ^frontend/.*\.dart$
