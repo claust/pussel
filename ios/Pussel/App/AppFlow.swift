@@ -37,6 +37,10 @@ struct TrimCandidate {
   let zoomSourceJPEG: Data?
   let detection: DetectFrameResponse
   let source: CaptureSource
+  /// Piece count OCR'd from the box shot by the barcode lookup, used to
+  /// prefill the confirm screen's piece-count field; nil for the photo
+  /// paths and for boxes the backend couldn't read.
+  var pieceCountEstimate: Int?
 
   var trimmedJPEG: Data? {
     ImageUtilities.decodeDataURL(detection.trimmedImage)
@@ -47,7 +51,9 @@ struct TrimCandidate {
   /// so the whole image *is* the trim: identity corners, confidence 1.0
   /// (suppressing the low-confidence banner), and the same JPEG as its own
   /// zoom source (the identity re-warp is a no-op crop).
-  static func wholeImage(jpeg: Data, source: CaptureSource) -> TrimCandidate {
+  static func wholeImage(jpeg: Data, source: CaptureSource, pieceCountEstimate: Int? = nil)
+    -> TrimCandidate
+  {
     TrimCandidate(
       rawJPEG: jpeg,
       zoomSourceJPEG: jpeg,
@@ -61,7 +67,8 @@ struct TrimCandidate {
         ),
         confidence: 1.0
       ),
-      source: source
+      source: source,
+      pieceCountEstimate: pieceCountEstimate
     )
   }
 }

@@ -11,8 +11,9 @@ import UIKit
 struct BoxCameraView: View {
   /// Manual shutter result — routed to the existing detect-frame path.
   let onImage: (UIImage) -> Void
-  /// Resolved barcode-lookup box JPEG — routed straight to confirm-trim.
-  let onBarcodeJPEG: (Data) -> Void
+  /// Resolved barcode-lookup box JPEG and the backend's OCR'd piece-count
+  /// estimate (nil when unreadable) — routed straight to confirm-trim.
+  let onBarcodeJPEG: (Data, Int?) -> Void
 
   @Environment(AppModel.self) private var model
   @Environment(\.dismiss) private var dismiss
@@ -49,9 +50,9 @@ struct BoxCameraView: View {
     .task {
       let controller = self.controller ?? BarcodeCaptureController(client: model.api)
       self.controller = controller
-      controller.onFound = { jpeg in
+      controller.onFound = { jpeg, pieceCountEstimate in
         dismiss()
-        onBarcodeJPEG(jpeg)
+        onBarcodeJPEG(jpeg, pieceCountEstimate)
       }
       streamer.onDetection = { [weak controller] detection in
         controller?.ingest(detection)

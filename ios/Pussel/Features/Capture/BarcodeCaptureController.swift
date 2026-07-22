@@ -36,9 +36,10 @@ final class BarcodeCaptureController {
   }
 
   private(set) var phase: Phase = .scanning
-  /// Called with the decoded box JPEG when a lookup succeeds. Set once by
-  /// the owning view.
-  var onFound: ((Data) -> Void)?
+  /// Called with the decoded box JPEG and the backend's OCR'd piece-count
+  /// estimate (nil when the box couldn't be read) when a lookup succeeds.
+  /// Set once by the owning view.
+  var onFound: ((Data, Int?) -> Void)?
 
   private let client: any BarcodeLookupClient
   private var tracker: BarcodeStabilityTracker
@@ -85,7 +86,7 @@ final class BarcodeCaptureController {
         missedEANs.insert(ean)
         return
       }
-      onFound?(jpeg)
+      onFound?(jpeg, response.pieceCountEstimate)
     } catch {
       // Transport/server error: leave the EAN retryable and stay silently
       // in photo mode, per the no-error-UI design for this flow.

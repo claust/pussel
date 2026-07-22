@@ -29,8 +29,8 @@ struct CapturePuzzleView: View {
         onImage: { image in
           Task { await handle(image: image, source: .camera) }
         },
-        onBarcodeJPEG: { jpeg in
-          model.startTrimFromBarcodeLookup(jpeg: jpeg)
+        onBarcodeJPEG: { jpeg, pieceCountEstimate in
+          model.startTrimFromBarcodeLookup(jpeg: jpeg, pieceCountEstimate: pieceCountEstimate)
         }
       )
     }
