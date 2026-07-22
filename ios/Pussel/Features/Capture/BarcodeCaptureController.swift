@@ -66,10 +66,14 @@ final class BarcodeCaptureController {
   }
 
   private func lookup(ean: String) async {
-    defer {
-      phase = .scanning
-      tracker.reset()
-    }
+    // Deliberately no tracker.reset() here: the tracker stays latched on
+    // this payload, so a barcode that never leaves the frame cannot re-fire
+    // — resetting would restart a 3-frame streak and, after a transport
+    // error, hot-loop retries at ~1/s against a dead network. The latch
+    // clears itself when the barcode leaves the frame or the payload
+    // changes (see BarcodeStabilityTracker.ingest), which is exactly the
+    // "retry on the next stable read" semantics documented above.
+    defer { phase = .scanning }
     do {
       let response = try await client.lookupBarcode(ean: ean)
       guard response.found,
