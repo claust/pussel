@@ -51,6 +51,11 @@ jobs:
           make check-backend
           make check-shared
 
+      - name: Install tesseract
+        # Powers the piece-count OCR (app/services/piece_count_estimator.py);
+        # without it those tests skip and the estimator degrades to None.
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends tesseract-ocr
+
       - name: Run tests
         working-directory: backend
         env:

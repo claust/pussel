@@ -259,8 +259,10 @@ final class APIClientTests: XCTestCase {
 
   func testLookupBarcodeHitsCorrectPathWithAuthenticatedGet() async throws {
     authStore.backendToken = "barcodetoken"
-    let json =
-      #"{"found": true, "box_image": "data:image/jpeg;base64,Qk9Y", "article_number": "05009"}"#
+    let json = #"""
+      {"found": true, "box_image": "data:image/jpeg;base64,Qk9Y",
+       "article_number": "05009", "piece_count_estimate": 1000}
+      """#
     StubURLProtocol.handler = { _ in (200, Data(json.utf8)) }
     let response = try await client.lookupBarcode(ean: "4005556050093")
     let req = try XCTUnwrap(StubURLProtocol.receivedRequests.first)
@@ -270,14 +272,20 @@ final class APIClientTests: XCTestCase {
     XCTAssertEqual(response.found, true)
     XCTAssertEqual(response.articleNumber, "05009")
     XCTAssertEqual(response.boxImage, "data:image/jpeg;base64,Qk9Y")
+    XCTAssertEqual(response.pieceCountEstimate, 1000)
   }
 
   func testLookupBarcodeDecodesMissResponse() async throws {
     authStore.backendToken = "tok"
+    // No piece_count_estimate key: pre-estimate backends must still decode.
     let json = #"{"found": false, "box_image": null, "article_number": null}"#
     StubURLProtocol.handler = { _ in (200, Data(json.utf8)) }
     let response = try await client.lookupBarcode(ean: "4006381333931")
-    XCTAssertEqual(response, BarcodeLookupResponse(found: false, boxImage: nil, articleNumber: nil))
+    XCTAssertEqual(
+      response,
+      BarcodeLookupResponse(
+        found: false, boxImage: nil, articleNumber: nil, pieceCountEstimate: nil)
+    )
   }
 
   // MARK: - JSON fixtures

@@ -48,6 +48,7 @@ from app.services.barcode_lookup_cache import BarcodeLookupRecord, get_barcode_l
 from app.services.classical_matcher import get_classical_matcher
 from app.services.grid_snap import snap_to_grid
 from app.services.image_processor import get_image_processor
+from app.services.piece_count_estimator import estimate_piece_count
 from app.services.piece_detector import get_piece_detector
 from app.services.piece_geometry.service import (
     PieceGeometryRecord,
@@ -363,9 +364,11 @@ async def lookup_barcode(ean: str) -> BarcodeLookupResponse:
     numbers from the EAN (see `app.services.ravensburger_lookup`), probes
     ravensburger.org concurrently, and returns the first real image as a
     JPEG data URL — the clean puzzle motif when the product has one, else
-    the box shot (see `image_kind`). Results — hits and misses — are
-    cached in-process so a barcode held in front of the camera doesn't
-    re-probe the site.
+    the box shot (see `image_kind`). The box shot is additionally OCR'd for
+    the printed piece count (see `app.services.piece_count_estimator`),
+    returned as `piece_count_estimate` for prefilling the piece-count input.
+    Results — hits and misses — are cached in-process so a barcode held in
+    front of the camera doesn't re-probe the site.
 
     Requires authentication and is rate-limited per-user (see the route's
     ``dependencies``); doesn't need the caller's identity beyond that.
@@ -399,6 +402,7 @@ async def lookup_barcode(ean: str) -> BarcodeLookupResponse:
         box_image=f"data:image/jpeg;base64,{image_base64}",
         image_kind=cached.image_kind,
         article_number=cached.article_number,
+        piece_count_estimate=cached.piece_count,
     )
 
 
@@ -430,8 +434,18 @@ async def _resolve_barcode(ean: str) -> BarcodeLookupRecord:
             continue
         buffer = io.BytesIO()
         image.save(buffer, format="JPEG", quality=90)
+        # The piece count is printed on the box shot only, so when the motif
+        # won the display slot the box is fetched separately just for OCR.
+        box_jpeg = fetched.content if fetched.kind == "box" else await client.fetch_box_image(candidate)
+        piece_count = None
+        if box_jpeg is not None:
+            piece_count = await asyncio.to_thread(estimate_piece_count, box_jpeg)
         return BarcodeLookupRecord(
-            found=True, image_jpeg=buffer.getvalue(), image_kind=fetched.kind, article_number=candidate
+            found=True,
+            image_jpeg=buffer.getvalue(),
+            image_kind=fetched.kind,
+            article_number=candidate,
+            piece_count=piece_count,
         )
 
     if ean.startswith(RAVENSBURGER_ADULT_PREFIX):

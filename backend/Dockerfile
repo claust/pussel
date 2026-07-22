@@ -1,5 +1,12 @@
 FROM python:3.12-slim
 
+# tesseract powers the barcode lookup's piece-count OCR
+# (app/services/piece_count_estimator.py); without it the estimator
+# gracefully returns no estimate.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends tesseract-ocr \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 COPY requirements.txt .

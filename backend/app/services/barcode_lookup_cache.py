@@ -28,12 +28,15 @@ class BarcodeLookupRecord:
         image_kind: "motif" (clean puzzle artwork) or "box" when found,
             else None.
         article_number: The resolved article number when found, else None.
+        piece_count: The piece count OCR'd from the box shot (see
+            `app.services.piece_count_estimator`), or None when unreadable.
     """
 
     found: bool
     image_jpeg: Optional[bytes]
     image_kind: Optional[ImageKind]
     article_number: Optional[str]
+    piece_count: Optional[int] = None
 
 
 class BarcodeLookupCache:
