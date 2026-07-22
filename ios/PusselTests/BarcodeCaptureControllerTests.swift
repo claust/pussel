@@ -30,15 +30,19 @@ final class FakeBarcodeLookupClient: BarcodeLookupClient {
 private let frozenEAN = "4005556050093"
 private let boxJPEG = Data("box-jpeg-bytes".utf8)
 
-private func foundResponse(jpeg: Data = boxJPEG) -> BarcodeLookupResponse {
+private func foundResponse(jpeg: Data = boxJPEG, pieceCountEstimate: Int? = nil)
+  -> BarcodeLookupResponse
+{
   BarcodeLookupResponse(
     found: true,
     boxImage: "data:image/jpeg;base64,\(jpeg.base64EncodedString())",
-    articleNumber: "05009"
+    articleNumber: "05009",
+    pieceCountEstimate: pieceCountEstimate
   )
 }
 
-private let missResponse = BarcodeLookupResponse(found: false, boxImage: nil, articleNumber: nil)
+private let missResponse = BarcodeLookupResponse(
+  found: false, boxImage: nil, articleNumber: nil, pieceCountEstimate: nil)
 
 private func detection(_ payload: String) -> EAN13Detection {
   EAN13Detection(payload: payload, boundingBox: CGRect(x: 0.2, y: 0.4, width: 0.5, height: 0.15))
@@ -65,12 +69,16 @@ final class BarcodeCaptureControllerTests: XCTestCase {
     )
     // Reference type so the closure and the test observe the same array.
     let found = FoundRecorder()
-    controller.onFound = { found.jpegs.append($0) }
+    controller.onFound = { jpeg, estimate in
+      found.jpegs.append(jpeg)
+      found.estimates.append(estimate)
+    }
     return (controller, { found.jpegs })
   }
 
   private final class FoundRecorder {
     var jpegs: [Data] = []
+    var estimates: [Int?] = []
   }
 
   func testLookupFiresOnlyAfterStableRead() async {
@@ -99,6 +107,24 @@ final class BarcodeCaptureControllerTests: XCTestCase {
 
     XCTAssertEqual(capturedJPEGs(), [boxJPEG])
     XCTAssertEqual(controller.phase, .scanning)
+  }
+
+  func testFoundResponseDeliversPieceCountEstimate() async {
+    let client = FakeBarcodeLookupClient()
+    client.lookupResponses = [.success(foundResponse(pieceCountEstimate: 1000))]
+    let controller = BarcodeCaptureController(
+      client: client, tracker: BarcodeStabilityTracker(requiredConsecutiveHits: 3))
+    let found = FoundRecorder()
+    controller.onFound = { jpeg, estimate in
+      found.jpegs.append(jpeg)
+      found.estimates.append(estimate)
+    }
+
+    for _ in 0..<3 { controller.ingest(detection(frozenEAN)) }
+    await settle()
+
+    XCTAssertEqual(found.estimates, [1000])
+    XCTAssertEqual(found.jpegs, [boxJPEG])
   }
 
   func testMissBlacklistsEANForTheSession() async {
@@ -175,7 +201,9 @@ final class BarcodeCaptureControllerTests: XCTestCase {
   func testUndecodableImageInFoundResponseIsTreatedAsMiss() async {
     let client = FakeBarcodeLookupClient()
     client.lookupResponses = [
-      .success(BarcodeLookupResponse(found: true, boxImage: nil, articleNumber: "05009"))
+      .success(
+        BarcodeLookupResponse(
+          found: true, boxImage: nil, articleNumber: "05009", pieceCountEstimate: nil))
     ]
     let (controller, capturedJPEGs) = makeController(client: client)
 

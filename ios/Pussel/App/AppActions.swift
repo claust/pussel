@@ -55,10 +55,13 @@ extension AppModel {
   /// No detect-frame round trip: the backend's box image is already a clean
   /// straight-on product shot, so the whole image is the trim (see
   /// `TrimCandidate.wholeImage`); the user still rotates/crops and sets the
-  /// piece count on the confirm screen as usual.
-  func startTrimFromBarcodeLookup(jpeg: Data) {
+  /// piece count on the confirm screen as usual — `pieceCountEstimate` (the
+  /// count the backend OCR'd off the box shot, when readable) only prefills
+  /// that field.
+  func startTrimFromBarcodeLookup(jpeg: Data, pieceCountEstimate: Int? = nil) {
     flow.errorMessage = nil
-    flow.phase = .confirmTrim(.wholeImage(jpeg: jpeg, source: .barcodeLookup))
+    flow.phase = .confirmTrim(
+      .wholeImage(jpeg: jpeg, source: .barcodeLookup, pieceCountEstimate: pieceCountEstimate))
   }
 
   /// Uploads the accepted trimmed image and starts a solve session. Any
