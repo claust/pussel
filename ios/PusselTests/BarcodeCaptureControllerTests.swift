@@ -154,6 +154,24 @@ final class BarcodeCaptureControllerTests: XCTestCase {
     XCTAssertEqual(capturedJPEGs(), [boxJPEG])
   }
 
+  func testTransportErrorWithBarcodeStillInFrameDoesNotHotRetry() async {
+    let client = FakeBarcodeLookupClient()
+    client.lookupResponses = [.failure(APIError(message: "offline", status: nil))]
+    let (controller, _) = makeController(client: client)
+
+    for _ in 0..<3 { controller.ingest(detection(frozenEAN)) }
+    await settle()
+    XCTAssertEqual(client.lookupCallCount, 1)
+
+    // The barcode never leaves the frame: continued stable reads must not
+    // re-fire the lookup — the tracker stays latched on this payload, so a
+    // dead network isn't hammered with retries (regression: a post-lookup
+    // tracker reset restarted the streak and re-fired every 3 frames).
+    for _ in 0..<10 { controller.ingest(detection(frozenEAN)) }
+    await settle()
+    XCTAssertEqual(client.lookupCallCount, 1)
+  }
+
   func testUndecodableImageInFoundResponseIsTreatedAsMiss() async {
     let client = FakeBarcodeLookupClient()
     client.lookupResponses = [
