@@ -57,7 +57,7 @@ struct BoxCameraView: View {
       streamer.onDetection = { [weak controller] detection in
         controller?.ingest(detection)
       }
-      camera.attachBarcodeStreamer(streamer)
+      camera.attachFrameConsumer(streamer)
       let started = await camera.start()
       // Dismissed while the permission prompt was up — the user left on
       // purpose, so there is nothing to complain about.
