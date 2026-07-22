@@ -15,7 +15,10 @@ final class PieceRotationTests: XCTestCase {
       rotation: rotation,
       rotationConfidence: 0.9,
       cleanedImage: nil,
-      pieceSpan: nil
+      pieceSpan: nil,
+      gridRow: nil,
+      gridCol: nil,
+      snappedPosition: nil
     )
   }
 

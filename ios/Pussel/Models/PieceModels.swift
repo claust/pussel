@@ -23,6 +23,13 @@ struct PieceResponse: Codable, Equatable {
   /// Measured size of the full piece image frame, when available. See
   /// `PieceSpan`.
   let pieceSpan: PieceSpan?
+  /// 0-based grid cell nearest to the prediction; nil when the backend didn't
+  /// know the puzzle's grid (and for results stored before these fields).
+  let gridRow: Int?
+  let gridCol: Int?
+  /// Center of the (gridRow, gridCol) cell — always inside the puzzle, unlike
+  /// the raw `position`, which can spill past the edge for border pieces.
+  let snappedPosition: NormalizedPoint?
 }
 
 extension PieceResponse {
@@ -37,6 +44,12 @@ extension PieceResponse {
   var uprightRotationDegrees: Double {
     let degrees = (360 - rotation % 360) % 360
     return Double(degrees > 180 ? degrees - 360 : degrees)
+  }
+
+  /// Where to draw the piece on the puzzle: the grid-snapped cell center when
+  /// the backend provided one, otherwise the raw prediction.
+  var displayPosition: NormalizedPoint {
+    snappedPosition ?? position
   }
 }
 

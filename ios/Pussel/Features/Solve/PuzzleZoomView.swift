@@ -69,7 +69,7 @@ struct PuzzleZoomView: View {
       return nil
     }
     return PuzzleFocusGeometry.focusRect(
-      position: CGPoint(x: piece.position.x, y: piece.position.y),
+      position: CGPoint(x: piece.displayPosition.x, y: piece.displayPosition.y),
       rows: session.rows,
       cols: session.cols)
   }
