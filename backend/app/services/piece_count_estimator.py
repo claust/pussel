@@ -12,8 +12,9 @@ keeps tokens that exactly match a piece count Ravensburger actually sells
 The tallest such token wins — the count is always the biggest number on the
 box, which is what beats look-alike numerals like the "Since 1891" tagline,
 age badges, and centimetre dimensions. Validated against 21 live box shots
-(20 correct, 1 conservative None, 0 wrong guesses): misses return None
-rather than a wrong guess, so the app's piece-count field just stays empty.
+(19 matching the expected label, 2 conservative Nones, 0 wrong guesses):
+an unreadable box returns None rather than a wrong guess, so the app's
+piece-count field just stays empty.
 
 Tesseract is invoked via subprocess (no extra Python dependency); when the
 binary is not installed the estimator degrades to always returning None.
