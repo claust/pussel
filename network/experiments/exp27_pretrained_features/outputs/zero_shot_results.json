@@ -1,0 +1,491 @@
+{
+  "probe": "exp27 stage 0: zero-shot frozen DINOv2 features, no training",
+  "model": "vit_small_patch14_dinov2.lvd142m",
+  "n_samples": 3776,
+  "protocol": {
+    "piece_prep": "exp25 cache (bbox crop -> rembg -> largest component on black -> pad square)",
+    "piece_side": 224,
+    "puzzle_side": 448,
+    "dense_scales": [
+      1.0,
+      1.25,
+      1.5
+    ],
+    "rotation": "encode 4 rotated piece images; best net rotation r*; pred for applied a = (a - r*) % 4",
+    "cell_binning": "peak window center normalized to cropped overview, row-major rows x cols grid"
+  },
+  "exp25_reference_both_accuracy": {
+    "sift_else_ncc": 0.767,
+    "ncc": 0.489,
+    "cnn_rotsearch": 0.18,
+    "cnn": 0.148
+  },
+  "methods": {
+    "dino_mean": {
+      "overall": {
+        "n_samples": 3776,
+        "coverage": 1.0,
+        "cell_accuracy": 0.2531779661016949,
+        "rotation_accuracy": 0.5201271186440678,
+        "both_accuracy": 0.18008474576271186,
+        "cell_accuracy_covered": 0.2531779661016949,
+        "rotation_accuracy_covered": 0.5201271186440678,
+        "both_accuracy_covered": 0.18008474576271186
+      },
+      "grid_4x4_subset": {
+        "n_samples": 512,
+        "coverage": 1.0,
+        "cell_accuracy": 0.2421875,
+        "rotation_accuracy": 0.4375,
+        "both_accuracy": 0.125,
+        "cell_accuracy_covered": 0.2421875,
+        "rotation_accuracy_covered": 0.4375,
+        "both_accuracy_covered": 0.125
+      },
+      "per_background": {
+        "red_carpet": {
+          "n_samples": 944,
+          "coverage": 1.0,
+          "cell_accuracy": 0.2330508474576271,
+          "rotation_accuracy": 0.5084745762711864,
+          "both_accuracy": 0.1652542372881356,
+          "cell_accuracy_covered": 0.2330508474576271,
+          "rotation_accuracy_covered": 0.5084745762711864,
+          "both_accuracy_covered": 0.1652542372881356
+        },
+        "gray_fabric": {
+          "n_samples": 944,
+          "coverage": 1.0,
+          "cell_accuracy": 0.2754237288135593,
+          "rotation_accuracy": 0.5296610169491526,
+          "both_accuracy": 0.19491525423728814,
+          "cell_accuracy_covered": 0.2754237288135593,
+          "rotation_accuracy_covered": 0.5296610169491526,
+          "both_accuracy_covered": 0.19491525423728814
+        },
+        "cardboard": {
+          "n_samples": 944,
+          "coverage": 1.0,
+          "cell_accuracy": 0.2754237288135593,
+          "rotation_accuracy": 0.5466101694915254,
+          "both_accuracy": 0.2076271186440678,
+          "cell_accuracy_covered": 0.2754237288135593,
+          "rotation_accuracy_covered": 0.5466101694915254,
+          "both_accuracy_covered": 0.2076271186440678
+        },
+        "wood": {
+          "n_samples": 944,
+          "coverage": 1.0,
+          "cell_accuracy": 0.2288135593220339,
+          "rotation_accuracy": 0.4957627118644068,
+          "both_accuracy": 0.15254237288135594,
+          "cell_accuracy_covered": 0.2288135593220339,
+          "rotation_accuracy_covered": 0.4957627118644068,
+          "both_accuracy_covered": 0.15254237288135594
+        }
+      },
+      "per_puzzle": {
+        "puzzle01_frozen_scene": {
+          "n_samples": 192,
+          "coverage": 1.0,
+          "cell_accuracy": 0.22916666666666666,
+          "rotation_accuracy": 0.625,
+          "both_accuracy": 0.20833333333333334,
+          "cell_accuracy_covered": 0.22916666666666666,
+          "rotation_accuracy_covered": 0.625,
+          "both_accuracy_covered": 0.20833333333333334
+        },
+        "puzzle02_frozen_closeup": {
+          "n_samples": 192,
+          "coverage": 1.0,
+          "cell_accuracy": 0.5,
+          "rotation_accuracy": 0.7916666666666666,
+          "both_accuracy": 0.4375,
+          "cell_accuracy_covered": 0.5,
+          "rotation_accuracy_covered": 0.7916666666666666,
+          "both_accuracy_covered": 0.4375
+        },
+        "puzzle03_dumbo": {
+          "n_samples": 192,
+          "coverage": 1.0,
+          "cell_accuracy": 0.3333333333333333,
+          "rotation_accuracy": 0.4375,
+          "both_accuracy": 0.22916666666666666,
+          "cell_accuracy_covered": 0.3333333333333333,
+          "rotation_accuracy_covered": 0.4375,
+          "both_accuracy_covered": 0.22916666666666666
+        },
+        "puzzle04_bambi": {
+          "n_samples": 256,
+          "coverage": 1.0,
+          "cell_accuracy": 0.203125,
+          "rotation_accuracy": 0.484375,
+          "both_accuracy": 0.140625,
+          "cell_accuracy_covered": 0.203125,
+          "rotation_accuracy_covered": 0.484375,
+          "both_accuracy_covered": 0.140625
+        },
+        "puzzle05_lion_king": {
+          "n_samples": 400,
+          "coverage": 1.0,
+          "cell_accuracy": 0.23,
+          "rotation_accuracy": 0.47,
+          "both_accuracy": 0.17,
+          "cell_accuracy_covered": 0.23,
+          "rotation_accuracy_covered": 0.47,
+          "both_accuracy_covered": 0.17
+        },
+        "puzzle06_jungle_book": {
+          "n_samples": 320,
+          "coverage": 1.0,
+          "cell_accuracy": 0.175,
+          "rotation_accuracy": 0.3375,
+          "both_accuracy": 0.1,
+          "cell_accuracy_covered": 0.175,
+          "rotation_accuracy_covered": 0.3375,
+          "both_accuracy_covered": 0.1
+        },
+        "puzzle07_peppa_kitchen": {
+          "n_samples": 96,
+          "coverage": 1.0,
+          "cell_accuracy": 0.5833333333333334,
+          "rotation_accuracy": 0.7083333333333334,
+          "both_accuracy": 0.5,
+          "cell_accuracy_covered": 0.5833333333333334,
+          "rotation_accuracy_covered": 0.7083333333333334,
+          "both_accuracy_covered": 0.5
+        },
+        "puzzle08_peppa_forest": {
+          "n_samples": 192,
+          "coverage": 1.0,
+          "cell_accuracy": 0.3125,
+          "rotation_accuracy": 0.3541666666666667,
+          "both_accuracy": 0.20833333333333334,
+          "cell_accuracy_covered": 0.3125,
+          "rotation_accuracy_covered": 0.3541666666666667,
+          "both_accuracy_covered": 0.20833333333333334
+        },
+        "puzzle09_peppa_aquarium": {
+          "n_samples": 144,
+          "coverage": 1.0,
+          "cell_accuracy": 0.25,
+          "rotation_accuracy": 0.3888888888888889,
+          "both_accuracy": 0.16666666666666666,
+          "cell_accuracy_covered": 0.25,
+          "rotation_accuracy_covered": 0.3888888888888889,
+          "both_accuracy_covered": 0.16666666666666666
+        },
+        "puzzle10_peppa_family": {
+          "n_samples": 256,
+          "coverage": 1.0,
+          "cell_accuracy": 0.28125,
+          "rotation_accuracy": 0.390625,
+          "both_accuracy": 0.109375,
+          "cell_accuracy_covered": 0.28125,
+          "rotation_accuracy_covered": 0.390625,
+          "both_accuracy_covered": 0.109375
+        },
+        "puzzle11_paw_patrol_a": {
+          "n_samples": 384,
+          "coverage": 1.0,
+          "cell_accuracy": 0.3229166666666667,
+          "rotation_accuracy": 0.6041666666666666,
+          "both_accuracy": 0.21875,
+          "cell_accuracy_covered": 0.3229166666666667,
+          "rotation_accuracy_covered": 0.6041666666666666,
+          "both_accuracy_covered": 0.21875
+        },
+        "puzzle12_paw_patrol_b": {
+          "n_samples": 384,
+          "coverage": 1.0,
+          "cell_accuracy": 0.19791666666666666,
+          "rotation_accuracy": 0.65625,
+          "both_accuracy": 0.17708333333333334,
+          "cell_accuracy_covered": 0.19791666666666666,
+          "rotation_accuracy_covered": 0.65625,
+          "both_accuracy_covered": 0.17708333333333334
+        },
+        "puzzle13_unicorn_pink": {
+          "n_samples": 384,
+          "coverage": 1.0,
+          "cell_accuracy": 0.13541666666666666,
+          "rotation_accuracy": 0.6145833333333334,
+          "both_accuracy": 0.09375,
+          "cell_accuracy_covered": 0.13541666666666666,
+          "rotation_accuracy_covered": 0.6145833333333334,
+          "both_accuracy_covered": 0.09375
+        },
+        "puzzle14_unicorn_night": {
+          "n_samples": 384,
+          "coverage": 1.0,
+          "cell_accuracy": 0.19791666666666666,
+          "rotation_accuracy": 0.4583333333333333,
+          "both_accuracy": 0.125,
+          "cell_accuracy_covered": 0.19791666666666666,
+          "rotation_accuracy_covered": 0.4583333333333333,
+          "both_accuracy_covered": 0.125
+        }
+      },
+      "rotation_confusion_true_x_pred": [
+        [
+          491,
+          133,
+          179,
+          141
+        ],
+        [
+          141,
+          491,
+          133,
+          179
+        ],
+        [
+          179,
+          141,
+          491,
+          133
+        ],
+        [
+          133,
+          179,
+          141,
+          491
+        ]
+      ],
+      "runtime_ms_per_sample": 23.05043973993341
+    },
+    "dino_dense": {
+      "overall": {
+        "n_samples": 3776,
+        "coverage": 1.0,
+        "cell_accuracy": 0.5211864406779662,
+        "rotation_accuracy": 0.701271186440678,
+        "both_accuracy": 0.4915254237288136,
+        "cell_accuracy_covered": 0.5211864406779662,
+        "rotation_accuracy_covered": 0.701271186440678,
+        "both_accuracy_covered": 0.4915254237288136
+      },
+      "grid_4x4_subset": {
+        "n_samples": 512,
+        "coverage": 1.0,
+        "cell_accuracy": 0.5703125,
+        "rotation_accuracy": 0.6875,
+        "both_accuracy": 0.53125,
+        "cell_accuracy_covered": 0.5703125,
+        "rotation_accuracy_covered": 0.6875,
+        "both_accuracy_covered": 0.53125
+      },
+      "per_background": {
+        "red_carpet": {
+          "n_samples": 944,
+          "coverage": 1.0,
+          "cell_accuracy": 0.5338983050847458,
+          "rotation_accuracy": 0.690677966101695,
+          "both_accuracy": 0.4957627118644068,
+          "cell_accuracy_covered": 0.5338983050847458,
+          "rotation_accuracy_covered": 0.690677966101695,
+          "both_accuracy_covered": 0.4957627118644068
+        },
+        "gray_fabric": {
+          "n_samples": 944,
+          "coverage": 1.0,
+          "cell_accuracy": 0.5211864406779662,
+          "rotation_accuracy": 0.711864406779661,
+          "both_accuracy": 0.4915254237288136,
+          "cell_accuracy_covered": 0.5211864406779662,
+          "rotation_accuracy_covered": 0.711864406779661,
+          "both_accuracy_covered": 0.4915254237288136
+        },
+        "cardboard": {
+          "n_samples": 944,
+          "coverage": 1.0,
+          "cell_accuracy": 0.5211864406779662,
+          "rotation_accuracy": 0.6991525423728814,
+          "both_accuracy": 0.5084745762711864,
+          "cell_accuracy_covered": 0.5211864406779662,
+          "rotation_accuracy_covered": 0.6991525423728814,
+          "both_accuracy_covered": 0.5084745762711864
+        },
+        "wood": {
+          "n_samples": 944,
+          "coverage": 1.0,
+          "cell_accuracy": 0.5084745762711864,
+          "rotation_accuracy": 0.7033898305084746,
+          "both_accuracy": 0.4703389830508475,
+          "cell_accuracy_covered": 0.5084745762711864,
+          "rotation_accuracy_covered": 0.7033898305084746,
+          "both_accuracy_covered": 0.4703389830508475
+        }
+      },
+      "per_puzzle": {
+        "puzzle01_frozen_scene": {
+          "n_samples": 192,
+          "coverage": 1.0,
+          "cell_accuracy": 0.20833333333333334,
+          "rotation_accuracy": 0.7708333333333334,
+          "both_accuracy": 0.20833333333333334,
+          "cell_accuracy_covered": 0.20833333333333334,
+          "rotation_accuracy_covered": 0.7708333333333334,
+          "both_accuracy_covered": 0.20833333333333334
+        },
+        "puzzle02_frozen_closeup": {
+          "n_samples": 192,
+          "coverage": 1.0,
+          "cell_accuracy": 0.9166666666666666,
+          "rotation_accuracy": 0.9791666666666666,
+          "both_accuracy": 0.9166666666666666,
+          "cell_accuracy_covered": 0.9166666666666666,
+          "rotation_accuracy_covered": 0.9791666666666666,
+          "both_accuracy_covered": 0.9166666666666666
+        },
+        "puzzle03_dumbo": {
+          "n_samples": 192,
+          "coverage": 1.0,
+          "cell_accuracy": 0.7916666666666666,
+          "rotation_accuracy": 0.8125,
+          "both_accuracy": 0.7291666666666666,
+          "cell_accuracy_covered": 0.7916666666666666,
+          "rotation_accuracy_covered": 0.8125,
+          "both_accuracy_covered": 0.7291666666666666
+        },
+        "puzzle04_bambi": {
+          "n_samples": 256,
+          "coverage": 1.0,
+          "cell_accuracy": 0.453125,
+          "rotation_accuracy": 0.59375,
+          "both_accuracy": 0.390625,
+          "cell_accuracy_covered": 0.453125,
+          "rotation_accuracy_covered": 0.59375,
+          "both_accuracy_covered": 0.390625
+        },
+        "puzzle05_lion_king": {
+          "n_samples": 400,
+          "coverage": 1.0,
+          "cell_accuracy": 0.41,
+          "rotation_accuracy": 0.54,
+          "both_accuracy": 0.36,
+          "cell_accuracy_covered": 0.41,
+          "rotation_accuracy_covered": 0.54,
+          "both_accuracy_covered": 0.36
+        },
+        "puzzle06_jungle_book": {
+          "n_samples": 320,
+          "coverage": 1.0,
+          "cell_accuracy": 0.45,
+          "rotation_accuracy": 0.4625,
+          "both_accuracy": 0.3875,
+          "cell_accuracy_covered": 0.45,
+          "rotation_accuracy_covered": 0.4625,
+          "both_accuracy_covered": 0.3875
+        },
+        "puzzle07_peppa_kitchen": {
+          "n_samples": 96,
+          "coverage": 1.0,
+          "cell_accuracy": 0.875,
+          "rotation_accuracy": 0.875,
+          "both_accuracy": 0.875,
+          "cell_accuracy_covered": 0.875,
+          "rotation_accuracy_covered": 0.875,
+          "both_accuracy_covered": 0.875
+        },
+        "puzzle08_peppa_forest": {
+          "n_samples": 192,
+          "coverage": 1.0,
+          "cell_accuracy": 0.5416666666666666,
+          "rotation_accuracy": 0.5833333333333334,
+          "both_accuracy": 0.5416666666666666,
+          "cell_accuracy_covered": 0.5416666666666666,
+          "rotation_accuracy_covered": 0.5833333333333334,
+          "both_accuracy_covered": 0.5416666666666666
+        },
+        "puzzle09_peppa_aquarium": {
+          "n_samples": 144,
+          "coverage": 1.0,
+          "cell_accuracy": 0.9722222222222222,
+          "rotation_accuracy": 0.9444444444444444,
+          "both_accuracy": 0.9444444444444444,
+          "cell_accuracy_covered": 0.9722222222222222,
+          "rotation_accuracy_covered": 0.9444444444444444,
+          "both_accuracy_covered": 0.9444444444444444
+        },
+        "puzzle10_peppa_family": {
+          "n_samples": 256,
+          "coverage": 1.0,
+          "cell_accuracy": 0.6875,
+          "rotation_accuracy": 0.78125,
+          "both_accuracy": 0.671875,
+          "cell_accuracy_covered": 0.6875,
+          "rotation_accuracy_covered": 0.78125,
+          "both_accuracy_covered": 0.671875
+        },
+        "puzzle11_paw_patrol_a": {
+          "n_samples": 384,
+          "coverage": 1.0,
+          "cell_accuracy": 0.6666666666666666,
+          "rotation_accuracy": 0.8125,
+          "both_accuracy": 0.6041666666666666,
+          "cell_accuracy_covered": 0.6666666666666666,
+          "rotation_accuracy_covered": 0.8125,
+          "both_accuracy_covered": 0.6041666666666666
+        },
+        "puzzle12_paw_patrol_b": {
+          "n_samples": 384,
+          "coverage": 1.0,
+          "cell_accuracy": 0.6770833333333334,
+          "rotation_accuracy": 0.9166666666666666,
+          "both_accuracy": 0.6770833333333334,
+          "cell_accuracy_covered": 0.6770833333333334,
+          "rotation_accuracy_covered": 0.9166666666666666,
+          "both_accuracy_covered": 0.6770833333333334
+        },
+        "puzzle13_unicorn_pink": {
+          "n_samples": 384,
+          "coverage": 1.0,
+          "cell_accuracy": 0.11458333333333333,
+          "rotation_accuracy": 0.5729166666666666,
+          "both_accuracy": 0.09375,
+          "cell_accuracy_covered": 0.11458333333333333,
+          "rotation_accuracy_covered": 0.5729166666666666,
+          "both_accuracy_covered": 0.09375
+        },
+        "puzzle14_unicorn_night": {
+          "n_samples": 384,
+          "coverage": 1.0,
+          "cell_accuracy": 0.2916666666666667,
+          "rotation_accuracy": 0.5833333333333334,
+          "both_accuracy": 0.28125,
+          "cell_accuracy_covered": 0.2916666666666667,
+          "rotation_accuracy_covered": 0.5833333333333334,
+          "both_accuracy_covered": 0.28125
+        }
+      },
+      "rotation_confusion_true_x_pred": [
+        [
+          662,
+          86,
+          113,
+          83
+        ],
+        [
+          83,
+          662,
+          86,
+          113
+        ],
+        [
+          113,
+          83,
+          662,
+          86
+        ],
+        [
+          86,
+          113,
+          83,
+          662
+        ]
+      ],
+      "runtime_ms_per_sample": 23.05043973993341
+    }
+  }
+}
