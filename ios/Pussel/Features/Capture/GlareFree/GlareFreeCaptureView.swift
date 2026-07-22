@@ -1,18 +1,20 @@
+import ARKit
 import SwiftUI
 import UIKit
 
 /// Guided five-shot glare-free capture of the full puzzle, presented from
 /// CapturePuzzleView. The user photographs the puzzle once from the
-/// center; after that the guide dot is anchored to a fixed spot *on the
-/// puzzle* (live-tracked by `GlareGuideTracker`), and each corner shot
-/// fires automatically once the user has steered that spot into the
-/// screen-center ring and held it there. `GlareFreeComposer` then fuses
-/// the burst into one glare-free image that continues down the normal
-/// detect-frame path via `onImage`.
+/// center; after that each corner shot fires automatically once the
+/// current target has been steered into the screen-center ring and held
+/// there. `GlareFreeComposer` then fuses the burst into one glare-free
+/// image that continues down the normal detect-frame path via `onImage`.
 ///
-/// Reuses `BoxCameraSession` with the tracker attached as its live frame
-/// consumer — the "third live-camera screen" the session's extraction
-/// note anticipated.
+/// Guidance comes from one of two `GlareGuideSource` backends: on devices,
+/// `ARGlareGuideSource` world-anchors the puzzle outline and all four
+/// corner targets over an AR preview; on the Simulator (no ARKit),
+/// `GlareGuideTracker` live-registers `BoxCameraSession` frames against
+/// the center shot and moves a single dot — which keeps the
+/// `pusseldebug://previewloop` E2E flow working.
 struct GlareFreeCaptureView: View {
   /// The composite (or, if no frames registered, the center shot) — routed
   /// to the existing detect-frame path.
@@ -22,13 +24,25 @@ struct GlareFreeCaptureView: View {
   @Environment(\.dismiss) private var dismiss
   @State private var camera = BoxCameraSession()
   @State private var tracker = GlareGuideTracker()
+  @State private var arSource: ARGlareGuideSource?
   @State private var controller: GlareFreeCaptureController?
+
+  /// The active guidance backend — AR once `startSession` chose it, the
+  /// registration tracker otherwise.
+  private var guideSource: any GlareGuideSource {
+    if let arSource { arSource } else { tracker }
+  }
 
   var body: some View {
     ZStack {
       Color.black.ignoresSafeArea()
-      BoxCameraPreview(session: camera.session)
-        .ignoresSafeArea()
+      if let arSource {
+        ARGuidePreview(source: arSource)
+          .ignoresSafeArea()
+      } else {
+        BoxCameraPreview(session: camera.session)
+          .ignoresSafeArea()
+      }
       guidanceOverlay
     }
     .overlay(alignment: .top) { topBar }
@@ -36,6 +50,7 @@ struct GlareFreeCaptureView: View {
     .task { await startSession() }
     .onDisappear {
       camera.stop()
+      arSource?.pause()
       #if DEBUG
         if GlareFreeCaptureController.debugActive === controller {
           GlareFreeCaptureController.debugActive = nil
@@ -45,18 +60,16 @@ struct GlareFreeCaptureView: View {
     .onChange(of: controller?.phase) { _, phase in
       switch phase {
       case .capturing(step: 0):
-        // Back at the start (restart after a failure) — stop tracking
+        // Back at the start (restart after a failure) — stop guiding
         // until a new reference is taken.
-        tracker.clearReference()
+        guideSource.stopGuiding()
       case .capturing(let step):
-        // The center shot just landed — it becomes the tracking reference
-        // for the corner steps.
+        // The center shot just landed — the guide source starts guiding
+        // from it (registration reference, or the frozen AR world quad).
         if step == 1, let reference = controller?.referenceShot {
-          tracker.setReference(reference)
+          guideSource.beginGuiding(reference: reference)
         }
-        // Tell the tracker where this step steers the content, so it can
-        // use the expectation as a registration prior.
-        tracker.setExpectedOffset(GlareFreeCaptureController.expectedShift(step: step))
+        guideSource.setActiveStep(step)
       case .done:
         guard let composite = controller?.composite else { return }
         dismiss()
@@ -73,6 +86,40 @@ struct GlareFreeCaptureView: View {
   }
 
   private func startSession() async {
+    if ARGlareGuideSource.isSupported {
+      startARSession()
+    } else {
+      await startRegistrationSession()
+    }
+  }
+
+  /// The device path: ARKit world tracking supplies both the guidance and
+  /// the photos, so `BoxCameraSession` stays idle.
+  private func startARSession() {
+    let source = arSource ?? ARGlareGuideSource()
+    arSource = source
+    let controller =
+      self.controller
+      ?? GlareFreeCaptureController(capture: { [weak source] in
+        await source?.captureStill()
+      })
+    self.controller = controller
+    #if DEBUG
+      GlareFreeCaptureController.debugActive = controller
+    #endif
+    source.onUpdate = { update in
+      controller.ingestGuide(update)
+    }
+    source.onFailure = { message in
+      model.flow.errorMessage = message
+      dismiss()
+    }
+    source.run()
+  }
+
+  /// The Simulator/E2E fallback: `GlareGuideTracker` registers the camera
+  /// session's live frames against the center shot.
+  private func startRegistrationSession() async {
     let controller =
       self.controller
       ?? GlareFreeCaptureController(capture: { [camera] in
@@ -108,14 +155,17 @@ struct GlareFreeCaptureView: View {
 
   /// The guide graphics over the preview. While aiming the reference shot
   /// the pulsing dot simply marks the screen center; on the corner steps a
-  /// fixed ring marks the target and the dot moves with the puzzle — the
-  /// tracker pins it to the current step's anchor spot, so steering it
-  /// into the ring is steering the phone.
+  /// fixed ring marks the target and the guidance moves with the puzzle,
+  /// so steering it into the ring is steering the phone. The AR backend
+  /// additionally shows the puzzle outline and all four world-anchored
+  /// targets at once.
   private var guidanceOverlay: some View {
     GeometryReader { proxy in
       if let controller, case .capturing(let step) = controller.phase {
         let center = CGPoint(x: proxy.size.width / 2, y: proxy.size.height / 2)
-        if step == 0 {
+        if let arSource {
+          arOverlay(source: arSource, step: step, center: center, size: proxy.size)
+        } else if step == 0 {
           GuideDot(onTarget: false)
             .position(center)
         } else {
@@ -135,6 +185,42 @@ struct GlareFreeCaptureView: View {
     }
     .allowsHitTesting(false)
     .ignoresSafeArea()
+  }
+
+  /// The AR backend's overlay: the world-anchored puzzle outline at all
+  /// times, every corner target visible at once — completed ones checked
+  /// off, the current one as the pulsing dot to steer into the ring.
+  @ViewBuilder
+  private func arOverlay(
+    source: ARGlareGuideSource, step: Int, center: CGPoint, size: CGSize
+  ) -> some View {
+    if step == 0 {
+      if source.isReady {
+        SurfaceReadyFrame()
+        GuideDot(onTarget: false)
+          .position(center)
+      }
+    } else if let overlay = source.overlay {
+      if overlay.outline.count == 4 {
+        PuzzleOutline(points: overlay.outline)
+      }
+      TargetRing(onTarget: dotIsOnTarget)
+        .position(center)
+      ForEach(Array(overlay.targets.enumerated()), id: \.offset) { index, point in
+        if let point {
+          if index == step - 1 {
+            GuideDot(onTarget: dotIsOnTarget)
+              .position(clamped(point, within: size))
+          } else {
+            CornerTargetMark(completed: index < step - 1)
+              .position(point)
+          }
+        }
+      }
+    } else {
+      TargetRing(onTarget: false)
+        .position(center)
+    }
   }
 
   /// Whether the tracked dot currently sits inside the aim tolerance — for
@@ -203,7 +289,13 @@ struct GlareFreeCaptureView: View {
   private func instructionBanner(step: Int) -> some View {
     let text: String
     if step == 0 {
-      text = "Fit the whole puzzle in the frame, then tap the shutter."
+      // The AR backend needs its surface first — a brief scanning state
+      // before the shutter is worth pressing.
+      if let arSource, !arSource.isReady {
+        text = "Move the phone slowly over the puzzle while it finds the surface…"
+      } else {
+        text = "Fit the whole puzzle in the frame, then tap the shutter."
+      }
     } else if controller?.guide?.offset == nil {
       text = "Looking for the puzzle — keep it fully in view."
     } else {
@@ -261,9 +353,19 @@ struct GlareFreeCaptureView: View {
         Circle().strokeBorder(.white, lineWidth: 3).frame(width: 70, height: 70)
       }
     }
-    .disabled(controller?.isCapturing ?? true)
+    .disabled((controller?.isCapturing ?? true) || !(arSource?.isReady ?? true))
     .accessibilityLabel("Take the reference shot")
   }
+}
+
+/// Hosts the AR source's `ARSCNView` — the source owns the view so its
+/// raycasts and projections share the exact rendered viewport.
+private struct ARGuidePreview: UIViewRepresentable {
+  let source: ARGlareGuideSource
+
+  func makeUIView(context: Context) -> ARSCNView { source.sceneView }
+
+  func updateUIView(_ uiView: ARSCNView, context: Context) {}
 }
 
 /// The pulsing guide dot. On the corner steps it is pinned to a spot on
@@ -286,6 +388,59 @@ private struct GuideDot: View {
     }
     .shadow(radius: 4)
     .onAppear { pulsing = true }
+  }
+}
+
+/// The world-anchored puzzle outline the AR backend keeps over the
+/// preview — the frozen center-shot quad, projected every frame.
+private struct PuzzleOutline: View {
+  let points: [CGPoint]
+
+  var body: some View {
+    Path { path in
+      guard let first = points.first else { return }
+      path.move(to: first)
+      for point in points.dropFirst() {
+        path.addLine(to: point)
+      }
+      path.closeSubpath()
+    }
+    .stroke(Color.white.opacity(0.7), style: StrokeStyle(lineWidth: 2, dash: [8, 6]))
+    .shadow(radius: 3)
+  }
+}
+
+/// A non-current corner target in the AR overlay: checked off once its
+/// shot has fired, a dim placeholder while it waits its turn.
+private struct CornerTargetMark: View {
+  let completed: Bool
+
+  var body: some View {
+    ZStack {
+      Circle()
+        .fill(completed ? Color.green.opacity(0.9) : Color.black.opacity(0.25))
+        .frame(width: 26, height: 26)
+      if completed {
+        Image(systemName: "checkmark")
+          .font(.system(size: 13, weight: .bold))
+          .foregroundStyle(.white)
+      } else {
+        Circle()
+          .stroke(Color.white.opacity(0.7), lineWidth: 2)
+          .frame(width: 26, height: 26)
+      }
+    }
+    .shadow(radius: 3)
+  }
+}
+
+/// The "surface found" hint while aiming the reference shot in AR mode —
+/// the screen-edge region that will freeze into the puzzle outline.
+private struct SurfaceReadyFrame: View {
+  var body: some View {
+    RoundedRectangle(cornerRadius: 24)
+      .strokeBorder(Color.green.opacity(0.6), style: StrokeStyle(lineWidth: 2, dash: [10, 8]))
+      .padding(24)
   }
 }
 

@@ -191,4 +191,18 @@ final class GlareGuideTrackerTests: XCTestCase {
     tracker.clearReference()
     XCTAssertFalse(tracker.shouldAcceptFrame(now: Date()))
   }
+
+  /// The tracker doubles as the Simulator/E2E `GlareGuideSource` — the
+  /// protocol lifecycle must drive the same reference plumbing.
+  @MainActor
+  func testGuideSourceConformanceDrivesTheReferenceLifecycle() throws {
+    let tracker = GlareGuideTracker()
+    let source: any GlareGuideSource = tracker
+    source.beginGuiding(reference: testCard())
+    XCTAssertTrue(tracker.shouldAcceptFrame(now: Date()))
+    source.setActiveStep(1)
+    source.setActiveStep(nil)
+    source.stopGuiding()
+    XCTAssertFalse(tracker.shouldAcceptFrame(now: Date()))
+  }
 }
