@@ -125,7 +125,10 @@ final class PuzzleStoreTests: XCTestCase {
           rotation: 90,
           rotationConfidence: 0.77,
           cleanedImage: nil,
-          pieceSpan: PieceSpan(width: 0.34, height: 0.25)
+          pieceSpan: PieceSpan(width: 0.34, height: 0.25),
+          gridRow: 2,
+          gridCol: 3,
+          snappedPosition: NormalizedPoint(x: 0.4375, y: 0.4167)
         ),
         scanPieceId: "p001"
       )
@@ -156,6 +159,9 @@ final class PuzzleStoreTests: XCTestCase {
     XCTAssertEqual(entry.result?.position, NormalizedPoint(x: 0.34, y: 0.4))
     XCTAssertEqual(entry.result?.rotation, 90)
     XCTAssertEqual(entry.result?.pieceSpan, PieceSpan(width: 0.34, height: 0.25))
+    XCTAssertEqual(entry.result?.gridRow, 2)
+    XCTAssertEqual(entry.result?.gridCol, 3)
+    XCTAssertEqual(entry.result?.snappedPosition, NormalizedPoint(x: 0.4375, y: 0.4167))
     // The scan-and-lock link survives the round trip, so the scan gallery
     // can restore this entry's photo as its thumbnail on a later visit.
     XCTAssertEqual(entry.scanPieceId, "p001")

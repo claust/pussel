@@ -205,6 +205,52 @@ def test_piece_grid_hint_reaches_classical_matcher() -> None:
     assert kwargs["grid_hint"] == expected_grid
 
 
+def test_process_piece_snaps_to_grid() -> None:
+    """When the puzzle's grid is known, the prediction is snapped to the nearest cell for display."""
+    # A prediction slightly outside the puzzle, as happens for corner pieces.
+    mock_response = PieceResponse(
+        position=Position(x=1.02, y=-0.03),
+        position_confidence=0.85,
+        rotation=90,
+        rotation_confidence=0.90,
+    )
+    mock_matcher = MagicMock()
+    mock_matcher.process_piece = AsyncMock(return_value=mock_response)
+
+    upload_response = client.post(
+        "/api/v1/puzzle/upload",
+        files=photo_files(make_photo_jpeg()),
+        data={"piece_count": "24"},
+        headers=get_auth_header(),
+    )
+    puzzle_id = upload_response.json()["puzzle_id"]
+    rows, cols = calculate_grid_dimensions(800, 600, 24)
+
+    with (
+        patch.object(settings, "MATCHER", "classical"),
+        patch("app.main.get_classical_matcher", return_value=mock_matcher),
+    ):
+        with tempfile.NamedTemporaryFile(suffix=".jpg") as temp_file:
+            temp_file.write(b"fake piece content")
+            temp_file.seek(0)
+            file_tuple = cast(FileUpload, ("test_piece.jpg", temp_file, "image/jpeg"))
+            response = client.post(
+                f"/api/v1/puzzle/{puzzle_id}/piece",
+                files={"file": file_tuple},
+                headers=get_auth_header(),
+            )
+
+    assert response.status_code == 200
+    result = response.json()
+    # The raw prediction is preserved untouched...
+    assert result["position"] == {"x": 1.02, "y": -0.03}
+    # ...while the snap clamps to the top-right corner cell and its center.
+    assert result["grid_row"] == 0
+    assert result["grid_col"] == cols - 1
+    assert result["snapped_position"]["x"] == pytest.approx((cols - 0.5) / cols)
+    assert result["snapped_position"]["y"] == pytest.approx(0.5 / rows)
+
+
 def test_process_piece_invalid_puzzle() -> None:
     """Test processing a piece with an invalid puzzle ID."""
     with tempfile.NamedTemporaryFile(suffix=".jpg") as temp_file:
@@ -283,6 +329,12 @@ def test_process_piece() -> None:
         assert result["rotation"] == 90
         assert result["rotation_confidence"] == 0.90
         assert result["piece_span"] is None
+
+        # The puzzle was uploaded without a piece_count, so no grid is known
+        # and the snap fields stay null.
+        assert result["grid_row"] is None
+        assert result["grid_col"] is None
+        assert result["snapped_position"] is None
 
     finally:
         # Cleanup test image

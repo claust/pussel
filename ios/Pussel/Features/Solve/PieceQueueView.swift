@@ -373,7 +373,7 @@ private struct QueueTile: View {
       Text("Predicting…").font(.caption2).foregroundStyle(.secondary)
     case .done:
       if let piece = entry.result {
-        Text("(\(Int(piece.position.x * 100))%, \(Int(piece.position.y * 100))%)")
+        Text("(\(Int(piece.displayPosition.x * 100))%, \(Int(piece.displayPosition.y * 100))%)")
           .font(.caption2.monospacedDigit())
           .foregroundStyle(.green)
       }

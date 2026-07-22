@@ -52,6 +52,11 @@ private struct StoredResult: Codable {
   let rotation: Int
   let rotationConfidence: Double
   let pieceSpan: PieceSpan?
+  /// Grid snap fields; nil for manifests written before they existed
+  /// (optional Codable decodes missing keys as nil).
+  let gridRow: Int?
+  let gridCol: Int?
+  let snappedPosition: NormalizedPoint?
 }
 
 /// Local, on-device persistence for solved/in-progress puzzles. Everything is
@@ -163,7 +168,10 @@ final class PuzzleStore {
               positionConfidence: $0.positionConfidence,
               rotation: $0.rotation,
               rotationConfidence: $0.rotationConfidence,
-              pieceSpan: $0.pieceSpan
+              pieceSpan: $0.pieceSpan,
+              gridRow: $0.gridRow,
+              gridCol: $0.gridCol,
+              snappedPosition: $0.snappedPosition
             )
           },
           scanPieceId: entry.scanPieceId
@@ -261,7 +269,10 @@ final class PuzzleStore {
           rotation: $0.rotation,
           rotationConfidence: $0.rotationConfidence,
           cleanedImage: nil,
-          pieceSpan: $0.pieceSpan
+          pieceSpan: $0.pieceSpan,
+          gridRow: $0.gridRow,
+          gridCol: $0.gridCol,
+          snappedPosition: $0.snappedPosition
         )
       }
       return CaptureEntry(
