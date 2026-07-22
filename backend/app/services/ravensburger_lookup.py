@@ -1,8 +1,8 @@
 """Pure EAN-13 parsing for Ravensburger barcode lookups (no I/O).
 
 Ravensburger EAN-13 barcodes embed the article number that keys their public
-image CDN (see `app.services.ravensburger_client`). Two GS1 company prefixes
-are in use:
+product images (see `app.services.ravensburger_client`). Two GS1 company
+prefixes are in use:
 
 - ``4005556`` (standard line, e.g. kids puzzles): the 5-digit payload
   (digits 8-12) *is* the full article number. Example: EAN 4005556050093 ->
@@ -10,7 +10,7 @@ are in use:
 - ``4005555`` (adult/1000-piece line): article numbers are 8 digits, and the
   EAN payload carries only their *last 5* digits — the leading 3-digit series
   prefix (e.g. ``120``) is not recoverable from the EAN alone, so callers
-  probe a small list of known series prefixes against the CDN.
+  probe a small list of known series prefixes against ravensburger.org.
 
 Any other prefix is not a Ravensburger product.
 """

@@ -1,6 +1,6 @@
 """Data models for puzzle-related operations."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -167,11 +167,18 @@ class DetectFrameResponse(BaseModel):
 
 
 class BarcodeLookupResponse(BaseModel):
-    """Response model for Ravensburger barcode box-image lookup."""
+    """Response model for Ravensburger barcode product-image lookup."""
 
-    found: bool = Field(..., description="Whether a Ravensburger box image was found for this EAN")
+    found: bool = Field(..., description="Whether a Ravensburger product image was found for this EAN")
     box_image: Optional[str] = Field(
-        default=None, description="Base64 data URL (JPEG) of the box image; present when found"
+        default=None,
+        description=(
+            "Base64 data URL (JPEG) of the product image; present when found. Despite the legacy name, "
+            "this is the clean puzzle motif when available (image_kind='motif') and the box shot otherwise."
+        ),
+    )
+    image_kind: Optional[Literal["motif", "box"]] = Field(
+        default=None, description="'motif' (clean puzzle artwork) or 'box' (box-shot fallback); present when found"
     )
     article_number: Optional[str] = Field(
         default=None, description="Resolved Ravensburger article number; present when found"
