@@ -5,7 +5,6 @@ import Foundation
 import UIKit
 import Vision
 import os
-import simd
 
 /// One measurement of where the reference shot's content currently sits in
 /// the live camera frame.
