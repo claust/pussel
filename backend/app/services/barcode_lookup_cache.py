@@ -3,13 +3,15 @@
 Mirrors `app.services.puzzle_store`: an `OrderedDict` capped at `MAX_ENTRIES`
 with oldest-first eviction, exposed through an `@lru_cache()` singleton
 getter. Both hits and misses are cached, so a barcode held in front of the
-camera doesn't re-probe the Ravensburger CDN on every stable read.
+camera doesn't re-probe ravensburger.org on every stable read.
 """
 
 from collections import OrderedDict
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Optional
+
+from app.services.ravensburger_client import ImageKind
 
 # Cap on cached lookups. Each hit holds one ~1000px JPEG (~100-300 KB), so
 # 100 entries bounds memory at a few tens of MB in the worst case.
@@ -21,13 +23,16 @@ class BarcodeLookupRecord:
     """The outcome of one EAN lookup, hit or miss.
 
     Attributes:
-        found: Whether a box image was found for the EAN.
-        box_image_jpeg: The JPEG-converted box image when found, else None.
+        found: Whether a product image was found for the EAN.
+        image_jpeg: The JPEG-converted product image when found, else None.
+        image_kind: "motif" (clean puzzle artwork) or "box" when found,
+            else None.
         article_number: The resolved article number when found, else None.
     """
 
     found: bool
-    box_image_jpeg: Optional[bytes]
+    image_jpeg: Optional[bytes]
+    image_kind: Optional[ImageKind]
     article_number: Optional[str]
 
 
