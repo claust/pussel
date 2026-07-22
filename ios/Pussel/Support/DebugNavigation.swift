@@ -16,7 +16,12 @@
   ///   scan[?open=0] (M10 scan-and-lock demo — mirrors camera),
   ///   scanconfirm (taps the M10 uncertain-confirm chip on the open scan view),
   ///   boxcamera[?open=0] (forces the capture screen's live box-camera cover
-  ///   open, for the barcode auto-lookup flow — mirrors camera).
+  ///   open, for the barcode auto-lookup flow — mirrors camera),
+  ///   glarecamera[?open=0] (forces the glare-free five-shot capture cover
+  ///   open — mirrors boxcamera),
+  ///   glareshot (takes the open glare-free screen's next shot; feed the
+  ///   frame first with previewloop, swapping the path between shots to
+  ///   simulate moving glare).
   /// Simulator apps can read host file paths directly. Compiled out of
   /// Release builds; the handler runs the same actions as the real UI.
   @MainActor
@@ -94,6 +99,10 @@
         debugCamera(open: value("open"))
       case "boxcamera":
         debugBoxCamera(open: value("open"))
+      case "glarecamera":
+        debugGlareCamera(open: value("open"))
+      case "glareshot":
+        await GlareFreeCaptureController.debugActive?.captureShot()
       case "scan":
         debugScan(open: value("open"))
       case "scanconfirm":
@@ -169,6 +178,13 @@
     /// capture-puzzle phase (`reset` gets there).
     private func debugBoxCamera(open: String?) {
       flow.debugBoxCameraOpen = (open.flatMap(Int.init) ?? 1) != 0
+    }
+
+    /// Forces the glare-free capture cover open (or closed with `?open=0`),
+    /// even on the Simulator — mirrors `debugBoxCamera`. Must be in the
+    /// capture-puzzle phase (`reset` gets there).
+    private func debugGlareCamera(open: String?) {
+      flow.debugGlareCameraOpen = (open.flatMap(Int.init) ?? 1) != 0
     }
 
     /// Starts (or, with `?stop=1`, stops) a repeating fake-frame loop on the

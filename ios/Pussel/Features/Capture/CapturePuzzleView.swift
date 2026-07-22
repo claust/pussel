@@ -4,6 +4,7 @@ import SwiftUI
 struct CapturePuzzleView: View {
   @Environment(AppModel.self) private var model
   @State private var showCamera = false
+  @State private var showGlareCamera = false
   @State private var showLibrary = false
   @State private var photoItem: PhotosPickerItem?
 
@@ -31,6 +32,13 @@ struct CapturePuzzleView: View {
         },
         onBarcodeJPEG: { jpeg in
           model.startTrimFromBarcodeLookup(jpeg: jpeg)
+        }
+      )
+    }
+    .fullScreenCover(isPresented: glareCoverIsPresented) {
+      GlareFreeCaptureView(
+        onImage: { image in
+          Task { await handle(image: image, source: .camera) }
         }
       )
     }
@@ -83,6 +91,16 @@ struct CapturePuzzleView: View {
             .controlSize(.large)
           }
           if BoxCameraSession.isCameraAvailable {
+            // Experimental multi-shot capture for glossy puzzles — see
+            // GlareFreeCaptureView.
+            Button {
+              showGlareCamera = true
+            } label: {
+              Label("Glare-Free Scan", systemImage: "sparkles")
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.large)
             photoLibraryButton.buttonStyle(.bordered)
           } else {
             photoLibraryButton.buttonStyle(.borderedProminent)
@@ -154,6 +172,22 @@ struct CapturePuzzleView: View {
       )
     #else
       $showCamera
+    #endif
+  }
+
+  /// Mirrors `cameraCoverIsPresented` for the glare-free capture cover,
+  /// driven on the Simulator by `pusseldebug://glarecamera`.
+  private var glareCoverIsPresented: Binding<Bool> {
+    #if DEBUG
+      Binding(
+        get: { showGlareCamera || model.flow.debugGlareCameraOpen },
+        set: { newValue in
+          showGlareCamera = newValue
+          model.flow.debugGlareCameraOpen = newValue
+        }
+      )
+    #else
+      $showGlareCamera
     #endif
   }
 }
