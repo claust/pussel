@@ -90,6 +90,10 @@ final class AppFlowStore {
     /// `pusseldebug://boxcamera` can drive the barcode capture flow there —
     /// mirrors `SolveSession.debugCameraOpen` for the piece camera.
     var debugBoxCameraOpen = false
+    /// Forces CapturePuzzleView's glare-free capture cover open on the
+    /// Simulator, so `pusseldebug://glarecamera` + `glareshot` can drive
+    /// the five-shot flow there — mirrors `debugBoxCameraOpen`.
+    var debugGlareCameraOpen = false
   #endif
 
   func reset() {
