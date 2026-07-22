@@ -86,8 +86,12 @@ final class ARGlareGuideSource: NSObject, GlareGuideSource, ARSessionDelegate {
   /// The projected outline + targets, published every frame while guiding.
   private(set) var overlay: Overlay?
 
-  /// The latest pre-shot corner quad, frozen by `beginGuiding`.
+  /// The latest pre-shot corner quad, kept fresh by the live scan.
   @ObservationIgnored private var pendingQuad: [SIMD3<Float>]?
+  /// The quad snapshotted at the reference photo's own camera pose —
+  /// what `beginGuiding` freezes (the live scan may have moved on while
+  /// the high-res capture was in flight).
+  @ObservationIgnored private var quadAtCapture: [SIMD3<Float>]?
   @ObservationIgnored private var worldQuad: [SIMD3<Float>]?
   @ObservationIgnored private var worldTargets: [SIMD3<Float>]?
   @ObservationIgnored private var activeStep: Int?
@@ -131,8 +135,20 @@ final class ARGlareGuideSource: NSObject, GlareGuideSource, ARSessionDelegate {
   /// The current frame at full still resolution, rotated upright. Nil on
   /// capture failure — the controller fails the step and offers a restart.
   func captureStill() async -> UIImage? {
+    let size = sceneView.bounds.size
     do {
       let frame = try await session.captureHighResolutionFrame()
+      if worldQuad == nil {
+        // This is the reference shot: freeze the quad from the *returned*
+        // frame's camera pose — the pose at the moment the photo actually
+        // fired — not from whatever the live scan measures once the async
+        // capture returns. The user may move the phone while the high-res
+        // capture is in flight, and the outline must match the photo.
+        quadAtCapture =
+          Self.quad(
+            onPlaneAtHeight: surfaceHeight, camera: frame.camera, viewportSize: size)
+          ?? pendingQuad
+      }
       return Self.stillImage(from: frame.capturedImage)
     } catch {
       Self.log.error("high-resolution capture failed: \(error.localizedDescription)")
@@ -140,16 +156,43 @@ final class ARGlareGuideSource: NSObject, GlareGuideSource, ARSessionDelegate {
     }
   }
 
+  /// The screen-corner quad as seen by `camera`, unprojected onto the
+  /// horizontal plane at `height` — nil when the surface is unknown or a
+  /// corner ray misses the plane.
+  private static func quad(
+    onPlaneAtHeight height: Float?, camera: ARCamera, viewportSize size: CGSize
+  ) -> [SIMD3<Float>]? {
+    guard let height, size.width > 0, size.height > 0 else { return nil }
+    var plane = matrix_identity_float4x4
+    plane.columns.3 = SIMD4(0, height, 0, 1)
+    let corners = [
+      CGPoint(x: 0, y: 0),
+      CGPoint(x: size.width, y: 0),
+      CGPoint(x: size.width, y: size.height),
+      CGPoint(x: 0, y: size.height),
+    ]
+    var quad: [SIMD3<Float>] = []
+    for corner in corners {
+      guard
+        let point = camera.unprojectPoint(
+          corner, ontoPlane: plane, orientation: .portrait, viewportSize: size)
+      else { return nil }
+      quad.append(point)
+    }
+    return quad
+  }
+
   // MARK: - GlareGuideSource
 
   func beginGuiding(reference: UIImage) {
     // The reference image itself is not needed — world tracking replaces
     // image registration. What matters is the quad under the screen at the
-    // moment the shot fired.
-    guard let quad = pendingQuad else {
+    // moment the shot fired, snapshotted by `captureStill`.
+    guard let quad = quadAtCapture ?? pendingQuad else {
       Self.log.error("center shot landed without a surface quad — AR guiding cannot start")
       return
     }
+    quadAtCapture = nil
     worldQuad = quad
     // The anchors live in unit coordinates of the reference photo; the quad
     // corners are the *screen* corners at the center shot. The preview is
@@ -175,6 +218,7 @@ final class ARGlareGuideSource: NSObject, GlareGuideSource, ARSessionDelegate {
     // surface, and reacquiring one takes only a couple of seconds — better
     // than a ready state resting on a stale height.
     pendingQuad = nil
+    quadAtCapture = nil
     surfaceHeight = nil
     isReady = false
   }
