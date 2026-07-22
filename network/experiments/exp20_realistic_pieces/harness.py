@@ -18,7 +18,7 @@ Fixes the harness problems identified in CRITICAL_REVIEW.md:
 
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, Optional
 
 import torch
 import torch.nn.functional as F
@@ -27,6 +27,12 @@ from torch.amp.grad_scaler import GradScaler
 from torch.utils.data import DataLoader, Dataset
 
 from .model import FastBackboneModel
+
+# Optional replacement for the position MSE loss. Called with the model's
+# (position, attention_map) outputs and the (cx, cy) targets; returns the
+# position loss. Lets experiments with heatmap-style heads (exp27) supervise
+# the attention map directly while the default stays exp20's plain MSE.
+PositionLossFn = Callable[[torch.Tensor, torch.Tensor, torch.Tensor], torch.Tensor]
 
 # The metric on which the best checkpoint is selected (computed on val).
 SELECTION_METRIC = "both_accuracy"
@@ -51,6 +57,7 @@ def train_epoch(
     scaler: GradScaler | None = None,
     position_weight: float = 1.0,
     rotation_weight: float = 1.0,
+    position_loss_fn: Optional[PositionLossFn] = None,
 ) -> dict[str, float]:
     """Run one optimization epoch and return running losses.
 
@@ -68,6 +75,9 @@ def train_epoch(
             trains in full precision.
         position_weight: Weight of the position MSE loss.
         rotation_weight: Weight of the rotation cross-entropy loss.
+        position_loss_fn: Optional replacement position loss, called as
+            ``fn(position, attention_map, targets)``. Default: MSE on the
+            position output (exp20 behaviour).
 
     Returns:
         Dictionary with sample-weighted average position and rotation losses.
@@ -87,16 +97,22 @@ def train_epoch(
 
         if scaler is not None:
             with autocast(device_type="cuda"):
-                preds, rotation_logits, _ = model(pieces, puzzles)
-                position_loss = F.mse_loss(preds, targets)
+                preds, rotation_logits, attention = model(pieces, puzzles)
+                if position_loss_fn is not None:
+                    position_loss = position_loss_fn(preds, attention, targets)
+                else:
+                    position_loss = F.mse_loss(preds, targets)
                 rotation_loss = F.cross_entropy(rotation_logits, rotations)
                 loss = position_weight * position_loss + rotation_weight * rotation_loss
             scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
         else:
-            preds, rotation_logits, _ = model(pieces, puzzles)
-            position_loss = F.mse_loss(preds, targets)
+            preds, rotation_logits, attention = model(pieces, puzzles)
+            if position_loss_fn is not None:
+                position_loss = position_loss_fn(preds, attention, targets)
+            else:
+                position_loss = F.mse_loss(preds, targets)
             rotation_loss = F.cross_entropy(rotation_logits, rotations)
             loss = position_weight * position_loss + rotation_weight * rotation_loss
             loss.backward()
@@ -252,6 +268,7 @@ def fit(
     num_workers: int = 0,
     use_amp: bool = False,
     eval_batch_size: int | None = None,
+    position_loss_fn: Optional[PositionLossFn] = None,
 ) -> tuple[dict[str, list[float]], int, dict[str, Any]]:
     """Train with per-epoch val evaluation and val-based checkpoint selection.
 
@@ -276,6 +293,8 @@ def fit(
         num_workers: Data loader workers.
         use_amp: Use automatic mixed precision (CUDA only).
         eval_batch_size: Batch size for evaluation passes (default 2x train).
+        position_loss_fn: Optional replacement position loss (see
+            ``train_epoch``); default is exp20's position MSE.
 
     Returns:
         Tuple of (history, best_epoch, best val metrics).
@@ -303,7 +322,7 @@ def fit(
     for epoch in range(1, epochs + 1):
         epoch_start = time.time()
 
-        losses = train_epoch(model, train_loader, optimizer, device, scaler=scaler)
+        losses = train_epoch(model, train_loader, optimizer, device, scaler=scaler, position_loss_fn=position_loss_fn)
         train_metrics = evaluate(
             model, train_eval_dataset, device, grid_size, batch_size=eval_batch_size, num_workers=num_workers
         )
