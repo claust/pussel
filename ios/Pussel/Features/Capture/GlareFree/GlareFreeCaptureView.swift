@@ -70,6 +70,11 @@ struct GlareFreeCaptureView: View {
           guideSource.beginGuiding(reference: reference)
         }
         guideSource.setActiveStep(step)
+      case .composing, .failed:
+        // No step is aiming — stop the per-frame guidance work, most
+        // importantly so the registration tracker's Vision passes don't
+        // compete with the composer for CPU.
+        guideSource.stopGuiding()
       case .done:
         guard let composite = controller?.composite else { return }
         dismiss()
