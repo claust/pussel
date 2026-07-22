@@ -21,6 +21,17 @@ struct DetectFrameResponse: Codable, Equatable {
   let confidence: Double
 }
 
+/// Response of GET /api/v1/puzzle/barcode/{ean} — the Ravensburger box-image
+/// lookup for a scanned EAN-13. `found == false` (never an HTTP error) means
+/// the code isn't a (known) Ravensburger product.
+struct BarcodeLookupResponse: Codable, Equatable {
+  let found: Bool
+  /// data:image/jpeg;base64,… of the box image; present when found.
+  let boxImage: String?
+  /// The resolved Ravensburger article number; present when found.
+  let articleNumber: String?
+}
+
 /// Response of POST /api/v1/puzzle/upload.
 struct PuzzleUploadResponse: Codable, Equatable {
   let puzzleId: String

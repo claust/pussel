@@ -51,6 +51,16 @@ extension AppModel {
     }
   }
 
+  /// Enters confirm-trim directly from a resolved barcode-lookup box image.
+  /// No detect-frame round trip: the backend's box image is already a clean
+  /// straight-on product shot, so the whole image is the trim (see
+  /// `TrimCandidate.wholeImage`); the user still rotates/crops and sets the
+  /// piece count on the confirm screen as usual.
+  func startTrimFromBarcodeLookup(jpeg: Data) {
+    flow.errorMessage = nil
+    flow.phase = .confirmTrim(.wholeImage(jpeg: jpeg, source: .barcodeLookup))
+  }
+
   /// Uploads the accepted trimmed image and starts a solve session. Any
   /// user-applied rotation (`quarterTurns` × 90° clockwise) is baked into the
   /// uploaded and stored image so the puzzle appears upright everywhere.

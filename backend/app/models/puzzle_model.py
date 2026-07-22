@@ -148,6 +148,18 @@ class DetectFrameResponse(BaseModel):
     confidence: float = Field(..., ge=0.0, le=1.0, description="Detection confidence; 1.0 for manual corners")
 
 
+class BarcodeLookupResponse(BaseModel):
+    """Response model for Ravensburger barcode box-image lookup."""
+
+    found: bool = Field(..., description="Whether a Ravensburger box image was found for this EAN")
+    box_image: Optional[str] = Field(
+        default=None, description="Base64 data URL (JPEG) of the box image; present when found"
+    )
+    article_number: Optional[str] = Field(
+        default=None, description="Resolved Ravensburger article number; present when found"
+    )
+
+
 class GeneratePieceRequest(BaseModel):
     """Request model for generating a realistic puzzle piece."""
 
