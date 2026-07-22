@@ -10,7 +10,7 @@ assembled puzzle, then photograph a loose piece and get back where it belongs
 pussel/
 ├── backend/          # Python FastAPI service — piece matching, puzzle storage, auth
 ├── ios/              # Native SwiftUI iOS app (the primary client)
-├── frontend/         # Next.js 15 web app (development/test client, run locally)
+├── frontend/         # Next.js 16 web app (development/test client, run locally)
 ├── network/          # PyTorch Lightning experiments for learned piece matching
 ├── shared/           # puzzle_shapes — Python library shared by backend and network
 └── infrastructure/   # Bicep templates for the Azure backend deployment
@@ -29,7 +29,7 @@ puzzle and its pieces. This is the real mobile client; see
 [ios/README.md](ios/README.md) for setup, `Secrets.xcconfig`, and the
 `make ios-*` workflows.
 
-**Web frontend** — Next.js 15 + Bun + Tailwind, used for capture/test flows
+**Web frontend** — Next.js 16 + Bun + Tailwind, used for capture/test flows
 during development. Not deployed anywhere; it runs locally against a local or
 Azure backend via `NEXT_PUBLIC_API_URL`.
 
@@ -59,6 +59,7 @@ Per-component details:
 
 - [Backend README](backend/README.md)
 - [iOS README](ios/README.md)
+- [Frontend README](frontend/README.md)
 - [Network README](network/README.md)
 
 ## Development
