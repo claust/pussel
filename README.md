@@ -26,8 +26,8 @@ GitHub Actions.
 
 **iOS app** — SwiftUI, iOS 26, Google Sign-In, on-device persistence of every
 puzzle and its pieces. This is the real mobile client; see
-[ios/README.md](ios/README.md) for setup, `Secrets.xcconfig`, and the
-`make ios-*` workflows.
+[ios/README.md](ios/README.md) for setup, `ios/Config/Secrets.xcconfig`, and
+the `make ios-*` workflows.
 
 **Web frontend** — Next.js 16 + Bun + Tailwind, used for capture/test flows
 during development. Not deployed anywhere; it runs locally against a local or
