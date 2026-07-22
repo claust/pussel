@@ -1,325 +1,75 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code (claude.ai/code) working in this repository.
 
-## Project Overview
+## Overview
 
-Pussel is a computer vision-based puzzle solver application with three main components:
-1. **Backend** (`backend/`) - FastAPI service for puzzle image processing and piece matching
-2. **Frontend** (`frontend/`) - Next.js 15 web app with Bun for capturing puzzle pieces and displaying solutions
-3. **Network** (`network/`) - PyTorch Lightning-based CNN model for predicting puzzle piece positions and rotations
+Pussel is a computer vision puzzle solver: photograph an assembled puzzle, then
+photograph a loose piece to get its position, rotation, and confidence.
 
-## Development Setup
+- `backend/` — FastAPI service (piece matching, puzzle store, Google auth).
+  Deployed to Azure App Service from `main`.
+- `ios/` — native SwiftUI app, the shipped client. See `ios/README.md`.
+- `frontend/` — Next.js 16 + Bun web app. Dev/test client, **not deployed**.
+- `network/` — PyTorch Lightning experiments. Research, not the shipped path.
+- `shared/puzzle_shapes` — Python library used by backend and network.
 
-### Python (Backend + Network + Shared — one uv workspace)
-The Python projects (`backend`, `network`, and the `shared/puzzle_shapes`
-library) form a **single uv workspace** defined by the root `pyproject.toml`.
-There is **one** lockfile — `uv.lock` at the repo root — and one shared
-`.venv` at the repo root. This keeps the shared `puzzle-shapes` dependency in
-lockstep across projects (no per-project lock drift).
+Piece matching defaults to a classical SIFT → NCC hybrid (`MATCHER=classical`
+in `backend/app/config.py`); the CNN is opt-in via `MATCHER=cnn`.
+
+## Setup
+
+`backend`, `network`, and `shared/puzzle_shapes` are **one uv workspace** —
+one root `uv.lock`, one root `.venv`. Add or bump a dependency in a member's
+`pyproject.toml`, then run `uv lock` at the root; CI fails on a stale lock.
 
 ```bash
-# Install uv (if not already installed)
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Install ALL Python dependencies for the whole workspace (from repo root)
-uv sync --all-extras
-
-# Install pre-commit hooks (from repo root)
+uv sync --all-extras      # from repo root
 pre-commit install
+cd frontend && bun install
 ```
 
-`uv run` from within `backend/` or `network/` automatically uses the shared
-root `.venv`, so the existing `cd backend && uv run …` / `cd network && uv run …`
-commands below still work unchanged.
+## Commands
 
-### Frontend (Next.js/Bun)
-```bash
-cd frontend
-bun install
-```
-
-## Common Commands
-
-### Backend Development
-```bash
-# Run development server
-cd backend
-uv run uvicorn app.main:app --reload
-
-# Run tests with coverage
-cd backend
-uv run pytest -v --cov=app --cov-report=term-missing
-
-# Run single test file
-cd backend
-uv run pytest tests/test_main.py -v
-
-# Code quality checks (from repo root)
-make check-backend         # Run all checks (format, lint, typecheck)
-make format-backend        # Auto-format code with black and isort
-make test-backend          # Run tests with coverage
-
-# Run all pre-commit hooks manually
-pre-commit run --all-files
-```
-
-### Frontend Development
-```bash
-cd frontend
-bun run dev                # Run development server with Turbopack
-bun run build              # Build for production
-bun run test               # Run tests with Vitest
-bun run lint               # Lint with OxLint (type-aware)
-bun run typecheck          # TypeScript type checking
-bun run check              # Run all checks (lint, typecheck, prettier)
-bun run format             # Auto-format with Prettier
-```
-
-### ML Model Training (Local)
-```bash
-cd network
-uv run python train.py            # Train with default config
-
-# Custom training parameters
-uv run python train.py --backbone efficientnet_b0 --batch_size 32 --max_epochs 50
-
-# Monitor training with TensorBoard
-uv run tensorboard --logdir=logs
-
-# Dataset utilities
-uv run python puzzle_generator.py datasets/example/puzzle_001.jpg
-uv run python resize_puzzles.py datasets/example --output-dir datasets/example/resized
-uv run python visualize_piece.py datasets/example/puzzle_001.jpg datasets/example/pieces/piece_001.png
-
-# Code quality checks (from repo root, same as CI pipeline)
-make check-network         # Run all checks (format, lint, typecheck)
-make format-network        # Auto-format code with black and isort
-```
-
-### ML Model Training (RunPod GPU)
-For faster training, use RunPod with NVIDIA GPUs (RTX 4090 is ~10x faster than M4 Mac).
-
-**Prepare and Upload**:
-```bash
-cd network/experiments/exp20_realistic_pieces
-./runpod/prepare_package.sh  # Creates network/runpod_package/
-
-# Upload to RunPod (get IP/PORT from RunPod dashboard)
-scp -P <PORT> -i ~/.ssh/runpod_key runpod_package/runpod_training.tar.gz root@<IP>:/workspace/
-```
-
-**Run Training on RunPod**:
-```bash
-ssh -p <PORT> -i ~/.ssh/runpod_key root@<IP>
-cd /workspace && tar -xzf runpod_training.tar.gz && ./setup_and_train.sh
-```
-
-**Download Results**:
-```bash
-scp -P <PORT> -i ~/.ssh/runpod_key "root@<IP>:/workspace/outputs/*" ./outputs/
-```
-
-## Running Development Servers
-
-### Quick Start (from repo root)
-```bash
-make start-backend         # Start FastAPI server on http://localhost:8000
-make start-frontend        # Start Next.js dev server on http://localhost:3000
-```
-
-### Stopping Servers
-```bash
-make stop-backend          # Kill process on port 8000
-make stop-frontend         # Kill process on port 3000
-```
-
-### Running in Background
-When using `run_in_background: true`, ensure the working directory is repo root:
+All from the repo root:
 
 ```bash
-make start-backend         # Start FastAPI server on http://localhost:8000
-make start-frontend        # Start Next.js dev server on http://localhost:3000
+make start-backend   # http://localhost:8000 (docs at /docs)
+make start-frontend  # http://localhost:3000
+make stop-backend    # and make stop-frontend
+make ios-run         # build + launch on the Simulator (see ios/README.md)
+
+make check           # backend, network, shared, frontend, iOS
+make format          # auto-format everything
+make test-backend    # pytest with coverage
 ```
 
-### Server URLs
-- **Backend API**: http://localhost:8000
-- **Backend Docs**: http://localhost:8000/docs (Swagger UI)
-- **Frontend**: http://localhost:3000
+Component-scoped variants exist for each: `make check-backend`,
+`make format-frontend`, etc. Frontend tests are `bun run test` (Vitest) and
+`bun run test:e2e` (Playwright) from `frontend/` — there is no
+`make test-frontend`.
 
-### Debugging Tips
-1. **Check if servers are running**: `lsof -i:8000` (backend) or `lsof -i:3000` (frontend)
-2. **View backend logs**: The uvicorn `--reload` flag enables auto-reload on file changes
-3. **Frontend hot reload**: Next.js with Turbopack automatically reloads on changes
-4. **API testing**: Use the Swagger UI at `/docs` or curl commands
-5. **Check health**: `curl http://localhost:8000/health`
+## Conventions
 
-## Code Architecture
+- **Python**: Black + isort (profile black), flake8, pyright standard mode.
+  120-char lines, full type annotations, Google-style docstrings.
+- **Frontend**: OxLint (type-aware), Prettier, TypeScript strict.
+- **iOS**: swift-format (bundled with Xcode) for layout, SwiftLint for rules.
+- Match the surrounding code's naming, comment density, and idiom.
 
-### Backend Architecture
-- **`app/main.py`** - FastAPI application with CORS, endpoints, and in-memory puzzle storage
-- **`app/config.py`** - Pydantic settings for configuration (upload dir, size limits, CORS)
-- **`app/models/puzzle_model.py`** - Pydantic models for API requests/responses
-- **`app/services/image_processor.py`** - Runs the trained CNN model (loads `FastBackboneModel` from a checkpoint in `network/experiments/`) to predict piece position + rotation via `torch.no_grad()` inference; falls back to a neutral result (position 0.5,0.5, confidence 0.0) on error
-- **`app/services/storage.py`** - File storage utilities
+## Before committing
 
-#### API Endpoints
-- `POST /api/v1/puzzle/upload` - Upload complete puzzle image, returns puzzle_id
-- `POST /api/v1/puzzle/{puzzle_id}/piece` - Process piece, returns position (x,y), rotation (0/90/180/270), confidence
-- `GET /health` - Health check
+Run `make check` and fix what it reports (`make format` handles the
+auto-fixable parts), then commit — pre-commit hooks run the same checks.
+CI runs per-component workflows in `.github/workflows/`.
 
-### Frontend Architecture
-- **`src/app/`** - Next.js App Router pages
-  - `page.tsx` - Home page with navigation
-  - `puzzle/page.tsx` - Main puzzle workflow (capture puzzle, add pieces)
-  - `test-mode/` - Test mode for bundled puzzle images
-  - `about/page.tsx` - About page
-- **`src/components/`** - React components
-  - `camera/` - Camera capture and file upload components
-  - `puzzle/` - Puzzle display, piece cards, grid overlay
-  - `ui/` - shadcn/ui components (button, card, dialog, etc.)
-- **`src/hooks/`** - Custom React hooks (useCamera)
-- **`src/stores/`** - Zustand state management
-- **`src/lib/`** - Utilities (API client, image utils, test puzzles)
-- **`src/types/`** - TypeScript type definitions
+## Notes
 
-Tech stack:
-- **Runtime**: Bun
-- **Framework**: Next.js 15 with App Router and Turbopack
-- **State**: Zustand
-- **Styling**: Tailwind CSS 4 + shadcn/ui
-- **Linting**: OxLint with type-aware rules
-- **Testing**: Vitest
-- **Theming**: next-themes (dark mode support)
-
-### Network Architecture (ML Model)
-- **`model.py`** - Dual-backbone CNN architecture:
-  - Two identical CNN backbones (one for piece, one for puzzle)
-  - Feature fusion layer
-  - Position prediction head (bbox regression with Sigmoid activation)
-  - Rotation prediction head (4-class classification)
-- **`dataset.py`** - PuzzleDataModule for PyTorch Lightning with train/val splits
-- **`train.py`** - Training script with CLI args for hyperparameters
-- **`config.py`** - Default training configuration
-- **Utilities**:
-  - `puzzle_generator.py` - Generates training pieces from puzzle images
-  - `resize_puzzles.py` - Standardizes puzzle image sizes
-  - `visualize_piece.py` - Visualizes piece placement on puzzle
-
-#### Dataset Format
-Pieces stored as: `puzzle_XXX_piece_YYY_xX1_yY1_xX2_yY2_rROTATION.png`
-- X1, Y1, X2, Y2: Bounding box coordinates
-- ROTATION: 0, 90, 180, or 270 degrees
-
-### Code Quality Standards
-All code follows strict quality standards enforced via pre-commit hooks:
-- **Line length**: 120 characters
-- **Python formatting**: Black + isort (with `--profile black`, `--line-length=120`)
-- **Python linting**: flake8 with plugins (docstrings, import-order, bugbear, comprehensions, pytest-style)
-- **Type checking**: pyright with standard mode
-- **Docstring style**: Google format
-- **Frontend**: OxLint (type-aware), Prettier, TypeScript strict mode
-
-### CI/CD
-GitHub Actions workflows test/deploy on push to main/release:
-- **Backend CI** (`.github/workflows/backend-ci.yml`):
-  - Code quality: black, isort, flake8, pyright
-  - Tests with coverage (uploads to Codecov)
-  - Azure deployment (main branch only) — builds a container, pushes to Azure
-    Container Registry, and deploys to an Azure Web App via the Bicep infra in
-    `infrastructure/`
-- **Frontend CI** (`.github/workflows/frontend-ci.yml`):
-  - OxLint type-aware linting
-  - TypeScript type checking
-  - Prettier formatting check
-  - Vitest tests
-  - Next.js production build
-  - Playwright e2e tests (against a locally started backend)
-  - **No deployment step** — the frontend is not deployed by CI or IaC (see below)
-- **Network CI** (`.github/workflows/network-ci.yml`): Python quality checks for ML code
-
-### Deployment Status
-- **Backend**: deployed to **Azure** (App Service running a container) via
-  `backend-ci.yml` + `infrastructure/main.bicep`. Infra provisions only the
-  backend App Service, a Container Registry, and a Storage Account.
-- **Frontend**: **not deployed anywhere.** There is no Vercel setup (the
-  `vercel.svg`, `.vercel` gitignore entry, and README "Deploy on Vercel" text
-  are leftover `create-next-app` scaffolding, not a real config) and no Azure
-  frontend resource. The `pussel-frontend.azurewebsites.net` /
-  `pussel.thomasen.dk` origins in `infrastructure/modules/appService.bicep` are
-  only CORS allowlist entries, not deploy targets. The frontend currently runs
-  locally against a local or Azure backend (`NEXT_PUBLIC_API_URL`).
-
-## Important Notes
-
-### Package Installation
-The Python code is a single uv workspace (root `pyproject.toml` with members
-`backend`, `network`, `shared/puzzle_shapes`) sharing one root `uv.lock`. To
-install everything:
-```bash
-uv sync --all-extras
-```
-This creates a root `.venv` and installs all workspace dependencies (including
-dev tools) from the single root lockfile. Add or bump a dependency in a
-member's `pyproject.toml`, then run `uv lock` at the root to update the shared
-lock. CI runs `uv sync --locked --all-extras` from the root and fails if the
-lock is stale.
-
-### Type Checking
-pyright is configured with standard mode - all functions must have type annotations. See `backend/pyrightconfig.json` for configuration details.
-
-### Testing
-- Backend tests are in `backend/tests/`
-- Frontend tests are in `frontend/src/**/*.test.ts`
-- Always run with coverage: `pytest -v --cov=app --cov-report=term-missing`
-- CI requires `.env.test` file for environment variables
-
-### ML Model Integration
-The backend serves the trained model directly: `app/services/image_processor.py`
-loads a checkpoint from `network/experiments/` (e.g.
-`exp18_3x3_20k_puzzles/outputs/checkpoint_best.pt`) and runs inference on each
-piece. To ship a newer model, retrain in `network/` and point the processor at
-the new checkpoint.
-
-### Pre-commit Hooks
-Pre-commit is configured at the root level and applies to:
-- Python files (backend, network, and root Python scripts)
-- Bicep files (infrastructure only)
-
-Run `pre-commit install` after cloning to enable automatic checks.
-
-## Workflow Guidelines
-
-### Before Committing Changes
-
-**IMPORTANT**: Always run the appropriate checks before committing to ensure CI will pass.
-
-All checks can be run from the repo root using the root Makefile:
-
-```bash
-# Auto-format all code
-make format                # Format both backend, network, and frontend
-make format-backend        # Format backend only
-make format-network        # Format network only
-make format-frontend       # Format frontend only
-
-# Check all code
-make check
-
-# Check individual projects
-make check-backend         # Backend: black, isort, flake8, pyright
-make check-network         # Network: black, isort, flake8, pyright
-make check-frontend        # Frontend: oxlint
-
-```
-
-If checks fail, run the appropriate format command to auto-fix formatting issues, then address any remaining lint or type errors.
-
-Or simply run: `pre-commit run --all-files` from the repo root.
-
-### Commit Workflow
-1. Make your changes
-2. Run `make check`
-3. Fix any issues found (use format commands for auto-fixable issues)
-4. Commit (pre-commit hooks will run automatically if installed)
-5. Push and verify CI passes
+- The backend's puzzle store is **in-memory**: a `puzzle_id` dies when the
+  backend restarts. The iOS app keeps the trimmed image locally and offers
+  one-tap re-upload.
+- The backend loads a model checkpoint from `network/experiments/` only when
+  `MATCHER=cnn`; it is not committed, and predictions fall back to a neutral
+  result when it is missing.
+- Frontend env lives in `frontend/.env.local`, backend env in `backend/.env`
+  (both gitignored). New worktrees need them copied over.
