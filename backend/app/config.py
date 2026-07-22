@@ -94,6 +94,34 @@ class Settings(BaseSettings):
     # never gets 429'd, while still bounding a runaway or malicious client.
     RATE_LIMIT_PREVIEW_PER_MINUTE: int = Field(default=300, ge=0)
 
+    # Ravensburger barcode lookup (GET /api/v1/puzzle/barcode/{ean}). The box
+    # image CDN (see app/services/ravensburger_client.py) serves images keyed
+    # by article number and returns a tiny placeholder (~458 bytes observed)
+    # with HTTP 200 for unknown articles, so hits are judged by payload size.
+    #
+    # Known 3-digit series prefixes for the adult line (GS1 prefix 4005555),
+    # whose 8-digit article numbers aren't fully recoverable from the EAN;
+    # each is probed against the CDN in order. Empirical list — a 4005555 EAN
+    # that misses on all of these is logged so gaps become discoverable.
+    RAVENSBURGER_SERIES_PREFIXES: list[str] = ["120", "130", "132", "150", "160", "170"]
+    # Per-request CDN timeout. Candidates are probed concurrently, so this
+    # also bounds the whole lookup's worst-case CDN wait.
+    RAVENSBURGER_CDN_TIMEOUT_SECONDS: float = Field(default=3.0, gt=0)
+    # Requested image dimensions. NOT arbitrary: the CDN serves pre-rendered
+    # sizes only and answers every other size with the placeholder (verified
+    # live 2026-07-22: 520x445 returns real images for both 5- and 8-digit
+    # articles; 1000x850, 1040x890, 260x223 etc. all return the placeholder).
+    RAVENSBURGER_IMAGE_WIDTH: int = Field(default=520, gt=0)
+    RAVENSBURGER_IMAGE_HEIGHT: int = Field(default=445, gt=0)
+    # Responses at or below this size are treated as the "unknown article"
+    # placeholder (misses). Real box images observed at 15-45 KB.
+    RAVENSBURGER_PLACEHOLDER_MAX_BYTES: int = Field(default=2000, gt=0)
+    # Per-user, guards GET /api/v1/puzzle/barcode/{ean}. The iOS client
+    # debounces to at most one lookup per stable barcode read and caches
+    # misses per session, so normal use is a handful of requests per minute;
+    # 60/min bounds a runaway client while staying far above real usage.
+    RATE_LIMIT_BARCODE_PER_MINUTE: int = Field(default=60, ge=0)
+
     # Whether to trust the inbound X-Forwarded-For header for per-IP rate
     # limiting (see app/rate_limit.py::_client_ip). Defaults to False:
     # nothing in this deployment (no Uvicorn --proxy-headers, no
