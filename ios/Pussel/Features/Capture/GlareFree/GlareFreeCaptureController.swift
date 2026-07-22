@@ -41,8 +41,8 @@ final class GlareFreeCaptureController {
     GlareFreeStep(title: "Center", anchor: CGPoint(x: 0.5, y: 0.5)),
     GlareFreeStep(title: "Top left", anchor: CGPoint(x: 0.25, y: 0.32)),
     GlareFreeStep(title: "Top right", anchor: CGPoint(x: 0.75, y: 0.32)),
-    GlareFreeStep(title: "Bottom left", anchor: CGPoint(x: 0.25, y: 0.68)),
     GlareFreeStep(title: "Bottom right", anchor: CGPoint(x: 0.75, y: 0.68)),
+    GlareFreeStep(title: "Bottom left", anchor: CGPoint(x: 0.25, y: 0.68)),
   ]
 
   /// How close (unit distance) the tracked dot must be to the screen
