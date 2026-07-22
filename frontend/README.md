@@ -37,7 +37,9 @@ bun run test:e2e       # end-to-end tests (Playwright, needs a running backend)
 ```
 
 `make check-frontend` / `make format-frontend` from the repo root wrap the same
-tooling, and are what CI runs.
+tooling. CI runs the equivalent steps directly (`bun run lint`, `bun run
+typecheck`, a Prettier check, then Vitest, the production build, and Playwright
+e2e).
 
 ## Structure
 
