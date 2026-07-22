@@ -24,12 +24,15 @@ struct CapturePuzzleView: View {
     .scrollBounceBehavior(.basedOnSize)
     .overlay(alignment: .bottom) { UndoDeleteSnackbar() }
     .animation(.snappy, value: model.store.pendingDelete)
-    .fullScreenCover(isPresented: $showCamera) {
-      CameraPicker { image in
-        Task { await handle(image: image, source: .camera) }
-      }
-      .ignoresSafeArea()
-      .keepsScreenAwake()
+    .fullScreenCover(isPresented: cameraCoverIsPresented) {
+      BoxCameraView(
+        onImage: { image in
+          Task { await handle(image: image, source: .camera) }
+        },
+        onBarcodeJPEG: { jpeg in
+          model.startTrimFromBarcodeLookup(jpeg: jpeg)
+        }
+      )
     }
     .photosPicker(isPresented: $showLibrary, selection: $photoItem, matching: .images)
     .onChange(of: photoItem) { _, item in
@@ -58,15 +61,18 @@ struct CapturePuzzleView: View {
         .foregroundStyle(.tint)
       Text("Photograph the puzzle")
         .font(.title2.bold())
-      Text("Take a straight-on photo of the finished puzzle picture — the box front works well.")
-        .multilineTextAlignment(.center)
-        .foregroundStyle(.secondary)
+      Text(
+        "Point the camera at the puzzle box — a Ravensburger barcode is looked up "
+          + "automatically, or tap the shutter to photograph the picture."
+      )
+      .multilineTextAlignment(.center)
+      .foregroundStyle(.secondary)
       if model.flow.isBusy {
         ProgressView("Detecting puzzle…")
           .padding(.top, 8)
       } else {
         VStack(spacing: 12) {
-          if CameraPicker.isAvailable {
+          if BoxCameraSession.isCameraAvailable {
             Button {
               showCamera = true
             } label: {
@@ -76,7 +82,7 @@ struct CapturePuzzleView: View {
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
           }
-          if CameraPicker.isAvailable {
+          if BoxCameraSession.isCameraAvailable {
             photoLibraryButton.buttonStyle(.bordered)
           } else {
             photoLibraryButton.buttonStyle(.borderedProminent)
@@ -111,13 +117,15 @@ struct CapturePuzzleView: View {
   }
 
   /// After "Retake", jump straight back into whichever picker produced the
-  /// original photo instead of making the user pick a source again.
+  /// original photo instead of making the user pick a source again. A
+  /// barcode-resolved image counts as a camera capture: the live box camera
+  /// is where both the barcode and the manual shutter live.
   private func reopenPickerIfRetaking() {
     guard let source = model.flow.pendingRetake else { return }
     model.flow.pendingRetake = nil
     switch source {
-    case .camera:
-      if CameraPicker.isAvailable {
+    case .camera, .barcodeLookup:
+      if BoxCameraSession.isCameraAvailable {
         showCamera = true
       } else {
         showLibrary = true
@@ -129,5 +137,23 @@ struct CapturePuzzleView: View {
 
   private func handle(image: UIImage, source: CaptureSource) async {
     await model.startTrim(image: image, source: source)
+  }
+
+  /// Also presented when `pusseldebug://boxcamera` sets
+  /// `flow.debugBoxCameraOpen`, so the barcode capture flow is drivable on
+  /// the Simulator (which has no camera, so `showCamera` alone never becomes
+  /// reachable there) — mirrors `PieceQueueView.cameraCoverIsPresented`.
+  private var cameraCoverIsPresented: Binding<Bool> {
+    #if DEBUG
+      Binding(
+        get: { showCamera || model.flow.debugBoxCameraOpen },
+        set: { newValue in
+          showCamera = newValue
+          model.flow.debugBoxCameraOpen = newValue
+        }
+      )
+    #else
+      $showCamera
+    #endif
   }
 }

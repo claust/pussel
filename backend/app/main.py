@@ -1,7 +1,9 @@
 """Main FastAPI application module for the puzzle solver."""
 
+import asyncio
 import base64
 import io
+import logging
 import os
 import uuid
 from typing import Annotated, List, Literal, Optional
@@ -25,6 +27,7 @@ from app.models.piece_geometry_model import (
     PieceGeometryUploadResponse,
 )
 from app.models.puzzle_model import (
+    BarcodeLookupResponse,
     BoundingBox,
     Corner,
     CutPuzzleRequest,
@@ -41,6 +44,7 @@ from app.models.puzzle_model import (
 )
 from app.models.user_model import GoogleAuthRequest, TokenResponse, User
 from app.rate_limit import FixedWindowRateLimiter, rate_limit_by_ip, rate_limit_by_user
+from app.services.barcode_lookup_cache import BarcodeLookupRecord, get_barcode_lookup_cache
 from app.services.classical_matcher import get_classical_matcher
 from app.services.image_processor import get_image_processor
 from app.services.piece_detector import get_piece_detector
@@ -54,6 +58,10 @@ from app.services.piece_shape import PieceShapeGenerator, calculate_grid_dimensi
 from app.services.puzzle_cutter import get_puzzle_cutter
 from app.services.puzzle_detector import get_puzzle_detector
 from app.services.puzzle_store import PuzzleRecord, get_puzzle_store
+from app.services.ravensburger_client import get_ravensburger_client
+from app.services.ravensburger_lookup import RAVENSBURGER_ADULT_PREFIX, candidate_article_numbers, ean_checksum_valid
+
+logger = logging.getLogger(__name__)
 
 # Initialize FastAPI app
 app = FastAPI(title=settings.PROJECT_NAME)
@@ -77,6 +85,7 @@ MAX_PIECE_COUNT = 2000
 # request (see app/config.py: RATE_LIMIT_AUTH_PER_MINUTE / _PREVIEW_PER_MINUTE).
 auth_rate_limiter = FixedWindowRateLimiter()
 piece_preview_rate_limiter = FixedWindowRateLimiter()
+barcode_lookup_rate_limiter = FixedWindowRateLimiter()
 
 
 @app.get("/health")
@@ -337,6 +346,93 @@ async def detect_frame(
         corners=used_corners,
         confidence=confidence,
     )
+
+
+@app.get(
+    "/api/v1/puzzle/barcode/{ean}",
+    response_model=BarcodeLookupResponse,
+    dependencies=[
+        Depends(rate_limit_by_user(barcode_lookup_rate_limiter, lambda: settings.RATE_LIMIT_BARCODE_PER_MINUTE))
+    ],
+)
+async def lookup_barcode(ean: str) -> BarcodeLookupResponse:
+    """Look up a Ravensburger box image by EAN-13 barcode.
+
+    Stateless from the caller's perspective: derives candidate article
+    numbers from the EAN (see `app.services.ravensburger_lookup`), probes
+    the Ravensburger image CDN concurrently, and returns the first real
+    image (converted webp -> JPEG data URL). Results — hits and misses —
+    are cached in-process so a barcode held in front of the camera doesn't
+    re-probe the CDN.
+
+    Requires authentication and is rate-limited per-user (see the route's
+    ``dependencies``); doesn't need the caller's identity beyond that.
+
+    Args:
+        ean: The scanned EAN-13 barcode payload.
+
+    Returns:
+        BarcodeLookupResponse with found=True plus the box image and
+        resolved article number, or found=False when the EAN isn't a
+        (known) Ravensburger product.
+
+    Raises:
+        HTTPException: If the EAN is malformed (400), or the caller has
+            exceeded `RATE_LIMIT_BARCODE_PER_MINUTE` (429).
+    """
+    if not ean_checksum_valid(ean):
+        raise HTTPException(status_code=400, detail="Invalid EAN-13 barcode")
+
+    cache = get_barcode_lookup_cache()
+    cached = cache.get(ean)
+    if cached is None:
+        cached = await _resolve_barcode(ean)
+        cache.put(ean, cached)
+
+    if not cached.found or cached.box_image_jpeg is None:
+        return BarcodeLookupResponse(found=False)
+    box_image_base64 = base64.b64encode(cached.box_image_jpeg).decode()
+    return BarcodeLookupResponse(
+        found=True,
+        box_image=f"data:image/jpeg;base64,{box_image_base64}",
+        article_number=cached.article_number,
+    )
+
+
+async def _resolve_barcode(ean: str) -> BarcodeLookupRecord:
+    """Probe the Ravensburger CDN for a valid EAN and build a cacheable record.
+
+    Args:
+        ean: A checksum-valid EAN-13.
+
+    Returns:
+        A BarcodeLookupRecord holding the JPEG-converted box image of the
+        first candidate article number that hit (in preference order), or a
+        miss record when no candidate produced a real image.
+    """
+    candidates = candidate_article_numbers(ean, settings.RAVENSBURGER_SERIES_PREFIXES)
+    if not candidates:
+        return BarcodeLookupRecord(found=False, box_image_jpeg=None, article_number=None)
+
+    client = get_ravensburger_client()
+    results = await asyncio.gather(*(client.fetch_box_image(candidate) for candidate in candidates))
+    for candidate, image_bytes in zip(candidates, results):
+        if image_bytes is None:
+            continue
+        try:
+            image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        except (UnidentifiedImageError, OSError, ValueError):
+            logger.warning("Ravensburger CDN returned an undecodable image for article %s", candidate)
+            continue
+        buffer = io.BytesIO()
+        image.save(buffer, format="JPEG", quality=90)
+        return BarcodeLookupRecord(found=True, box_image_jpeg=buffer.getvalue(), article_number=candidate)
+
+    if ean.startswith(RAVENSBURGER_ADULT_PREFIX):
+        # Adult-line article numbers aren't fully derivable from the EAN; log
+        # all-candidate misses so gaps in RAVENSBURGER_SERIES_PREFIXES surface.
+        logger.info("No box image for adult-line EAN %s (tried series prefixes %s)", ean, candidates)
+    return BarcodeLookupRecord(found=False, box_image_jpeg=None, article_number=None)
 
 
 @app.post(
