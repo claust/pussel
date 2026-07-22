@@ -284,6 +284,29 @@ class TestEdgeFallback:
         area = cv2.contourArea(np.array([(x * width, y * height) for x, y in corners], dtype=np.float32))
         assert area / (width * height) > 0.5
 
+    def test_ragged_contour_recovers_quad_via_convex_hull(self, detector: PuzzleFrameDetector) -> None:
+        """A rectangle outline with a deep notch still reduces to its quad.
+
+        Regression for the real photo that motivated it: a box lying on a
+        slightly larger box welds a step into the edge contour, so no
+        approximation tolerance yields exactly four convex points from the raw
+        outline — but the convex hull recovers the outer rectangle.
+        """
+        notched = np.array(
+            [(100, 100), (500, 100), (500, 250), (380, 260), (500, 270), (500, 500), (100, 500)],
+            dtype=np.int32,
+        ).reshape(-1, 1, 2)
+
+        quad = detector._quad_from_contour(notched)
+
+        assert quad is not None
+        assert sorted(map(tuple, quad.tolist())) == [
+            (100.0, 100.0),
+            (100.0, 500.0),
+            (500.0, 100.0),
+            (500.0, 500.0),
+        ]
+
 
 def test_get_puzzle_detector_is_singleton() -> None:
     """get_puzzle_detector returns the same instance on repeated calls."""

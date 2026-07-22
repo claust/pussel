@@ -11,15 +11,14 @@
   ///   open?index=, delete?index= (index into the saved-puzzles list),
   ///   camera[?open=0], previewloop?path=<host image path>[&stop=1] (M9 live
   ///   preview overlay demo — see PieceCameraSession.startDebugPreviewLoop;
-  ///   also drives the box camera's barcode flow when that screen is open,
-  ///   see BoxCameraSession.startDebugPreviewLoop),
+  ///   also drives the capture screen's barcode flow when that screen is
+  ///   open, see BoxCameraSession.startDebugPreviewLoop),
   ///   scan[?open=0] (M10 scan-and-lock demo — mirrors camera),
   ///   scanconfirm (taps the M10 uncertain-confirm chip on the open scan view),
-  ///   boxcamera[?open=0] (forces the capture screen's live box-camera cover
-  ///   open, for the barcode auto-lookup flow — mirrors camera),
-  ///   glarecamera[?open=0] (forces the glare-free five-shot capture cover
-  ///   open — mirrors boxcamera),
-  ///   glareshot (takes the open glare-free screen's next shot; feed the
+  ///   boxcamera[?open=0] / glarecamera[?open=0] (two names for the same
+  ///   command — force the capture screen's camera cover open, which now
+  ///   serves both the barcode auto-lookup and the five-shot burst),
+  ///   glareshot (takes the open capture screen's next shot; feed the
   ///   frame first with previewloop, swapping the path between shots to
   ///   simulate moving glare).
   /// Simulator apps can read host file paths directly. Compiled out of
@@ -97,10 +96,8 @@
         debugDelete(index: value("index"))
       case "camera":
         debugCamera(open: value("open"))
-      case "boxcamera":
-        debugBoxCamera(open: value("open"))
-      case "glarecamera":
-        debugGlareCamera(open: value("open"))
+      case "boxcamera", "glarecamera":
+        debugCaptureCamera(open: value("open"))
       case "glareshot":
         await GlareFreeCaptureController.debugActive?.captureShot()
       case "scan":
@@ -171,29 +168,25 @@
       session.debugScanOpen = (open.flatMap(Int.init) ?? 1) != 0
     }
 
-    /// Forces the capture screen's live box-camera cover open (or closed
-    /// with `?open=0`), even on the Simulator where
+    /// Forces the capture screen's camera cover open (or closed with
+    /// `?open=0`), even on the Simulator where
     /// `BoxCameraSession.isCameraAvailable` is false — see
     /// `CapturePuzzleView.cameraCoverIsPresented`. Must be in the
-    /// capture-puzzle phase (`reset` gets there).
-    private func debugBoxCamera(open: String?) {
-      flow.debugBoxCameraOpen = (open.flatMap(Int.init) ?? 1) != 0
-    }
-
-    /// Forces the glare-free capture cover open (or closed with `?open=0`),
-    /// even on the Simulator — mirrors `debugBoxCamera`. Must be in the
-    /// capture-puzzle phase (`reset` gets there).
-    private func debugGlareCamera(open: String?) {
-      flow.debugGlareCameraOpen = (open.flatMap(Int.init) ?? 1) != 0
+    /// capture-puzzle phase (`reset` gets there). One screen now serves
+    /// both the barcode lookup and the five-shot burst, so `boxcamera` and
+    /// `glarecamera` are the same command under their historical names.
+    private func debugCaptureCamera(open: String?) {
+      flow.debugCaptureCameraOpen = (open.flatMap(Int.init) ?? 1) != 0
     }
 
     /// Starts (or, with `?stop=1`, stops) a repeating fake-frame loop on the
     /// active live camera session, feeding `path` through the same
     /// downscale → analyze pipeline a real camera frame takes — the
     /// Simulator's stand-in for a live camera. Targets whichever session is
-    /// open: the piece camera (M9 overlay demo) or the box camera (barcode
-    /// auto-lookup flow). Requires that screen to already be open (`camera`
-    /// / `boxcamera`, or the real screens on a device).
+    /// open: the piece camera (M9 overlay demo) or the capture screen's box
+    /// camera (barcode auto-lookup and glare-free guidance). Requires that
+    /// screen to already be open (`camera` / `boxcamera`, or the real
+    /// screens on a device).
     private func debugPreviewLoop(path: String?, stop: String?) {
       if let camera = PieceCameraSession.debugActive {
         if (stop.flatMap(Int.init) ?? 0) != 0 {

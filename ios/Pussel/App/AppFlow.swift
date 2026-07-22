@@ -37,9 +37,10 @@ struct TrimCandidate {
   let zoomSourceJPEG: Data?
   let detection: DetectFrameResponse
   let source: CaptureSource
-  /// Piece count OCR'd from the box shot by the barcode lookup, used to
-  /// prefill the confirm screen's piece-count field; nil for the photo
-  /// paths and for boxes the backend couldn't read.
+  /// Piece count read off the box — from the looked-up product shot by the
+  /// backend on the barcode path, from the photo itself by on-device Vision
+  /// (`PieceCountReader`) on the detect-frame path — used to prefill the
+  /// confirm screen's piece-count field; nil for boxes it couldn't read.
   var pieceCountEstimate: Int?
 
   var trimmedJPEG: Data? {
@@ -68,6 +69,7 @@ struct TrimCandidate {
         confidence: 1.0
       ),
       source: source,
+      // The count rides in on the lookup response, not the detection.
       pieceCountEstimate: pieceCountEstimate
     )
   }
@@ -85,15 +87,12 @@ final class AppFlowStore {
   var pendingRetake: CaptureSource?
 
   #if DEBUG
-    /// Forces CapturePuzzleView's box-camera cover open even when
+    /// Forces CapturePuzzleView's capture cover open even when
     /// `BoxCameraSession.isCameraAvailable` is false (the Simulator), so
-    /// `pusseldebug://boxcamera` can drive the barcode capture flow there —
-    /// mirrors `SolveSession.debugCameraOpen` for the piece camera.
-    var debugBoxCameraOpen = false
-    /// Forces CapturePuzzleView's glare-free capture cover open on the
-    /// Simulator, so `pusseldebug://glarecamera` + `glareshot` can drive
-    /// the five-shot flow there — mirrors `debugBoxCameraOpen`.
-    var debugGlareCameraOpen = false
+    /// `pusseldebug://camera` and its `boxcamera`/`glarecamera` aliases can
+    /// drive the barcode lookup and the five-shot flow there — mirrors
+    /// `SolveSession.debugCameraOpen` for the piece camera.
+    var debugCaptureCameraOpen = false
   #endif
 
   func reset() {

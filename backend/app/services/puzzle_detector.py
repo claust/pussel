@@ -253,18 +253,26 @@ class PuzzleFrameDetector:
         approximation is what rejects the artwork's subject: a puzzle border
         traces a quadrilateral, an elephant does not.
 
+        A real box's outline is often ragged rather than clean — a glare seam,
+        or a slightly larger box stacked underneath, welds extra vertices onto
+        the contour that no approximation tolerance removes. The convex hull
+        strips those concavities while preserving the outer quadrilateral, so
+        when the raw contour fails, its hull gets the same four-convex-points
+        test (mirroring how the mask path quad-fits hulls).
+
         Args:
             contour: A contour from cv2.findContours.
 
         Returns:
-            Array of shape (4, 2), float32, unordered, or None if the contour
-            does not approximate a convex quadrilateral.
+            Array of shape (4, 2), float32, unordered, or None if neither the
+            contour nor its convex hull approximates a convex quadrilateral.
         """
-        perimeter = cv2.arcLength(contour, closed=True)
-        for epsilon in EDGE_APPROX_EPSILONS:
-            approx = cv2.approxPolyDP(contour, epsilon * perimeter, closed=True)
-            if len(approx) == 4 and cv2.isContourConvex(approx):
-                return approx.reshape(4, 2).astype(np.float32)
+        for candidate in (contour, cv2.convexHull(contour)):
+            perimeter = cv2.arcLength(candidate, closed=True)
+            for epsilon in EDGE_APPROX_EPSILONS:
+                approx = cv2.approxPolyDP(candidate, epsilon * perimeter, closed=True)
+                if len(approx) == 4 and cv2.isContourConvex(approx):
+                    return approx.reshape(4, 2).astype(np.float32)
         return None
 
     def _rect_confidence(self, quad: "np.ndarray", edges: "np.ndarray", work_w: int, work_h: int) -> float:
