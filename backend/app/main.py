@@ -64,10 +64,16 @@ from app.services.ravensburger_client import get_ravensburger_client
 from app.services.ravensburger_lookup import RAVENSBURGER_ADULT_PREFIX, candidate_article_numbers, ean_checksum_valid
 
 # uvicorn configures handlers for its own loggers only, leaving the root
-# logger at WARNING with no handler — so every `logger.info` in this app was
-# silently discarded. Configure the root logger here so app-level INFO
-# actually reaches the console.
-logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(name)s - %(message)s")
+# logger at WARNING — so app-level `logger.info` is dropped. Raise the root
+# level unconditionally so this is deterministic (basicConfig is a no-op once
+# handlers exist — e.g. under gunicorn — and would otherwise leave the level
+# untouched), and add a console handler only when nothing else has, so we
+# neither clobber an existing logging setup nor override uvicorn's per-logger
+# configuration.
+_root_logger = logging.getLogger()
+_root_logger.setLevel(logging.INFO)
+if not _root_logger.handlers:
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(name)s - %(message)s")
 
 logger = logging.getLogger(__name__)
 
