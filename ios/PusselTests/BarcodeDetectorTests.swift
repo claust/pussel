@@ -60,7 +60,12 @@ final class BarcodeDetectorTests: XCTestCase {
 
   /// The 95-module bar pattern (1 = dark) for a 13-digit payload.
   private static func modules(for payload: String) -> String {
-    let digits = payload.compactMap { $0.wholeNumberValue }
+    let digits = payload.map { character -> Int in
+      guard let digit = character.wholeNumberValue, (0...9).contains(digit) else {
+        preconditionFailure("payload must be 13 digits")
+      }
+      return digit
+    }
     precondition(digits.count == 13, "payload must be 13 digits")
     var bits = "101"
     for (index, parity) in parities[digits[0]].enumerated() {
