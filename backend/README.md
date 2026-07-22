@@ -1,176 +1,92 @@
-# Puzzle Solver Backend
+# Pussel Backend
 
-A FastAPI-based backend service for the Puzzle Solver application that helps users solve jigsaw puzzles using computer vision.
-
-## Features
-
-- Upload complete puzzle images
-- Process individual puzzle pieces
-- Mock implementation of puzzle piece detection (to be replaced with ML model)
-- REST API endpoints
-- File upload handling
-- Comprehensive test suite
-- Type checking with pyright
-- Code formatting with black and isort
-- Linting with flake8
-- Pre-commit hooks for code quality
-- Continuous Integration with GitHub Actions
-- Code coverage reporting with Codecov
+FastAPI service behind the Pussel puzzle solver: stores an uploaded puzzle,
+matches loose pieces against it, and returns each piece's position, rotation,
+and confidence. Deployed to Azure App Service from `main`.
 
 ## Setup
 
-1. Install uv (if not already installed):
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
+The backend is part of the repo-wide uv workspace, so install from the **repo
+root**, not from here:
 
-2. Install dependencies (creates `.venv` automatically):
 ```bash
 uv sync --all-extras
-```
-
-3. Install pre-commit hooks (from repo root):
-```bash
 pre-commit install
 ```
 
-## Development
+Copy `.env.example` to `.env` for local runs (Google auth, JWT secret,
+storage — see `app/config.py` for the full set of settings).
 
-### Code Quality Tools
-
-The project uses several tools to maintain code quality:
-
-- **black**: Code formatting
-- **isort**: Import sorting
-- **flake8**: Linting with additional plugins:
-  - flake8-docstrings
-  - flake8-import-order
-  - flake8-bugbear
-- **pyright**: Static type checking
-- **pre-commit**: Git hooks for code quality checks
-
-### Running Code Quality Checks
+## Running
 
 ```bash
-# Format code
-make format
-
-# Run linting and type checking
-make check
+uv run uvicorn app.main:app --reload    # or: make start-backend from the root
 ```
 
-## Running the Application
+- API: `http://localhost:8000`
+- Interactive docs: `http://localhost:8000/docs` (`/redoc` for the alternative)
 
-Start the development server:
-```bash
-uv run uvicorn app.main:app --reload
-```
+`api.http` has ready-made requests for the main endpoints.
 
-The API will be available at `http://localhost:8000`
+## Piece matching
 
-## API Documentation
+Two matchers, selected by the `MATCHER` setting:
 
-Once the server is running, you can access:
-- Interactive API documentation: `http://localhost:8000/docs`
-- Alternative API documentation: `http://localhost:8000/redoc`
+- **`classical`** (default) — SIFT feature matching with an NCC fallback, in
+  `app/services/classical_matcher.py`. This is what production serves.
+- **`cnn`** — the dual-backbone model from `network/`, in
+  `app/services/image_processor.py`. Loads a checkpoint from
+  `network/experiments/`; the checkpoint is not committed, so a missing file
+  degrades to a neutral prediction rather than failing.
 
-## API Endpoints
+Either way the result is snapped to the puzzle's grid when one is known.
 
-### Upload Complete Puzzle
-```
-POST /api/v1/puzzle/upload
-```
-- Accepts multipart form data with image file
-- Returns puzzle ID and optional image URL
-- Maximum file size: 10MB
-- Supported formats: Image files only
+## API
 
-### Process Puzzle Piece
-```
-POST /api/v1/puzzle/{puzzle_id}/piece
-```
-- Accepts multipart form data with piece image
-- Returns:
-  - Predicted position (x, y coordinates)
-  - Confidence score (0.5-1.0)
-  - Rotation angle (0, 90, 180, or 270 degrees)
-- Requires existing puzzle ID
-- Supported formats: Image files only
+Auth is a Google ID token exchanged for a backend JWT; most endpoints require
+the resulting `Bearer` token.
 
-### Health Check
-```
-GET /health
-```
-- Returns API health status
+| Method & path                                                 | Purpose                                        |
+| ------------------------------------------------------------- | ---------------------------------------------- |
+| `GET /health`                                                 | Health check                                   |
+| `POST /api/v1/auth/google`                                    | Exchange a Google ID token for a backend JWT   |
+| `GET /api/v1/auth/me`                                         | Current user                                   |
+| `POST /api/v1/puzzle/upload`                                  | Upload the assembled puzzle, get a `puzzle_id` |
+| `GET /api/v1/puzzles`                                         | List stored puzzles                            |
+| `POST /api/v1/puzzle/detect-frame`                            | Detect the puzzle's frame for trimming         |
+| `GET /api/v1/puzzle/barcode/{ean}`                            | Look up a puzzle by barcode                    |
+| `POST /api/v1/piece/preview`                                  | Live piece preview (detection only)            |
+| `POST /api/v1/puzzle/{puzzle_id}/piece`                       | Match a piece → position, rotation, confidence |
+| `POST /api/v1/puzzle/{puzzle_id}/piece/geometry`              | Save a piece's geometry record                 |
+| `GET /api/v1/puzzle/{puzzle_id}/piece/geometry`               | List geometry records                          |
+| `DELETE /api/v1/puzzle/{puzzle_id}/piece/geometry/{piece_id}` | Delete a geometry record                       |
+| `POST /api/v1/puzzle/{puzzle_id}/generate-piece`              | Generate a synthetic piece                     |
+| `POST /api/v1/puzzle/{puzzle_id}/cut-all`                     | Cut the puzzle into all its pieces             |
 
-## Running Tests
+Uploads are capped at 10MB; endpoints decode and validate the image when they
+need to process it (e.g. `upload` when a `piece_count` is given). The puzzle
+store is **in-memory**: a `puzzle_id` does not survive a backend restart.
+
+## Tests and checks
 
 ```bash
-uv run pytest -v --cov=app --cov-report=term-missing
+uv run pytest -v --cov=app --cov-report=term-missing    # or: make test-backend
+make check-backend       # black, isort, flake8, pyright — what CI runs
+make format-backend      # auto-fix formatting
 ```
 
-For XML coverage report (used by CI):
-```bash
-uv run pytest -v --cov=app --cov-report=xml
-```
-
-## Project Structure
+## Layout
 
 ```
 backend/
 ├── app/
-│   ├── __init__.py
-│   ├── main.py           # FastAPI application and endpoints
-│   ├── config.py         # Configuration settings
-│   ├── models/
-│   │   └── puzzle_model.py   # Pydantic models
-│   └── services/
-│       └── image_processor.py # Image processing logic
+│   ├── main.py          # FastAPI app and endpoints
+│   ├── config.py        # Pydantic settings
+│   ├── auth/            # Google ID-token verification, JWT issuing
+│   ├── models/          # Pydantic request/response models
+│   └── services/        # matching, detection, geometry, storage, lookups
 ├── tests/
-│   └── test_main.py      # API endpoint tests
-├── pyproject.toml       # Project config and dependencies (uv/PEP 621)
-├── uv.lock              # Locked dependencies
-├── pyrightconfig.json   # Pyright configuration
-└── README.md
+├── scripts/             # dev helpers (e.g. generate_test_token.py)
+├── api.http             # sample requests
+└── Dockerfile           # image built and deployed by CI
 ```
-
-## Configuration
-
-The application uses Pydantic settings for configuration:
-
-- `API_V1_STR`: API version prefix ("/api/v1")
-- `PROJECT_NAME`: Project name ("Puzzle Solver")
-- `UPLOAD_DIR`: Directory for uploaded files ("uploads")
-- `MAX_UPLOAD_SIZE`: Maximum file upload size (10MB)
-- `BACKEND_CORS_ORIGINS`: CORS settings (currently "*" for development)
-
-## CI/CD Pipeline
-
-The project uses GitHub Actions for continuous integration, which:
-- Runs on Ubuntu latest
-- Uses uv for fast dependency installation (10-100x faster than pip)
-- Tests with Python 3.12
-- Checks code formatting with black
-- Verifies import order with isort
-- Runs linting with flake8
-- Performs type checking with pyright
-- Executes test suite with coverage reporting
-- Uploads coverage reports to Codecov
-
-The workflow is triggered on:
-- Push to main/release branch
-- Pull requests to main/release branch
-- Only when changes affect backend code or CI configuration
-
-## Future Improvements
-
-1. Implement actual computer vision model for puzzle piece detection
-2. Add authentication and authorization
-3. Add rate limiting
-4. Implement proper image validation and sanitization
-5. Add image compression and optimization
-6. Implement proper error handling and logging
-7. Add database for storing puzzle and piece information
-8. Add CI/CD pipeline
-9. Add Docker support
-10. Implement caching for processed images
