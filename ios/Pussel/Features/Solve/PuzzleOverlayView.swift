@@ -121,7 +121,7 @@ private struct PieceMarker: View {
         .frame(height: 4)
     }
     .rotationEffect(.degrees(-Double(piece.rotation)))
-    .position(x: canvas.width * piece.position.x, y: canvas.height * piece.position.y)
+    .position(x: canvas.width * piece.displayPosition.x, y: canvas.height * piece.displayPosition.y)
     .opacity(isDimmed ? 0.25 : 1)
   }
 }

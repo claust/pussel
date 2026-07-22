@@ -46,6 +46,7 @@ from app.models.user_model import GoogleAuthRequest, TokenResponse, User
 from app.rate_limit import FixedWindowRateLimiter, rate_limit_by_ip, rate_limit_by_user
 from app.services.barcode_lookup_cache import BarcodeLookupRecord, get_barcode_lookup_cache
 from app.services.classical_matcher import get_classical_matcher
+from app.services.grid_snap import snap_to_grid
 from app.services.image_processor import get_image_processor
 from app.services.piece_detector import get_piece_detector
 from app.services.piece_geometry.service import (
@@ -540,7 +541,9 @@ async def process_piece(
         remove_bg: Whether to remove background from piece image (default: True).
 
     Returns:
-        PieceResponse: Response containing position, confidence, and optionally cleaned image.
+        PieceResponse: Response containing position, confidence, and optionally cleaned image;
+        when the puzzle's grid is known, also the nearest grid cell and its center
+        (grid_row/grid_col/snapped_position) for display.
 
     Raises:
         HTTPException: If puzzle not found or file type is invalid.
@@ -549,13 +552,14 @@ async def process_piece(
         raise HTTPException(status_code=400, detail="No file provided")
 
     if settings.MATCHER == "cnn":
-        return await get_image_processor().process_piece(file, puzzle_id, remove_background=remove_bg)
-
-    # Pass along the grid estimated at upload time (if any) so the NCC fallback's
-    # nominal template size uses the puzzle's real grid instead of the defaults.
-    return await get_classical_matcher().process_piece(
-        file, puzzle_id, remove_background=remove_bg, grid_hint=puzzle.grid
-    )
+        response = await get_image_processor().process_piece(file, puzzle_id, remove_background=remove_bg)
+    else:
+        # Pass along the grid estimated at upload time (if any) so the NCC fallback's
+        # nominal template size uses the puzzle's real grid instead of the defaults.
+        response = await get_classical_matcher().process_piece(
+            file, puzzle_id, remove_background=remove_bg, grid_hint=puzzle.grid
+        )
+    return snap_to_grid(response, puzzle.grid)
 
 
 def _normalize_points(points: np.ndarray, width: int, height: int) -> List[GeometryPoint]:

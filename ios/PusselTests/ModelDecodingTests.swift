@@ -90,6 +90,53 @@ final class ModelDecodingTests: XCTestCase {
     XCTAssertEqual(response.rotation, 270)
     XCTAssertEqual(response.positionConfidence, 0.91)
     XCTAssertEqual(ImageUtilities.decodeDataURL(response.cleanedImage!), Data("pie".utf8))
+    // Grid snap fields absent entirely (old backend): nil, and display falls
+    // back to the raw prediction.
+    XCTAssertNil(response.gridRow)
+    XCTAssertNil(response.gridCol)
+    XCTAssertNil(response.snappedPosition)
+    XCTAssertEqual(response.displayPosition, response.position)
+  }
+
+  func testDecodePieceResponseWithGridSnap() throws {
+    let json = """
+      {
+        "position": {"x": 1.02, "y": -0.03},
+        "position_confidence": 0.91,
+        "rotation": 0,
+        "rotation_confidence": 0.66,
+        "cleaned_image": null,
+        "grid_row": 0,
+        "grid_col": 5,
+        "snapped_position": {"x": 0.9166, "y": 0.125}
+      }
+      """
+    let response = try decoder.decode(PieceResponse.self, from: Data(json.utf8))
+    XCTAssertEqual(response.gridRow, 0)
+    XCTAssertEqual(response.gridCol, 5)
+    XCTAssertEqual(response.snappedPosition, NormalizedPoint(x: 0.9166, y: 0.125))
+    // Display uses the snapped center; the raw out-of-bounds prediction is kept.
+    XCTAssertEqual(response.displayPosition, NormalizedPoint(x: 0.9166, y: 0.125))
+    XCTAssertEqual(response.position, NormalizedPoint(x: 1.02, y: -0.03))
+  }
+
+  func testDecodePieceResponseWithNullGridSnap() throws {
+    // The backend's shape when the puzzle's grid is unknown: keys present, null.
+    let json = """
+      {
+        "position": {"x": 0.25, "y": 0.75},
+        "position_confidence": 0.91,
+        "rotation": 0,
+        "rotation_confidence": 0.66,
+        "cleaned_image": null,
+        "grid_row": null,
+        "grid_col": null,
+        "snapped_position": null
+      }
+      """
+    let response = try decoder.decode(PieceResponse.self, from: Data(json.utf8))
+    XCTAssertNil(response.snappedPosition)
+    XCTAssertEqual(response.displayPosition, NormalizedPoint(x: 0.25, y: 0.75))
   }
 
   func testDecodePieceResponseWithoutCleanedImage() throws {
