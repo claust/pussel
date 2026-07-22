@@ -122,22 +122,27 @@ final class GlareFreeComposerTests: XCTestCase {
     let base = testCard()
     let referenceGlare = CGPoint(x: 160, y: 160)
     let reference = frame(base: base, translation: .zero, glareCenter: referenceGlare)
-    let others = [
-      frame(
-        base: base, translation: CGSize(width: 42, height: -38),
-        glareCenter: CGPoint(x: 352, y: 160)),
-      frame(
-        base: base, translation: CGSize(width: -40, height: 36),
-        glareCenter: CGPoint(x: 160, y: 352)),
-      frame(
-        base: base, translation: CGSize(width: 38, height: 40),
-        glareCenter: CGPoint(x: 352, y: 352)),
-      frame(
-        base: base, translation: CGSize(width: -36, height: -42),
-        glareCenter: CGPoint(x: 256, y: 96)),
+    let shots: [(translation: CGSize, glare: CGPoint)] = [
+      (CGSize(width: 42, height: -38), CGPoint(x: 352, y: 160)),
+      (CGSize(width: -40, height: 36), CGPoint(x: 160, y: 352)),
+      (CGSize(width: 38, height: 40), CGPoint(x: 352, y: 352)),
+      (CGSize(width: -36, height: -42), CGPoint(x: 256, y: 96)),
     ]
+    let others = shots.map { frame(base: base, translation: $0.translation, glareCenter: $0.glare) }
+    // Seed with each frame's true content shift, as the capture controller
+    // does in production (the guided flow always knows where each shot was
+    // steered). Unseeded registration is measurably machine-dependent —
+    // Vision's basin differs across runners — and is not the shipped path.
+    let expectedShifts = shots.map { shot -> CGSize? in
+      CGSize(
+        width: shot.translation.width / CGFloat(cardSize),
+        height: shot.translation.height / CGFloat(cardSize))
+    }
 
-    guard let result = GlareFreeComposer.compose(reference: reference, others: others) else {
+    guard
+      let result = GlareFreeComposer.compose(
+        reference: reference, others: others, expectedShifts: expectedShifts)
+    else {
       return XCTFail("compose returned nil")
     }
     XCTAssertEqual(
