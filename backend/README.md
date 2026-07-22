@@ -63,8 +63,9 @@ the resulting `Bearer` token.
 | `POST /api/v1/puzzle/{puzzle_id}/generate-piece`              | Generate a synthetic piece                     |
 | `POST /api/v1/puzzle/{puzzle_id}/cut-all`                     | Cut the puzzle into all its pieces             |
 
-Uploads are capped at 10MB and must be images. The puzzle store is
-**in-memory**: a `puzzle_id` does not survive a backend restart.
+Uploads are capped at 10MB; endpoints decode and validate the image when they
+need to process it (e.g. `upload` when a `piece_count` is given). The puzzle
+store is **in-memory**: a `puzzle_id` does not survive a backend restart.
 
 ## Tests and checks
 
