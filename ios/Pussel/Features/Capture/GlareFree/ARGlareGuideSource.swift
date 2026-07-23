@@ -82,6 +82,19 @@ final class ARGlareGuideSource: NSObject, GlareGuideSource, ARSessionDelegate {
   /// Reports a fatal session failure (camera access, tracking) with a
   /// user-facing message — the view surfaces it and dismisses.
   @ObservationIgnored var onFailure: ((String) -> Void)?
+  /// Receives the live camera frames while the reference shot is being
+  /// aimed — the barcode streamer, so a Ravensburger code held in view is
+  /// still picked up on the device path (where ARKit, not
+  /// `BoxCameraSession`, owns the camera). Held weakly like the camera
+  /// sessions' consumer; the presenting view owns it. Frames stop once
+  /// guiding starts: from there the phone is deliberately being moved
+  /// between corner targets and the burst owns the flow.
+  @ObservationIgnored weak var frameConsumer: (any LiveFrameConsumer)?
+
+  /// Long side, in pixels, forwarded frames are downscaled to — matches
+  /// `BoxCameraSession.frameMaxLongSide` so the barcode detector sees the
+  /// same resolution on both backends.
+  private static let frameMaxLongSide: CGFloat = 1080
 
   /// Whether the puzzle's surface has been found (pre-shot): all four
   /// screen corners currently raycast onto a horizontal plane. Gates the
@@ -253,6 +266,12 @@ final class ARGlareGuideSource: NSObject, GlareGuideSource, ARSessionDelegate {
       return
     }
     let aspect = size.width / size.height
+    if worldQuad == nil {
+      // Reading a barcode needs pixels, not world tracking, so this sits
+      // above the tracking gate: a code held up during the first seconds,
+      // while ARKit is still initializing, should resolve just the same.
+      forward(frame)
+    }
     guard case .normal = frame.camera.trackingState else {
       isReady = false
       pendingQuad = nil
@@ -270,6 +289,22 @@ final class ARGlareGuideSource: NSObject, GlareGuideSource, ARSessionDelegate {
     } else {
       publishGuidance(frame: frame, size: size, aspect: aspect)
     }
+  }
+
+  /// Hands the frame to the barcode streamer, downscaled and rotated
+  /// upright exactly as the camera sessions deliver theirs. The consumer's
+  /// throttle is checked first, so the render is only paid for on frames it
+  /// will actually analyze.
+  private func forward(_ frame: ARFrame) {
+    guard let frameConsumer else { return }
+    let now = Date()
+    guard frameConsumer.shouldAcceptFrame(now: now) else { return }
+    let upright = CIImage(cvPixelBuffer: frame.capturedImage).oriented(.right)
+    let scale = min(1, Self.frameMaxLongSide / max(upright.extent.width, upright.extent.height))
+    let scaled =
+      scale < 1 ? upright.transformed(by: CGAffineTransform(scaleX: scale, y: scale)) : upright
+    guard let cgImage = Self.ciContext.createCGImage(scaled, from: scaled.extent) else { return }
+    frameConsumer.submit(cgImage: cgImage, now: now)
   }
 
   /// One state line per second while the surface is being sought — enough

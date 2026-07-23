@@ -34,19 +34,29 @@ extension AppModel {
       ImageUtilities.normalizedJPEG(
         from: image, maxDimension: ImageUtilities.zoomSourceMaxDimension, quality: 0.85)
     }
+    // A photo of a puzzle is usually a photo of its box, so read the piece
+    // count off it on-device with Vision (see `PieceCountReader`) — in
+    // parallel with the detection round trip, off the main actor, on the same
+    // upload JPEG the backend gets. This replaces the backend's tesseract OCR
+    // for the photo path; a nil here just leaves the count field empty.
+    let countTask = Task.detached(priority: .userInitiated) {
+      PieceCountReader.read(jpegData: jpeg)
+    }
     do {
       let detection = try await api.detectFrame(jpegData: jpeg)
       flow.phase = .confirmTrim(
         TrimCandidate(
           rawJPEG: jpeg, zoomSourceJPEG: await zoomSourceTask.value, detection: detection,
-          source: source)
+          source: source,
+          pieceCountEstimate: await countTask.value)
       )
     } catch {
-      // Marks the encode unwanted and drops it without waiting. It is plain
-      // synchronous pixel work, so it finishes on its own and the result is
-      // discarded — the point is that the failure surfaces now, not that the
-      // CPU stops.
+      // Marks the encode and the OCR unwanted and drops them without waiting.
+      // Both are plain synchronous CPU work that finishes on its own; the
+      // results are discarded — the point is that the failure surfaces now,
+      // not that the CPU stops.
       zoomSourceTask.cancel()
+      countTask.cancel()
       flow.errorMessage = error.localizedDescription
     }
   }

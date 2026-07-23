@@ -3,11 +3,20 @@ import SwiftUI
 import UIKit
 
 /// Guided five-shot glare-free capture of the full puzzle, presented from
-/// CapturePuzzleView. The user photographs the puzzle once from the
-/// center; after that each corner shot fires automatically once the
-/// current target has been steered into the screen-center ring and held
-/// there. `GlareFreeComposer` then fuses the burst into one glare-free
-/// image that continues down the normal detect-frame path via `onImage`.
+/// CapturePuzzleView — the app's one capture screen. The user photographs
+/// the puzzle once from the center; after that each corner shot fires
+/// automatically once the current target has been steered into the
+/// screen-center ring and held there. `GlareFreeComposer` then fuses the
+/// burst into one glare-free image that continues down the normal
+/// detect-frame path via `onImage`.
+///
+/// While that first shot is being aimed the frame stream is also scanned
+/// for an EAN-13 barcode, exactly as the old plain box camera did: a stable
+/// read fires the Ravensburger lookup and, on a hit, hands the product
+/// image to `onBarcodeJPEG` and skips the burst entirely — there is nothing
+/// to de-glare about a clean product shot. A miss is silent. Scanning stops
+/// once the burst starts, so a code drifting through a later frame can't
+/// throw away shots the user has already taken.
 ///
 /// Guidance comes from one of two `GlareGuideSource` backends: on devices,
 /// `ARGlareGuideSource` world-anchors the puzzle outline and all four
@@ -19,6 +28,10 @@ struct GlareFreeCaptureView: View {
   /// The composite (or, if no frames registered, the center shot) — routed
   /// to the existing detect-frame path.
   let onImage: (UIImage) -> Void
+  /// Resolved barcode-lookup product JPEG and the backend's OCR'd
+  /// piece-count estimate (nil when unreadable) — routed straight to
+  /// confirm-trim, bypassing the burst.
+  let onBarcodeJPEG: (Data, Int?) -> Void
 
   @Environment(AppModel.self) private var model
   @Environment(\.dismiss) private var dismiss
@@ -26,6 +39,10 @@ struct GlareFreeCaptureView: View {
   @State private var tracker = GlareGuideTracker()
   @State private var arSource: ARGlareGuideSource?
   @State private var controller: GlareFreeCaptureController?
+  @State private var barcodeStreamer = BarcodeScanStreamer()
+  @State private var barcodeController: BarcodeCaptureController?
+  /// Retains the fan-out the Simulator's camera session holds weakly.
+  @State private var frameConsumer: FanOutFrameConsumer?
 
   /// The active guidance backend — AR once `startSession` chose it, the
   /// registration tracker otherwise.
@@ -51,6 +68,7 @@ struct GlareFreeCaptureView: View {
     .onDisappear {
       camera.stop()
       arSource?.pause()
+      barcodeStreamer.reset()
       #if DEBUG
         if GlareFreeCaptureController.debugActive === controller {
           GlareFreeCaptureController.debugActive = nil
@@ -91,6 +109,7 @@ struct GlareFreeCaptureView: View {
   }
 
   private func startSession() async {
+    startBarcodeScanning()
     if ARGlareGuideSource.isSupported {
       startARSession()
     } else {
@@ -98,8 +117,29 @@ struct GlareFreeCaptureView: View {
     }
   }
 
+  /// Wires the barcode pipeline that runs alongside the reference-shot
+  /// aiming. The frame source differs per backend and is attached by the
+  /// two `start…Session` methods below; this half — throttle, lookup, and
+  /// the step-0 gate — is shared.
+  private func startBarcodeScanning() {
+    let barcodeController = self.barcodeController ?? BarcodeCaptureController(client: model.api)
+    self.barcodeController = barcodeController
+    barcodeController.onFound = { jpeg, pieceCountEstimate in
+      dismiss()
+      onBarcodeJPEG(jpeg, pieceCountEstimate)
+    }
+    barcodeStreamer.onDetection = { [weak barcodeController] detection in
+      // Only while the reference shot is being aimed. The AR backend stops
+      // forwarding frames after that on its own; the Simulator's fan-out
+      // keeps delivering them, so the gate lives here for both.
+      guard case .capturing(step: 0) = controller?.phase else { return }
+      barcodeController?.ingest(detection)
+    }
+  }
+
   /// The device path: ARKit world tracking supplies both the guidance and
-  /// the photos, so `BoxCameraSession` stays idle.
+  /// the photos, so `BoxCameraSession` stays idle — and the AR session is
+  /// also where the barcode scanner's frames have to come from.
   private func startARSession() {
     let source = arSource ?? ARGlareGuideSource()
     arSource = source
@@ -119,6 +159,7 @@ struct GlareFreeCaptureView: View {
       model.flow.errorMessage = message
       dismiss()
     }
+    source.frameConsumer = barcodeStreamer
     source.run()
   }
 
@@ -137,7 +178,10 @@ struct GlareFreeCaptureView: View {
     tracker.onUpdate = { update in
       controller.ingestGuide(update)
     }
-    camera.attachFrameConsumer(tracker)
+    // One stream, two readers: the guide tracker and the barcode scanner.
+    let consumer = frameConsumer ?? FanOutFrameConsumer([tracker, barcodeStreamer])
+    frameConsumer = consumer
+    camera.attachFrameConsumer(consumer)
     let started = await camera.start()
     // Dismissed while the permission prompt was up — the user left on
     // purpose, so there is nothing to complain about.
@@ -147,7 +191,7 @@ struct GlareFreeCaptureView: View {
         // The Simulator has no camera; stay on screen over the black
         // background so `pusseldebug://previewloop` + `glareshot` can
         // drive the flow. A real device failure still reports and
-        // dismisses — mirrors BoxCameraView.
+        // dismisses — mirrors PieceScanView.
         if !BoxCameraSession.isCameraAvailable { return }
       #endif
       model.flow.errorMessage =
@@ -276,7 +320,11 @@ struct GlareFreeCaptureView: View {
     VStack(spacing: 16) {
       switch controller?.phase {
       case .capturing(let step):
-        instructionBanner(step: step)
+        if isLookingUpBarcode {
+          lookupBanner
+        } else {
+          instructionBanner(step: step)
+        }
         if step == 0 {
           shutterButton
         }
@@ -314,6 +362,24 @@ struct GlareFreeCaptureView: View {
     }
   }
 
+  /// Whether a stable barcode read is currently being resolved — the
+  /// automatic lookup's only UI, as on the old box camera.
+  private var isLookingUpBarcode: Bool {
+    barcodeController?.phase == .lookingUp
+  }
+
+  private var lookupBanner: some View {
+    banner {
+      HStack(spacing: 10) {
+        ProgressView()
+          .tint(.white)
+        Text("Looking up puzzle…")
+          .font(.callout.weight(.semibold))
+          .foregroundStyle(.white)
+      }
+    }
+  }
+
   private var progressBanner: some View {
     banner {
       HStack(spacing: 10) {
@@ -338,8 +404,8 @@ struct GlareFreeCaptureView: View {
     }
   }
 
-  /// Capsule chrome shared by the banners — styled after BoxCameraView's
-  /// lookup banner.
+  /// Capsule chrome shared by the banners — styled after PieceScanView's
+  /// verdict capsule.
   private func banner(@ViewBuilder content: () -> some View) -> some View {
     content()
       .padding(.horizontal, 16)
@@ -358,7 +424,12 @@ struct GlareFreeCaptureView: View {
         Circle().strokeBorder(.white, lineWidth: 3).frame(width: 70, height: 70)
       }
     }
-    .disabled((controller?.isCapturing ?? true) || !(arSource?.isReady ?? true))
+    // A resolving barcode is about to replace this capture entirely, so
+    // taking the reference shot now would be work thrown away.
+    .opacity(isLookingUpBarcode ? 0.4 : 1)
+    .disabled(
+      (controller?.isCapturing ?? true) || !(arSource?.isReady ?? true) || isLookingUpBarcode
+    )
     .accessibilityLabel("Take the reference shot")
   }
 }

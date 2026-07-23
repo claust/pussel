@@ -51,6 +51,17 @@ final class ModelDecodingTests: XCTestCase {
     XCTAssertEqual(response.corners.topLeft, NormalizedPoint(x: 0.1, y: 0.1))
     XCTAssertEqual(response.corners.bottomRight, NormalizedPoint(x: 0.9, y: 0.9))
     XCTAssertEqual(ImageUtilities.decodeDataURL(response.trimmedImage), Data("hello".utf8))
+    // A stray piece_count_estimate from an older backend must not break decoding.
+    XCTAssertNoThrow(
+      try decoder.decode(
+        DetectFrameResponse.self,
+        from: Data(
+          """
+          {"trimmed_image": "data:image/jpeg;base64,aGVsbG8=",
+           "corners": {"top_left": {"x": 0, "y": 0}, "top_right": {"x": 1, "y": 0},
+                       "bottom_right": {"x": 1, "y": 1}, "bottom_left": {"x": 0, "y": 1}},
+           "confidence": 0.5, "piece_count_estimate": 1000}
+          """.utf8)))
   }
 
   func testDecodePuzzleUploadResponse() throws {
