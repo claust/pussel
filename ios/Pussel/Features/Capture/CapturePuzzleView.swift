@@ -4,7 +4,6 @@ import SwiftUI
 struct CapturePuzzleView: View {
   @Environment(AppModel.self) private var model
   @State private var showCamera = false
-  @State private var showGlareCamera = false
   @State private var showLibrary = false
   @State private var photoItem: PhotosPickerItem?
 
@@ -26,19 +25,12 @@ struct CapturePuzzleView: View {
     .overlay(alignment: .bottom) { UndoDeleteSnackbar() }
     .animation(.snappy, value: model.store.pendingDelete)
     .fullScreenCover(isPresented: cameraCoverIsPresented) {
-      BoxCameraView(
+      GlareFreeCaptureView(
         onImage: { image in
           Task { await handle(image: image, source: .camera) }
         },
         onBarcodeJPEG: { jpeg, pieceCountEstimate in
           model.startTrimFromBarcodeLookup(jpeg: jpeg, pieceCountEstimate: pieceCountEstimate)
-        }
-      )
-    }
-    .fullScreenCover(isPresented: glareCoverIsPresented) {
-      GlareFreeCaptureView(
-        onImage: { image in
-          Task { await handle(image: image, source: .camera) }
         }
       )
     }
@@ -89,18 +81,6 @@ struct CapturePuzzleView: View {
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
-          }
-          if BoxCameraSession.isCameraAvailable {
-            // Experimental multi-shot capture for glossy puzzles — see
-            // GlareFreeCaptureView.
-            Button {
-              showGlareCamera = true
-            } label: {
-              Label("Glare-Free Scan", systemImage: "sparkles")
-                .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.large)
             photoLibraryButton.buttonStyle(.bordered)
           } else {
             photoLibraryButton.buttonStyle(.borderedProminent)
@@ -136,8 +116,8 @@ struct CapturePuzzleView: View {
 
   /// After "Retake", jump straight back into whichever picker produced the
   /// original photo instead of making the user pick a source again. A
-  /// barcode-resolved image counts as a camera capture: the live box camera
-  /// is where both the barcode and the manual shutter live.
+  /// barcode-resolved image counts as a camera capture: the capture screen
+  /// is where both the barcode and the shutter live.
   private func reopenPickerIfRetaking() {
     guard let source = model.flow.pendingRetake else { return }
     model.flow.pendingRetake = nil
@@ -157,37 +137,22 @@ struct CapturePuzzleView: View {
     await model.startTrim(image: image, source: source)
   }
 
-  /// Also presented when `pusseldebug://boxcamera` sets
-  /// `flow.debugBoxCameraOpen`, so the barcode capture flow is drivable on
-  /// the Simulator (which has no camera, so `showCamera` alone never becomes
-  /// reachable there) — mirrors `PieceQueueView.cameraCoverIsPresented`.
+  /// Also presented when `pusseldebug://camera` (or its `boxcamera` /
+  /// `glarecamera` aliases) sets `flow.debugCaptureCameraOpen`, so the
+  /// capture flow is drivable on the Simulator (which has no camera, so
+  /// `showCamera` alone never becomes reachable there) — mirrors
+  /// `PieceQueueView.cameraCoverIsPresented`.
   private var cameraCoverIsPresented: Binding<Bool> {
     #if DEBUG
       Binding(
-        get: { showCamera || model.flow.debugBoxCameraOpen },
+        get: { showCamera || model.flow.debugCaptureCameraOpen },
         set: { newValue in
           showCamera = newValue
-          model.flow.debugBoxCameraOpen = newValue
+          model.flow.debugCaptureCameraOpen = newValue
         }
       )
     #else
       $showCamera
-    #endif
-  }
-
-  /// Mirrors `cameraCoverIsPresented` for the glare-free capture cover,
-  /// driven on the Simulator by `pusseldebug://glarecamera`.
-  private var glareCoverIsPresented: Binding<Bool> {
-    #if DEBUG
-      Binding(
-        get: { showGlareCamera || model.flow.debugGlareCameraOpen },
-        set: { newValue in
-          showGlareCamera = newValue
-          model.flow.debugGlareCameraOpen = newValue
-        }
-      )
-    #else
-      $showGlareCamera
     #endif
   }
 }

@@ -414,6 +414,20 @@ def test_detect_frame_manual_corners() -> None:
     assert result["trimmed_image"].startswith("data:image/jpeg;base64,")
 
 
+def test_detect_frame_omits_piece_count_estimate() -> None:
+    """The count is read on-device (iOS Vision), so detect-frame no longer OCRs it."""
+    with patch("app.main.estimate_piece_count") as estimator:
+        response = client.post(
+            "/api/v1/puzzle/detect-frame",
+            files=photo_files(make_photo_jpeg()),
+            headers=get_auth_header(),
+        )
+
+    assert response.status_code == 200
+    assert "piece_count_estimate" not in response.json()
+    estimator.assert_not_called()
+
+
 def test_detect_frame_invalid_corners_json() -> None:
     """Detect-frame returns 400 for a malformed corners payload."""
     response = client.post(
