@@ -1,0 +1,54 @@
+# Home-server (delectosoft) deployment of the pussel backend.
+#
+# Runs alongside the existing Appwrite stack and is routed by Appwrite's
+# Traefik: its Docker provider only picks up containers labeled with
+# `traefik.constraint-label-stack=appwrite` (see the constraint in
+# /home/claus/appwrite/appwrite/docker-compose.yml) that share the external
+# `gateway` network, so the labels below publish the backend at
+# https://pussel.sabeltiger.dk without touching Appwrite's own compose file.
+#
+# TLS: Traefik serves its default certificate for this host; Cloudflare
+# (SSL mode "Full", proxy enabled) accepts that and terminates the real
+# certificate at the edge — same recipe as photos.sabeltiger.dk.
+#
+# Secrets live OUTSIDE the git checkout (a `git reset --hard`/`clean` must
+# never touch them): /home/claus/pussel/backend.env, seeded from
+# backend.env.example.
+
+name: pussel
+
+services:
+  backend:
+    image: pussel-backend:local
+    build:
+      context: ../..
+      dockerfile: backend/Dockerfile
+    container_name: pussel-backend
+    restart: unless-stopped
+    env_file:
+      - /home/claus/pussel/backend.env
+    volumes:
+      - pussel-uploads:/app/backend/uploads
+    networks:
+      - gateway
+    labels:
+      - traefik.enable=true
+      - traefik.constraint-label-stack=appwrite
+      - traefik.docker.network=gateway
+      - traefik.http.services.pussel.loadbalancer.server.port=8000
+      - traefik.http.routers.pussel.rule=Host(`pussel.sabeltiger.dk`)
+      - traefik.http.routers.pussel.entrypoints=appwrite_websecure
+      - traefik.http.routers.pussel.tls=true
+      - traefik.http.routers.pussel.service=pussel
+      # Plain-HTTP router for LAN testing; public traffic arrives via
+      # Cloudflare over the TLS entrypoint.
+      - traefik.http.routers.pussel-http.rule=Host(`pussel.sabeltiger.dk`)
+      - traefik.http.routers.pussel-http.entrypoints=appwrite_web
+      - traefik.http.routers.pussel-http.service=pussel
+
+volumes:
+  pussel-uploads:
+
+networks:
+  gateway:
+    external: true

@@ -25,10 +25,6 @@ class Settings(BaseSettings):
     # CORS settings
     BACKEND_CORS_ORIGINS: list[str] = ["http://localhost:3000"]
 
-    # Azure settings
-    USE_AZURE_STORAGE: bool = False
-    AZURE_STORAGE_CONNECTION_STRING: str = ""
-
     # Authentication settings
     JWT_SECRET: str = "change-me-in-production-use-a-strong-random-secret"
     JWT_ALGORITHM: str = "HS256"

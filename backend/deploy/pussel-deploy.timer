@@ -1,0 +1,10 @@
+# Installed at /etc/systemd/system/pussel-deploy.timer on delectosoft.
+[Unit]
+Description=Poll origin/main every 5 minutes and deploy the pussel backend
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target

@@ -8,7 +8,8 @@ Pussel is a computer vision puzzle solver: photograph an assembled puzzle, then
 photograph a loose piece to get its position, rotation, and confidence.
 
 - `backend/` — FastAPI service (piece matching, puzzle store, Google auth).
-  Deployed to Azure App Service from `main`.
+  Deployed to the home server (see `backend/deploy/README.md`): merging to
+  `main` triggers a pull-based redeploy at https://pussel.sabeltiger.dk.
 - `ios/` — native SwiftUI app, the shipped client. See `ios/README.md`.
 - `frontend/` — Next.js 16 + Bun web app. Dev/test client, **not deployed**.
 - `network/` — PyTorch Lightning experiments. Research, not the shipped path.

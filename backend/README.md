@@ -2,7 +2,9 @@
 
 FastAPI service behind the Pussel puzzle solver: stores an uploaded puzzle,
 matches loose pieces against it, and returns each piece's position, rotation,
-and confidence. Deployed to Azure App Service from `main`.
+and confidence. Deployed to the home server at https://pussel.sabeltiger.dk —
+merging to `main` triggers a pull-based redeploy (see
+[deploy/README.md](deploy/README.md)).
 
 ## Setup
 
@@ -88,5 +90,6 @@ backend/
 ├── tests/
 ├── scripts/             # dev helpers (e.g. generate_test_token.py)
 ├── api.http             # sample requests
-└── Dockerfile           # image built and deployed by CI
+├── deploy/              # home-server compose stack + systemd deploy units
+└── Dockerfile           # container image (build from the repo root)
 ```
