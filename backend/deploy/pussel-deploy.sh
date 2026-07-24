@@ -12,6 +12,17 @@
 
 set -euo pipefail
 
+# The derived defaults below are absolute; an override must be too. A relative
+# one would resolve against this script's working directory here but against
+# the compose project directory in docker-compose.yml — same value, two
+# different files.
+for var in PUSSEL_REPO_DIR PUSSEL_ENV_FILE; do
+    if [[ -n "${!var:-}" && "${!var}" != /* ]]; then
+        echo "$var must be an absolute path (got: ${!var})" >&2
+        exit 1
+    fi
+done
+
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 REPO_DIR=${PUSSEL_REPO_DIR:-$(cd -- "$script_dir/../.." && pwd)}
 BRANCH=${PUSSEL_BRANCH:-main}
