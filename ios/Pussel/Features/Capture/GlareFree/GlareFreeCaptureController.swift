@@ -175,15 +175,15 @@ final class GlareFreeCaptureController {
       ?? GlareFreeComposer.Composite(image: reference, alignedFrameCount: 0)
     composite = result
     phase = .done
-    // Fire-and-forget: `GlareFreeDump` is DEBUG-only and its own encode-
-    // and-write work already runs off this (main) actor, but the flow
-    // shouldn't wait on disk I/O to reach `.done` — the unstructured Task
-    // lets it happen in the background instead of stalling this method's
-    // return. The whole call is compiled out of Release builds rather than
-    // relying on `record`'s own internal no-op, so production never even
-    // spawns the Task.
+    // Fire-and-forget on a detached task: the flow shouldn't wait on disk
+    // I/O to reach `.done`, and detaching guarantees the JPEG encoding and
+    // writes run off this (main) actor regardless of where a nonisolated
+    // async body happens to execute under the current language mode. The
+    // whole call is compiled out of Release builds rather than relying on
+    // `record`'s own internal no-op, so production never even spawns the
+    // task.
     #if DEBUG
-      Task {
+      Task.detached(priority: .utility) {
         await GlareFreeDump.record(
           reference: reference, others: others, expectedShifts: shifts,
           composite: result.image, alignedFrameCount: result.alignedFrameCount)

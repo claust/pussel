@@ -38,19 +38,24 @@ import cv2
 import numpy as np
 import pytest
 
+# Scoped, not permanent: generic module names like `common` and `stitch`
+# must not stay importable (and shadowable) for whatever the test runner
+# collects after this file.
 sys.path.insert(0, str(Path(__file__).parent))
-
-import score_stitch  # noqa: E402
-import stitch  # noqa: E402
-from common import (  # noqa: E402
-    DARKENED_PIXEL_THRESHOLD,
-    HEALED_PATCH_DARKENING_THRESHOLD,
-    CaptureDump,
-    compute_darkening_map,
-    detect_bright_specks,
-    near_saturated_fraction,
-    phase_correlation_grid,
-)
+try:
+    import score_stitch  # noqa: E402
+    import stitch  # noqa: E402
+    from common import (  # noqa: E402
+        DARKENED_PIXEL_THRESHOLD,
+        HEALED_PATCH_DARKENING_THRESHOLD,
+        CaptureDump,
+        compute_darkening_map,
+        detect_bright_specks,
+        near_saturated_fraction,
+        phase_correlation_grid,
+    )
+finally:
+    sys.path.remove(str(Path(__file__).parent))
 
 SCENE_WIDTH, SCENE_HEIGHT = 640, 480
 CORNER_JITTER_PX = 18.0
