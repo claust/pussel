@@ -23,9 +23,18 @@ COMPOSE_FILE="$REPO_DIR/backend/deploy/docker-compose.yml"
 # file and reach the container through the compose `env_file`.
 PUSSEL_ENV_FILE=${PUSSEL_ENV_FILE:-$(dirname -- "$REPO_DIR")/backend.env}
 export PUSSEL_ENV_FILE
-while IFS='=' read -r key value; do
-    export "$key=$value"
-done < <(grep -E '^PUSSEL_[A-Za-z0-9_]+=' "$PUSSEL_ENV_FILE")
+
+if [[ ! -r "$PUSSEL_ENV_FILE" ]]; then
+    echo "Deploy env file not readable: $PUSSEL_ENV_FILE" >&2
+    exit 1
+fi
+if ! settings=$(grep -E '^PUSSEL_[A-Za-z0-9_]+=' "$PUSSEL_ENV_FILE"); then
+    echo "No PUSSEL_* deploy settings in $PUSSEL_ENV_FILE — see backend.env.example" >&2
+    exit 1
+fi
+while IFS= read -r setting; do
+    export "$setting"
+done <<<"$settings"
 
 cd "$REPO_DIR"
 git fetch --quiet origin "$BRANCH"
