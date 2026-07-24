@@ -56,10 +56,11 @@ final class GlareFreeMaskedHealingIntegrationTests: XCTestCase {
     }
     XCTAssertFalse(others.isEmpty, "dump at \(dumpDirPath) should have at least one corner_N.jpg")
 
-    // `expectedShifts` in `metadata.json` is indexed like `others` here
-    // (one entry per `corner_N.jpg` in ascending N, dropped entries for
-    // missing corners) -- mirrors how the capture controller builds it in
-    // production (`GlareFreeCaptureController.expectedShift(step:)`).
+    // `expectedShifts` in `metadata.json` is positional: the capture
+    // controller always writes a fixed 4-element array (steps 1-4, nils
+    // preserved), so entry `N - 1` belongs to `corner_N.jpg` whether or
+    // not earlier corners exist. The subset below re-indexes it to match
+    // `others`, which only contains the corners present on disk.
     var expectedShifts: [CGSize?]?
     let metadataPath = dumpDir.appendingPathComponent("metadata.json")
     if let metadataData = try? Data(contentsOf: metadataPath),

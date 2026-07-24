@@ -32,7 +32,6 @@ Usage (from the repo root):
 """
 
 import argparse
-import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -411,32 +410,26 @@ def compute_darkening_robust(
     if not corrected_frames:
         return np.zeros((height, width), dtype=np.float32)
 
-    grays = np.stack(
-        [cv2.cvtColor(corrected_bgr, cv2.COLOR_BGR2GRAY) for corrected_bgr, _coverage in corrected_frames], axis=0
-    )
-    covered = np.stack([coverage > 0 for _corrected_bgr, coverage in corrected_frames], axis=0)
-    counts = covered.sum(axis=0)
-    masked_grays = np.where(covered, grays, np.nan)
+    # Track the brightest and second-brightest covered reading per pixel in one vectorized pass
+    # over the <= 4 frames (mirroring the Swift port) rather than sorting an (n_frames, H, W)
+    # stack -- the sort's large temporaries were an avoidable memory/time cost for two order
+    # statistics. Uncovered readings enter as -inf so they can never win either slot; pixels
+    # fewer than 2 frames cover are discarded by `counts` below regardless.
+    counts = np.zeros((height, width), dtype=np.int32)
+    max_gray = np.full((height, width), -np.inf, dtype=np.float32)
+    second_max_gray = np.full((height, width), -np.inf, dtype=np.float32)
+    for corrected_bgr, coverage in corrected_frames:
+        gray = cv2.cvtColor(corrected_bgr, cv2.COLOR_BGR2GRAY).astype(np.float32)
+        covered = coverage > 0
+        counts += covered
+        value = np.where(covered, gray, -np.inf)
+        beats_max = value > max_gray
+        second_max_gray = np.where(beats_max, max_gray, np.maximum(second_max_gray, value))
+        max_gray = np.where(beats_max, value, max_gray)
 
-    # Sort covered gray values to read off the brightest and second-brightest covered readings
-    # per pixel -- the two candidates the vote above picks between. Sorted via negation rather
-    # than `np.sort(...)[::-1]`: numpy's sort always pushes NaN (uncovered frames) to the END of
-    # an ascending sort, so reversing an ascending sort would instead put them FIRST, corrupting
-    # `sorted_desc[0]`/`[1]` at any pixel fewer than every frame covers. Sorting the negation
-    # ascending keeps NaN at the end while still ordering the real values from largest to
-    # smallest once negated back. Pixels no corrected frame covers are all-NaN along axis 0 by
-    # construction (`counts == 0` below discards them either way); numpy's own "All-NaN slice
-    # encountered" RuntimeWarning for that expected, already-handled case is noise, not a signal
-    # of a real problem here.
-    with np.errstate(all="ignore"), warnings.catch_warnings():
-        warnings.filterwarnings("ignore", message="All-NaN slice encountered", category=RuntimeWarning)
-        sorted_desc = -np.sort(-masked_grays, axis=0)
-    max_gray = sorted_desc[0]
-    second_max_gray = sorted_desc[1] if sorted_desc.shape[0] >= 2 else sorted_desc[0]
     # n=2 or 3: ALL-of-N vote (the brightest covered reading -- one bright frame vetoes).
     # n=4: 3-of-4 vote (the second-brightest -- one dissenting frame is tolerated).
-    robust_gray = np.nan_to_num(np.where(counts == 4, second_max_gray, max_gray), nan=0.0)
-
+    robust_gray = np.where(counts == 4, second_max_gray, max_gray)
     darkening = np.maximum(0.0, reference_gray - robust_gray)
     return np.where(counts >= 2, darkening, 0.0).astype(np.float32)
 
