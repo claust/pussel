@@ -5,9 +5,10 @@ import os
 /// DEBUG-only diagnostic dump of one glare-free capture burst: the raw
 /// reference and corner shots, the composed output, and enough metadata to
 /// reproduce the composite offline. Written under
-/// `Documents/GlareFreeDumps/<yyyyMMdd-HHmmss>/`, which `UIFileSharingEnabled`
-/// (see project.yml) exposes over USB — plug the device into a Mac, open it
-/// in Finder, and pull the folder straight out of the app's Files entry.
+/// `Documents/GlareFreeDumps/<yyyyMMdd-HHmmss-SSS>/`; pull it over USB with
+/// `pymobiledevice3 apps pull dk.delectosoft.pussel /Documents/GlareFreeDumps <dest>`
+/// (container access works for dev-signed builds without exposing Documents
+/// through Finder file sharing).
 /// There is no in-app UI for this; it exists purely so a bad composite seen
 /// on a test device can be reproduced and debugged on a Mac afterwards.
 ///
@@ -47,7 +48,7 @@ enum GlareFreeDump {
   }
 
   /// Writes one burst's frames, composite, and metadata under
-  /// `baseDirectory/<yyyyMMdd-HHmmss>/`. `reference`/`others` must be the
+  /// `baseDirectory/<yyyyMMdd-HHmmss-SSS>/`. `reference`/`others` must be the
   /// original captures handed to `GlareFreeComposer.compose` — not its
   /// internally downscaled working copies — so the dump preserves the full
   /// resolution the on-device pipeline actually saw.
@@ -76,7 +77,10 @@ enum GlareFreeDump {
       let now = Date()
       let directoryFormatter = DateFormatter()
       directoryFormatter.locale = Locale(identifier: "en_US_POSIX")
-      directoryFormatter.dateFormat = "yyyyMMdd-HHmmss"
+      // Millisecond suffix so two bursts landing in the same second can't
+      // silently share (and mix) a directory — createDirectory doesn't fail
+      // on an existing path.
+      directoryFormatter.dateFormat = "yyyyMMdd-HHmmss-SSS"
       let directory = baseDirectory.appendingPathComponent(
         directoryFormatter.string(from: now), isDirectory: true)
 

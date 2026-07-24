@@ -1,20 +1,21 @@
-# exp29 Handoff — Benchmark tool built, verified on synthetic data AND two real dumps
+# exp29 Handoff — Benchmark tool built, verified on synthetic data AND three real dumps
 
-Date: 2026-07-24 · Status: **tool complete, self-tested (11 tests), and validated
-against the first two real DEBUG-build device dumps** — two metric weaknesses
+Date: 2026-07-24 · Status: **tool complete, self-tested (12 tests), and validated
+against the first three real DEBUG-build device dumps** — three metric weaknesses
 found during that validation (glare-healing blindness, healed-vs-misaligned
-conflation) are fixed and re-verified · Plan: none (standalone tooling, not
-a milestone track)
+conflation, bright-detail erasure invisibility) are fixed and re-verified ·
+Plan: none (standalone tooling, not a milestone track)
 
 ## What's here
 
 `score_stitch.py` scores an existing capture-dump's `composite.jpg` against
-its `reference.jpg` on 6 axes (global SIFT+RANSAC geometry, local
+its `reference.jpg` on 7 axes (global SIFT+RANSAC geometry, local
 phase-correlation ghosting map with healed-patch exclusion, Canny/gradient
 edge doubling, variance-of-Laplacian sharpness, near-saturated-pixel glare
-reduction, and per-pixel-darkening glare healing), prints a table, and writes
+reduction, per-pixel-darkening glare healing, and bright-speck retention),
+prints a table, and writes
 `metrics.json` plus 3 diagnostic images (ghost heatmap, absdiff heatmap,
-worst-patch flicker crop). Optional `--quad` restricts all six axes to a
+worst-patch flicker crop). Optional `--quad` restricts all seven axes to a
 region, reported alongside full-frame. `stitch.py` is an independent offline
 Python reimplementation of the app's highlight-cap → SIFT+RANSAC →
 warp-with-white-fill → min-composite pipeline, giving a second composite to
@@ -63,7 +64,7 @@ distinct from both real-ghosting (inferno) and skipped-uniform (no overlay).
 
 **Finding 3 — ghost stats were dominated by background.** Added optional
 `--quad "x1,y1 x2,y2 x3,y3 x4,y4"` (unit coords, clockwise from top-left) to
-restrict all six axes to a region (e.g. the puzzle itself), reported as
+restrict all axes to a region (e.g. the puzzle itself), reported as
 `region` in `metrics.json` alongside the unchanged full-frame numbers. Global
 geometry reuses the single full-frame SIFT+RANSAC fit and subsets it by
 region rather than refitting, so region and full-frame numbers stay directly
@@ -80,7 +81,7 @@ high 57% darkened-fraction on this dump as a result — that's an honest
 reflection of this specific capture, not a metric bug (the other dump,
 `20260724-115252`, reports 0.05%).
 
-## Round-2 test additions (11 tests total, all passing)
+## Round-2 test additions (12 tests total after round 3, all passing)
 
 - Two new fixtures for glare healing: "darkens nothing" (composite identical
   to a glared reference — darkening must read ~0) and "sheen the composite
@@ -96,13 +97,29 @@ reflection of this specific capture, not a metric bug (the other dump,
 - One new test for `--quad`: region stats populate, full-frame stats stay
   unchanged, region patch count is a strict subset of full-frame.
 
+## Round 3 — bright-detail erasure (third real dump, 2026-07-24)
+
+`20260724-123532` (glossy starry-night box, 4/4 frames aligned) revealed that
+min-compositing under 1-3px misalignment ERASES small bright details (stars) —
+and the darkening-based healing metric counted that destruction as benefit.
+Fix: a **bright-speck retention** metric (white top-hat → threshold →
+small-area connected components; retention ratio composite/reference, whole
+frame and excluding healed patches), plus subtraction of dilated
+reference-speck pixels from the darkening map so erased specks no longer
+inflate glare healing. Real numbers: retention_excl_healed ≈ 1.01 (no-op dump
+115252), 1.16 (sheen dump 115323 — healing revealed specks), **0.53 on
+123532 — half the stars destroyed**; its darkened_fraction dropped
+63.35% → 60.35% once erased specks stopped counting as healing. One new
+combined test (starfield fixture: preserved vs erased dots, healing must not
+credit erasure) brings the suite to 12.
+
 ## Known gaps / next steps
 
-1. **Only two real dumps exist.** The "expected value ranges" in the README
-   now include both synthetic AND these two real numbers, but two captures
-   (one clean, one glare-heavy) isn't a calibration set — revisit
-   `HEALED_PATCH_DARKENING_THRESHOLD` and the qualitative good/bad guidance
-   as more real dumps accumulate.
+1. **Only three real dumps exist.** The "expected value ranges" in the README
+   now include both synthetic AND these three real numbers, but three captures
+   (one clean no-op, one glare-sheen, one glossy starfield box) isn't a
+   calibration set — revisit `HEALED_PATCH_DARKENING_THRESHOLD` and the
+   qualitative good/bad guidance as more real dumps accumulate.
 2. **Edge-doubling ratio remains a weak global signal in practice** — on
    both the synthetic misaligned case and `20260724-115323`'s real ghosting,
    it barely moved, because the ratio is diluted by the whole image

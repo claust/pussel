@@ -507,13 +507,15 @@ def test_score_stitch_handles_missing_metadata(fixture: SyntheticFixture, tmp_pa
     assert patches  # non-empty patch grid
 
 
-def test_score_stitch_cli_writes_metrics_json(fixture: SyntheticFixture, tmp_path: Path) -> None:
+def test_score_stitch_cli_writes_metrics_json(
+    fixture: SyntheticFixture, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """The CLI writes metrics.json and the diagnostic images to --out."""
     dump_dir = tmp_path / "dump"
     fixture.write_dump(dump_dir, fixture.misaligned_composite, with_metadata=True)
     out_dir = tmp_path / "out"
 
-    sys.argv = ["score_stitch.py", str(dump_dir), "--out", str(out_dir)]
+    monkeypatch.setattr(sys, "argv", ["score_stitch.py", str(dump_dir), "--out", str(out_dir)])
     score_stitch.main()
 
     assert (out_dir / "metrics.json").exists()
@@ -545,13 +547,15 @@ def test_stitch_reduces_glare_versus_raw_reference(fixture: SyntheticFixture, tm
     assert near_saturated_fraction(gray_composite) < near_saturated_fraction(gray_reference)
 
 
-def test_stitch_cli_writes_output_image(fixture: SyntheticFixture, tmp_path: Path) -> None:
+def test_stitch_cli_writes_output_image(
+    fixture: SyntheticFixture, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """The `stitch.py` CLI writes a valid composite JPEG to --out."""
     dump_dir = tmp_path / "cli_dump"
     fixture.write_dump(dump_dir, fixture.aligned_composite, with_metadata=True)
     out_path = tmp_path / "restitched.jpg"
 
-    sys.argv = ["stitch.py", str(dump_dir), "--out", str(out_path), "--skip-unverified"]
+    monkeypatch.setattr(sys, "argv", ["stitch.py", str(dump_dir), "--out", str(out_path), "--skip-unverified"])
     stitch.main()
 
     assert out_path.exists()

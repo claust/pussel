@@ -45,12 +45,6 @@ targets:
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
         ITSAppUsesNonExemptEncryption: false
-        # Exposes Documents/ (in particular GlareFreeDumps/, see
-        # GlareFreeDump.swift) over USB in Finder/iTunes file sharing — a
-        # DEBUG-only diagnostics aid, harmless to ship enabled since nothing
-        # writes there in Release builds.
-        UIFileSharingEnabled: true
-        LSSupportsOpeningDocumentsInPlace: true
         APIBaseURL: $(API_BASE_URL)
         GoogleIOSClientID: $(GOOGLE_IOS_CLIENT_ID)
         GoogleServerClientID: $(GOOGLE_SERVER_CLIENT_ID)
