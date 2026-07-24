@@ -92,9 +92,14 @@ pr_node_id() {
 # concatenates the outputs, so a jq-side `max_by` emits one timestamp *per page*
 # — fine on a single-page PR (<30 reviews), silently multi-line beyond that. With
 # `pipefail` set, gh's exit status still propagates through the pipeline.
+#
+# `// empty` is per-item and must stay that way: a PENDING review carries
+# submitted_at null, jq would print it as a bare `null`, and under LC_ALL=C
+# `null` sorts *above* every digit — so `tail -n 1` would hand `wait` the string
+# "null" as a valid-looking timestamp.
 latest_copilot_ts() {
   gh api "repos/$OWNER/$REPO/pulls/$PR/reviews" --paginate --jq \
-    ".[] | select(.user.login==\"$BOT_REVIEW_LOGIN\" or .user.login==\"$BOT_DISPLAY_LOGIN\") | .submitted_at" \
+    ".[] | select(.user.login==\"$BOT_REVIEW_LOGIN\" or .user.login==\"$BOT_DISPLAY_LOGIN\") | .submitted_at // empty" \
     | sort | tail -n 1
 }
 
