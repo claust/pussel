@@ -292,7 +292,13 @@ class PuzzleFrameDetector:
         try:
             # The rect argument is unused in GC_INIT_WITH_MASK mode
             cv2.grabCut(
-                image, grab, (0, 0, 0, 0), background_model, foreground_model, GRABCUT_ITERATIONS, cv2.GC_INIT_WITH_MASK
+                image,
+                grab,
+                (0, 0, 0, 0),
+                background_model,
+                foreground_model,
+                GRABCUT_ITERATIONS,
+                cv2.GC_INIT_WITH_MASK,
             )
         except cv2.error:
             return None

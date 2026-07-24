@@ -395,7 +395,7 @@ class TestCarpetBackground:
         # Mostly achromatic artwork with a wash tint too weak for the threshold
         # mask, plus colorful fragments along parts of the frame (a broken ring)
         rng = np.random.default_rng(11)
-        coarse = rng.uniform(60, 200, (85, 85, 1)).astype(np.float32)
+        coarse = rng.uniform(60, 200, (85, 85)).astype(np.float32)
         base = cv2.resize(np.clip(coarse, 0, 255), (512, 512))
         art_f = np.zeros((512, 512, 3), dtype=np.float32)
         art_f[:, :, 0] = base + 18
