@@ -15,7 +15,7 @@ dependencies = [
     "pydantic-settings>=2.14.2",
     "email-validator>=2.1.0",
     # Authentication
-    "google-auth>=2.56.0",
+    "google-auth>=2.56.2",
     "pyjwt>=2.10.1",
     # HTTP client
     "httpx>=0.26.0",
