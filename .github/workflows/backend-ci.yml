@@ -27,6 +27,11 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Lets Codecov fall back to tokenless OIDC upload when CODECOV_TOKEN
+      # is unavailable; harmless when the token is present.
+      id-token: write
 
     steps:
       - uses: actions/checkout@v7

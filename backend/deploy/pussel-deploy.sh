@@ -38,6 +38,8 @@ docker compose -f "$COMPOSE_FILE" build backend
 docker compose -f "$COMPOSE_FILE" up -d backend
 
 # Drop superseded image layers so repeated deploys don't fill the disk.
-docker image prune -f >/dev/null
+# Label-filtered so only this compose project's dangling images are pruned —
+# the server also runs Appwrite, whose layers must be left alone.
+docker image prune -f --filter "label=com.docker.compose.project=pussel" >/dev/null
 
 echo "Deployed $(git rev-parse --short HEAD)"
