@@ -308,6 +308,138 @@ class TestEdgeFallback:
         ]
 
 
+class TestCarpetBackground:
+    """Regression tests for a small puzzle on speckled gray carpet.
+
+    Both fixtures reproduce real handheld photos of a small puzzle on gray
+    carpet (2026-07-24 GlareFreeDumps captures, not committed). The carpet's
+    fiber speckle carries chromatic noise that survives the working blur, which
+    corrupted the old chroma-distance segmentation into a confident wrong quad
+    or a full-frame fallback.
+    """
+
+    @staticmethod
+    def make_carpet(rng: "np.random.Generator", width: int, height: int) -> "np.ndarray":
+        """Render a speckled gray carpet with chromatic noise in the speckle.
+
+        The speckle is generated at a coarse "fiber" scale and upscaled so it
+        survives the detector's working blur, like real carpet fibers do. The
+        per-channel tint noise makes dark fibers chromatically unreliable —
+        the property that broke the raw chroma-distance formulation.
+
+        Args:
+            rng: Seeded random generator.
+            width: Output width in pixels.
+            height: Output height in pixels.
+
+        Returns:
+            uint8 RGB array of shape (height, width, 3).
+        """
+        fiber = 6
+        coarse_w, coarse_h = width // fiber, height // fiber
+        fibers = rng.uniform(40, 200, (coarse_h, coarse_w, 1)).astype(np.float32)
+        tint = rng.normal(0, 10, (coarse_h, coarse_w, 3)).astype(np.float32)
+        coarse = np.clip(fibers + tint, 0, 255)
+        return cv2.resize(coarse, (width, height), interpolation=cv2.INTER_LINEAR).astype(np.uint8)
+
+    @staticmethod
+    def compose(carpet: "np.ndarray", art: "np.ndarray", dst_quad: "np.ndarray") -> Image.Image:
+        """Warp the artwork onto the carpet at the given destination quad."""
+        height, width = carpet.shape[:2]
+        size = art.shape[0]
+        src = np.array([[0, 0], [size, 0], [size, size], [0, size]], dtype=np.float32)
+        matrix = cv2.getPerspectiveTransform(src, dst_quad.astype(np.float32))
+        warped = cv2.warpPerspective(art, matrix, (width, height))
+        mask = cv2.warpPerspective(np.full((size, size), 255, np.uint8), matrix, (width, height))
+        return Image.fromarray(np.where(mask[..., None] > 0, warped, carpet))
+
+    def test_small_colorful_puzzle_on_speckled_carpet(self, detector: PuzzleFrameDetector) -> None:
+        """A colorful puzzle covering ~18% of the frame is found on noisy carpet.
+
+        Regression for the real capture where the border ring's noisy chroma
+        made the old segmentation return a confident wrong quad: the color
+        residual must treat the speckle as one uniform background.
+        """
+        width, height = 1200, 1600
+        carpet = self.make_carpet(np.random.default_rng(3), width, height)
+
+        art = np.zeros((512, 512, 3), dtype=np.uint8)
+        art[:, :, 0] = np.linspace(60, 230, 512, dtype=np.uint8)[None, :]
+        art[:, :, 1] = np.linspace(200, 40, 512, dtype=np.uint8)[:, None]
+        art[:, :, 2] = 160
+        art[::32] = (240, 120, 40)
+
+        dst_quad = np.array([[370, 430], [850, 445], [840, 1160], [360, 1150]], dtype=np.float32)
+        photo = self.compose(carpet, art, dst_quad)
+
+        corners, confidence = detector.detect_corners(photo)
+
+        expected = [(float(x) / width, float(y) / height) for x, y in dst_quad.tolist()]
+        assert confidence > 0.25
+        assert_corners_close(corners, expected)
+
+    def test_washed_out_puzzle_recovered_by_grabcut(self, detector: PuzzleFrameDetector) -> None:
+        """A washed-out puzzle whose colors barely differ from the carpet is recovered.
+
+        Regression for the real capture under warm light where thresholding
+        only finds scattered colorful fragments, none passing the area gate:
+        the GrabCut stage must grow the fragments and fit the quad on their
+        combined convex hull instead of falling through to the edge path
+        (which traces a garbage quad on the carpet texture).
+        """
+        from unittest.mock import patch
+
+        width, height = 1200, 1600
+        carpet = self.make_carpet(np.random.default_rng(5), width, height)
+
+        # Mostly achromatic artwork with a wash tint too weak for the threshold
+        # mask, plus colorful fragments along parts of the frame (a broken ring)
+        rng = np.random.default_rng(11)
+        coarse = rng.uniform(60, 200, (85, 85, 1)).astype(np.float32)
+        base = cv2.resize(np.clip(coarse, 0, 255), (512, 512))
+        art_f = np.zeros((512, 512, 3), dtype=np.float32)
+        art_f[:, :, 0] = base + 18
+        art_f[:, :, 1] = base
+        art_f[:, :, 2] = base + 18
+        art = np.clip(art_f, 0, 255).astype(np.uint8)
+        art[:45, :, :] = (210, 90, 40)
+        art[:, -45:, :] = (60, 60, 200)
+        art[-45:, :150, :] = (200, 40, 160)
+        art[100:220, :45, :] = (240, 150, 30)
+        art[220:300, 200:300] = (40, 160, 60)
+
+        dst_quad = np.array([[330, 380], [890, 400], [880, 1210], [320, 1190]], dtype=np.float32)
+        photo = self.compose(carpet, art, dst_quad)
+
+        cv2.setRNGSeed(7)  # pin GrabCut's k-means initialization
+        with (
+            patch.object(detector, "_grabcut_quad", wraps=detector._grabcut_quad) as grabcut_spy,
+            patch.object(detector, "_edge_quad", wraps=detector._edge_quad) as edge_spy,
+        ):
+            corners, confidence = detector.detect_corners(photo)
+        grabcut_spy.assert_called_once()
+        edge_spy.assert_not_called()
+
+        expected = [(float(x) / width, float(y) / height) for x, y in dst_quad.tolist()]
+        assert confidence > 0.05
+        assert_corners_close(corners, expected)
+
+    def test_dense_edge_map_gives_no_confidence(self, detector: PuzzleFrameDetector) -> None:
+        """Edge support on a texture-saturated edge map scores near zero.
+
+        On carpet, the dilated Canny map is dense enough that any outline
+        "hits" edges by chance; confidence must count only support above that
+        chance level, so a garbage quad on texture cannot score well.
+        """
+        rng = np.random.default_rng(2)
+        edges = ((rng.random((600, 800)) < 0.5) * 255).astype(np.uint8)
+        quad = np.array([[100, 80], [700, 90], [690, 520], [110, 510]], dtype=np.float32)
+
+        confidence = detector._rect_confidence(quad, edges, 800, 600)
+
+        assert confidence < 0.1
+
+
 def test_get_puzzle_detector_is_singleton() -> None:
     """get_puzzle_detector returns the same instance on repeated calls."""
     assert get_puzzle_detector() is get_puzzle_detector()
