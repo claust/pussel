@@ -75,6 +75,19 @@ Quality is enforced by pre-commit hooks and GitHub Actions: Black/isort/flake8/
 pyright for Python, OxLint/Prettier/TypeScript/Vitest/Playwright for the
 frontend, swift-format + SwiftLint for iOS, and Codecov for coverage.
 
+## Deployment
+
+The backend is the only deployed component. It runs on the home server as a
+Docker Compose stack behind Cloudflare, reachable at
+https://pussel.sabeltiger.dk and https://pussel.thomasen.dk (the URL the iOS
+app ships with).
+
+Merging to `main` is the deploy: a systemd timer on the server polls the
+repository every 5 minutes and, on a new commit, rebuilds the image natively
+and restarts the stack — no registry and no deploy secrets in CI, which only
+verifies that the image still builds. Setup and operations are documented in
+[backend/deploy/README.md](backend/deploy/README.md).
+
 ## License
 
 MIT.
