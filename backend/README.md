@@ -77,6 +77,20 @@ make check-backend       # black, isort, flake8, pyright — what CI runs
 make format-backend      # auto-fix formatting
 ```
 
+## Deployment
+
+Runs on the home server as a Docker Compose stack, routed through the
+Appwrite stack's Traefik and fronted by Cloudflare at
+https://pussel.sabeltiger.dk and https://pussel.thomasen.dk (the URL in the
+iOS app's Release config).
+
+Merging to `main` deploys: `pussel-deploy.timer` on the server polls every
+5 minutes and rebuilds/restarts on a new commit; a failed build leaves the
+running container untouched. The image builds from the **repo root**
+(`docker build -f backend/Dockerfile .`), since the backend depends on
+`shared/puzzle_shapes`. First-time setup, secrets layout, and operations
+commands live in [deploy/README.md](deploy/README.md).
+
 ## Layout
 
 ```
