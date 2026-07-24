@@ -79,8 +79,8 @@ ssh $DEPLOY_HOST 'journalctl -u pussel-deploy.service -n 50'
 # local stand-in expands before the command is sent.
 ssh $DEPLOY_HOST "$PUSSEL_ROOT/repo/backend/deploy/pussel-deploy.sh --force"
 
-# Health (hostname from PUSSEL_HOST_PRIMARY in the deploy env file)
-curl https://$PUSSEL_HOST_PRIMARY/health
+# Health — substitute the PUSSEL_HOST_PRIMARY value from backend.env
+curl https://<backend-host>/health
 ```
 
 Caveats:

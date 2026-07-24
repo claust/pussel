@@ -44,6 +44,12 @@ if ! settings=$(grep -E '^PUSSEL_[A-Za-z0-9_]+=' "$PUSSEL_ENV_FILE"); then
     exit 1
 fi
 while IFS= read -r setting; do
+    # A PUSSEL_ENV_FILE line inside the env file would point compose at a
+    # different file than the one validated above; it is a process-environment
+    # setting only.
+    if [[ $setting == PUSSEL_ENV_FILE=* ]]; then
+        continue
+    fi
     export "$setting"
 done <<<"$settings"
 
