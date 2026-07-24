@@ -38,15 +38,22 @@ struct AppFlowView: View {
       .toolbar {
         ToolbarItem(placement: .topBarTrailing) {
           Menu {
-            if let user = model.auth.user {
-              Text(user.email)
-            }
             #if DEBUG
               BackendMenuSection()
             #endif
-            Button("Sign Out", role: .destructive) {
-              model.authService.signOut()
-              model.flow.reset()
+            // The email is the section's header rather than a row of its own:
+            // headers render in a smaller font, so a full address fits on one
+            // line where a body row wraps, and it reads as context for the
+            // button it sits above.
+            Section {
+              Button("Sign Out", role: .destructive) {
+                model.authService.signOut()
+                model.flow.reset()
+              }
+            } header: {
+              if let user = model.auth.user {
+                Text(user.email)
+              }
             }
           } label: {
             ProfileIconView(pictureURL: model.auth.avatarURL)
@@ -77,7 +84,7 @@ struct AppFlowView: View {
             )
           )
         }
-        Text(model.backend.baseURL.absoluteString)
+        Text(model.backend.displayName)
       }
     }
   }
