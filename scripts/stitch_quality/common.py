@@ -419,7 +419,11 @@ def quad_to_mask(quad_unit: np.ndarray, width: int, height: int) -> np.ndarray:
     Returns:
         uint8 mask (height, width), 255 inside the quad and 0 outside.
     """
-    pixel_points = (quad_unit * np.array([width, height])).round().astype(np.int32)
+    # Scale to the last valid pixel index, not the size, so a unit
+    # coordinate of exactly 1.0 lands on the border pixel instead of one
+    # past it; clamp for good measure against out-of-range input.
+    pixel_points = (quad_unit * np.array([width - 1, height - 1])).round().astype(np.int32)
+    pixel_points = np.clip(pixel_points, 0, np.array([width - 1, height - 1]))
     mask = np.zeros((height, width), dtype=np.uint8)
     cv2.fillPoly(mask, [pixel_points], (255,))
     return mask
