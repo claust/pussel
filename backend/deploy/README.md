@@ -75,8 +75,9 @@ ssh $DEPLOY_HOST 'docker logs -n 100 pussel-backend'
 ssh $DEPLOY_HOST 'systemctl list-timers pussel-deploy.timer'
 ssh $DEPLOY_HOST 'journalctl -u pussel-deploy.service -n 50'
 
-# Manual redeploy (e.g. after editing backend.env)
-ssh $DEPLOY_HOST '$PUSSEL_ROOT/repo/backend/deploy/pussel-deploy.sh --force'
+# Manual redeploy (e.g. after editing backend.env). Double-quoted so the
+# local stand-in expands before the command is sent.
+ssh $DEPLOY_HOST "$PUSSEL_ROOT/repo/backend/deploy/pussel-deploy.sh --force"
 
 # Health (hostname from PUSSEL_HOST_PRIMARY in the deploy env file)
 curl https://$PUSSEL_HOST_PRIMARY/health
