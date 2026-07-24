@@ -711,6 +711,10 @@ def main() -> None:
     )
     parser.add_argument("--unverified-threshold", type=float, default=UNVERIFIED_ABSDIFF_THRESHOLD)
     args = parser.parse_args()
+    if args.mode == "masked" and args.skip_unverified:
+        # Reject rather than silently ignore: masked mode always gates, so
+        # the flag would suggest a behavior change that never happens.
+        parser.error("--skip-unverified only applies to --mode app; --mode masked always gates unverified frames")
 
     dump = load_dump(args.dump_dir)
     args.out.parent.mkdir(parents=True, exist_ok=True)
