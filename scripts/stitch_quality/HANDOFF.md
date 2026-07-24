@@ -1,4 +1,4 @@
-# exp29 Handoff — Benchmark tool built, verified on synthetic data AND three real dumps
+# Stitch-quality tooling handoff — Benchmark tool built, verified on synthetic data AND three real dumps
 
 Date: 2026-07-24 · Status: **tool complete, self-tested (12 tests), and validated
 against the first three real DEBUG-build device dumps** — three metric weaknesses
@@ -142,8 +142,8 @@ credit erasure) brings the suite to 12.
 
 ```bash
 cd network
-uv run pytest experiments/exp29_stitch_quality/test_exp29.py -v
-uv run python experiments/exp29_stitch_quality/score_stitch.py /path/to/real/dump
-uv run python experiments/exp29_stitch_quality/score_stitch.py /path/to/real/dump --quad "0.28,0.26 0.72,0.26 0.72,0.74 0.28,0.74"
-uv run python experiments/exp29_stitch_quality/stitch.py /path/to/real/dump --out /tmp/restitched.jpg
+uv run pytest scripts/stitch_quality/test_stitch_quality.py -v
+uv run python scripts/stitch_quality/score_stitch.py /path/to/real/dump
+uv run python scripts/stitch_quality/score_stitch.py /path/to/real/dump --quad "0.28,0.26 0.72,0.26 0.72,0.74 0.28,0.74"
+uv run python scripts/stitch_quality/stitch.py /path/to/real/dump --out /tmp/restitched.jpg
 ```

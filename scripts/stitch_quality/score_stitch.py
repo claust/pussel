@@ -44,11 +44,11 @@ puzzle.
 
 Usage:
     cd network
-    uv run python experiments/exp29_stitch_quality/score_stitch.py /path/to/dump
-    uv run python experiments/exp29_stitch_quality/score_stitch.py /path/to/dump --out /path/to/report
+    uv run python scripts/stitch_quality/score_stitch.py /path/to/dump
+    uv run python scripts/stitch_quality/score_stitch.py /path/to/dump --out /path/to/report
 
     # Restrict stats to a region (e.g. the puzzle itself), reported alongside full-frame:
-    uv run python experiments/exp29_stitch_quality/score_stitch.py /path/to/dump \
+    uv run python scripts/stitch_quality/score_stitch.py /path/to/dump \
         --quad "0.1,0.05 0.9,0.05 0.9,0.95 0.1,0.95"
 """
 

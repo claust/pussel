@@ -1,4 +1,4 @@
-"""Shared utilities for exp29: glare-free stitch-quality scoring and offline stitching.
+"""Shared utilities: glare-free stitch-quality scoring and offline stitching.
 
 Both `score_stitch.py` (metrics) and `stitch.py` (offline reimplementation)
 consume the same DEBUG-build capture-dump directory produced by the iOS
@@ -45,7 +45,7 @@ DARKENING_BLUR_SIGMA = 1.0
 DARKENED_PIXEL_THRESHOLD = 8.0
 # Per-patch MEAN darkening above which a local-ghosting grid patch is excluded from shift
 # statistics as "healed" rather than "misaligned". Empirically tuned against a real capture
-# with a broad glare sheen (network/experiments/exp29_stitch_quality/README.md): comfortably
+# with a broad glare sheen (scripts/stitch_quality/README.md): comfortably
 # above the ~18-27 gray-level baseline seen even on unaffected/background patches in that
 # capture, but below the ~40-76 range of the confirmed healed-sheen cluster.
 HEALED_PATCH_DARKENING_THRESHOLD = 25.0
@@ -55,7 +55,7 @@ HEALED_PATCH_DARKENING_THRESHOLD = 25.0
 SPECK_TOPHAT_KERNEL_PX = 7
 # Top-hat response (0-255 gray levels) above which a pixel is considered part of a bright
 # speck. Empirically tuned against a real starry-artwork capture
-# (network/experiments/exp29_stitch_quality/README.md): low enough to catch genuine small
+# (scripts/stitch_quality/README.md): low enough to catch genuine small
 # stars, high enough that JPEG/resample texture noise (which explodes the component count
 # past this point) isn't mistaken for one.
 SPECK_BRIGHTNESS_THRESHOLD = 12.0

@@ -1,4 +1,4 @@
-"""Synthetic self-tests for exp29: `score_stitch.py` metrics and `stitch.py` end to end.
+"""Synthetic self-tests: `score_stitch.py` metrics and `stitch.py` end to end.
 
 Everything is generated in-process with numpy/cv2 -- no fixtures on disk:
 
@@ -27,7 +27,7 @@ healed-patch exclusion mechanism in `compute_local_ghosting`, which must prefer 
 genuinely misaligned patch over a more-darkened one with a larger raw phase-correlation
 shift; and the `--quad` region-restriction plumbing.
 
-Run: `uv run pytest experiments/exp29_stitch_quality/test_exp29.py` (from `network/`).
+Run: `uv run pytest scripts/stitch_quality/test_stitch_quality.py` (from the repo root).
 """
 
 import sys

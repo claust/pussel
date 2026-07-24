@@ -16,8 +16,8 @@ let us iterate on the stitching approach offline in Python.
 
 Usage:
     cd network
-    uv run python experiments/exp29_stitch_quality/stitch.py /path/to/dump --out /tmp/restitched.jpg
-    uv run python experiments/exp29_stitch_quality/stitch.py /path/to/dump --out /tmp/restitched.jpg --skip-unverified
+    uv run python scripts/stitch_quality/stitch.py /path/to/dump --out /tmp/restitched.jpg
+    uv run python scripts/stitch_quality/stitch.py /path/to/dump --out /tmp/restitched.jpg --skip-unverified
 """
 
 import argparse

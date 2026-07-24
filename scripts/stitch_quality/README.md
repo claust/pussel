@@ -33,7 +33,7 @@ optional `metadata.json`).
   `corner_N.jpg` shots and score it the same way, e.g. to check whether a
   registration failure the app hit is a capture-pipeline bug or an
   inherently hard scene.
-- `test_exp29.py` — synthetic self-tests (no fixtures on disk); see
+- `test_stitch_quality.py` — synthetic self-tests (no fixtures on disk); see
   [Tests](#tests) below.
 
 ## Usage
@@ -42,17 +42,17 @@ All commands run from `network/`:
 
 ```bash
 # Score the app's own composite against the reference
-uv run python experiments/exp29_stitch_quality/score_stitch.py /path/to/dump
-uv run python experiments/exp29_stitch_quality/score_stitch.py /path/to/dump --out /path/to/report
+uv run python scripts/stitch_quality/score_stitch.py /path/to/dump
+uv run python scripts/stitch_quality/score_stitch.py /path/to/dump --out /path/to/report
 
 # Restrict stats to a region (e.g. the puzzle itself), reported alongside full-frame --
 # unit coordinates (0-1), clockwise from top-left, in the working-size frame:
-uv run python experiments/exp29_stitch_quality/score_stitch.py /path/to/dump \
+uv run python scripts/stitch_quality/score_stitch.py /path/to/dump \
     --quad "0.28,0.26 0.72,0.26 0.72,0.74 0.28,0.74"
 
 # Rebuild the composite offline from the raw corner shots and compare
-uv run python experiments/exp29_stitch_quality/stitch.py /path/to/dump --out /tmp/restitched.jpg
-uv run python experiments/exp29_stitch_quality/stitch.py /path/to/dump --out /tmp/restitched.jpg --skip-unverified
+uv run python scripts/stitch_quality/stitch.py /path/to/dump --out /tmp/restitched.jpg
+uv run python scripts/stitch_quality/stitch.py /path/to/dump --out /tmp/restitched.jpg --skip-unverified
 
 # Score the offline reimplementation's output the same way, by pointing a
 # second dump directory's composite.jpg at it (or just diff the two
@@ -401,7 +401,7 @@ revisit them as more real device dumps accumulate (only three exist so far).
 
 ## Tests
 
-`test_exp29.py` builds everything in-process with numpy/cv2, no fixtures on
+`test_stitch_quality.py` builds everything in-process with numpy/cv2, no fixtures on
 disk:
 
 - The main 5-shot fixture (`SyntheticFixture`): a random richly-textured
@@ -444,7 +444,7 @@ disk:
 
 ```bash
 cd network
-uv run pytest experiments/exp29_stitch_quality/test_exp29.py -v
+uv run pytest scripts/stitch_quality/test_stitch_quality.py -v
 ```
 
 `outputs/` (and any `--out` directory under a dump) is gitignored.
