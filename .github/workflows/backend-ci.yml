@@ -80,8 +80,8 @@ jobs:
           # Only treat upload errors as fatal when a token is actually present.
           fail_ci_if_error: ${{ secrets.CODECOV_TOKEN != '' }}
 
-  # Deployment is pull-based on the home server (backend/deploy/README.md):
-  # a systemd timer on delectosoft polls origin/main, rebuilds the image
+  # Deployment is pull-based on the server (backend/deploy/README.md):
+  # a systemd timer there polls origin/main, rebuilds the image
   # natively, and restarts the stack. This job only proves the Dockerfile
   # still builds so a broken image can't reach main.
   docker-build:

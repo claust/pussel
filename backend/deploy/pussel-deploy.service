@@ -1,5 +1,6 @@
-# Installed at /etc/systemd/system/pussel-deploy.service on delectosoft.
-# Triggered by pussel-deploy.timer; see backend/deploy/README.md.
+# Template for /etc/systemd/system/pussel-deploy.service — set User= and the
+# ExecStart path to the deploy user and checkout on your server before
+# installing. Triggered by pussel-deploy.timer; see backend/deploy/README.md.
 [Unit]
 Description=Deploy pussel backend when origin/main moves
 After=docker.service network-online.target
@@ -8,5 +9,5 @@ Requires=docker.service
 
 [Service]
 Type=oneshot
-User=claus
-ExecStart=/home/claus/pussel/repo/backend/deploy/pussel-deploy.sh
+User=DEPLOY_USER
+ExecStart=/path/to/pussel/repo/backend/deploy/pussel-deploy.sh

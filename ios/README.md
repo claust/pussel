@@ -9,8 +9,8 @@ belongs (position, rotation, confidence) — powered by the FastAPI backend.
 - Xcode 26+ (deployment target iOS 26)
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen): `brew install xcodegen`
 - A running backend: `make start-backend` from the repo root (Debug builds
-  point at `http://localhost:8000`; Release points at
-  `https://pussel.thomasen.dk`)
+  point at `http://localhost:8000`; Release builds use `RELEASE_API_BASE_URL`
+  from the gitignored `Config/Secrets.xcconfig`)
 
 ## Setup
 

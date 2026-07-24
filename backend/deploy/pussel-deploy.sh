@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Pull-based deploy of the pussel backend on delectosoft.
+# Pull-based deploy of the pussel backend on the server.
 #
 # Run periodically by pussel-deploy.timer (see the systemd units next to this
 # script): when origin/main has moved, hard-reset the checkout to it, rebuild
@@ -12,9 +12,20 @@
 
 set -euo pipefail
 
-REPO_DIR=${PUSSEL_REPO_DIR:-/home/claus/pussel/repo}
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+REPO_DIR=${PUSSEL_REPO_DIR:-$(cd -- "$script_dir/../.." && pwd)}
 BRANCH=${PUSSEL_BRANCH:-main}
 COMPOSE_FILE="$REPO_DIR/backend/deploy/docker-compose.yml"
+
+# Secrets and site-specific deploy settings live next to the checkout, not in
+# it. Compose substitutes the PUSSEL_* settings (hostnames, Traefik names)
+# from the environment, so export those; the application secrets stay in the
+# file and reach the container through the compose `env_file`.
+PUSSEL_ENV_FILE=${PUSSEL_ENV_FILE:-$(dirname -- "$REPO_DIR")/backend.env}
+export PUSSEL_ENV_FILE
+while IFS='=' read -r key value; do
+    export "$key=$value"
+done < <(grep -E '^PUSSEL_[A-Za-z0-9_]+=' "$PUSSEL_ENV_FILE")
 
 cd "$REPO_DIR"
 git fetch --quiet origin "$BRANCH"
@@ -39,7 +50,7 @@ docker compose -f "$COMPOSE_FILE" up -d backend
 
 # Drop superseded image layers so repeated deploys don't fill the disk.
 # Label-filtered so only this compose project's dangling images are pruned —
-# the server also runs Appwrite, whose layers must be left alone.
+# the server runs other stacks whose layers must be left alone.
 docker image prune -f --filter "label=com.docker.compose.project=pussel" >/dev/null
 
 echo "Deployed $(git rev-parse --short HEAD)"
