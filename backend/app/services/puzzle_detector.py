@@ -24,9 +24,28 @@ FULL_CONFIDENCE_AREA_RATIO = 0.5
 # Fraction of the shorter working dimension used as the border ring for background sampling
 BORDER_FRACTION = 0.05
 
-# If the border ring's 99th-percentile chroma deviation exceeds this, there is no
-# uniform background around the subject (e.g. an edge-to-edge image) and detection bails out
-MAX_BORDER_CHROMA_SPREAD = 0.06
+# If the border ring's 99th-percentile color residual (RGB units, see _foreground_mask)
+# exceeds this, there is no uniform background around the subject (e.g. an edge-to-edge
+# image) and detection bails out. Calibrated so a textured carpet with mild illumination
+# tint (~20) passes while a colored surround (~100+) bails.
+MAX_BORDER_COLOR_SPREAD = 30.0
+
+# Minimum color residual (RGB units) for a pixel to count as foreground
+COLOR_RESIDUAL_FLOOR = 12.0
+
+# GrabCut refinement runs on a further-downscaled copy: cost grows quadratically and
+# region shape, not pixel accuracy, is what the quad fit needs
+GRABCUT_MAX_DIM = 750
+
+# Seed components smaller than this fraction of the frame are dropped before GrabCut
+# (stray specks — e.g. a photographer's shadow patch — would otherwise grow into the region)
+GRABCUT_SEED_COMPONENT_RATIO = 0.005
+
+# GrabCut is skipped when the surviving seeds cover less than this fraction of the frame:
+# with almost no foreground evidence it would hallucinate a region from noise
+GRABCUT_MIN_SEED_RATIO = 0.02
+
+GRABCUT_ITERATIONS = 3
 
 # Auto-Canny spread: thresholds are set to (1 ± sigma) × the image's median intensity,
 # so the edge detector adapts to each photo's exposure rather than using fixed levels
@@ -87,12 +106,15 @@ class PuzzleFrameDetector:
     """Detects the puzzle picture in a photo and warps it to a flat crop.
 
     Detection is layered. The fast path segments the subject from a roughly
-    uniform background (sampled from the photo's border) using chroma distance
+    uniform background (sampled from the photo's border) using a color residual
     — which ignores shadows — plus a brighter-than-background luminance rule,
     then fits a quadrilateral to the convex hull of the largest region. When
-    the border is not a uniform background (e.g. a handheld photo where the
-    puzzle nearly fills the frame), it falls back to direct edge-based
-    detection of the puzzle's rectangular boundary.
+    that mask has real foreground evidence but no single region large enough
+    (a washed-out puzzle segments into fragments), a GrabCut pass seeded from
+    those fragments recovers the full region. When the border is not a uniform
+    background (e.g. a handheld photo where the puzzle nearly fills the frame),
+    it falls back to direct edge-based detection of the puzzle's rectangular
+    boundary.
 
     The puzzle picture is a strong quadrilateral with straight edges, so the
     fallback looks for that rectangle explicitly rather than asking a
@@ -126,6 +148,9 @@ class PuzzleFrameDetector:
 
         mask = self._foreground_mask(work)
         result = self._quad_from_mask(mask, work_w, work_h) if mask is not None else None
+
+        if result is None and mask is not None:
+            result = self._grabcut_quad(work, mask, work_w, work_h)
 
         if result is None:
             result = self._edge_quad(work, work_w, work_h)
@@ -169,6 +194,15 @@ class PuzzleFrameDetector:
     def _foreground_mask(self, work: "np.ndarray") -> Optional["np.ndarray"]:
         """Segment the subject from the background sampled along the photo's border.
 
+        Deviation from the background color is measured as the residual
+        ``||pixel - bg_chroma * luminance||`` in RGB units — the pixel compared
+        against the background's chroma scaled to the pixel's own brightness.
+        This equals chroma distance times luminance, which keeps the shadow
+        invariance of chroma but stays robust where raw chroma is not: in dark
+        pixels (a carpet's fiber shadows) the channel sum is small, so sensor
+        and JPEG noise dominate the chroma ratio, while the residual stays
+        near the noise amplitude.
+
         Args:
             work: Blurred float RGB working image.
 
@@ -183,27 +217,115 @@ class PuzzleFrameDetector:
         border_mask[:, :margin] = border_mask[:, -margin:] = True
 
         pix_chroma = _chroma(work)
-        border_chroma = pix_chroma[border_mask]
-        bg_chroma = np.median(border_chroma, axis=0)
-        border_spread = float(np.percentile(np.linalg.norm(border_chroma - bg_chroma, axis=1), 99))
-        if border_spread > MAX_BORDER_CHROMA_SPREAD:
+        bg_chroma = np.median(pix_chroma[border_mask], axis=0)
+
+        luminance = work.sum(axis=2)
+        residual = np.linalg.norm(work - bg_chroma[None, None, :] * luminance[..., None], axis=2)
+        border_spread = float(np.percentile(residual[border_mask], 99))
+        if border_spread > MAX_BORDER_COLOR_SPREAD:
             # Border pixels vary too much: no uniform background (e.g. edge-to-edge picture)
             return None
 
-        chroma_dist = np.linalg.norm(pix_chroma - bg_chroma, axis=2)
-        chroma_thresh = max(0.03, 1.5 * border_spread)
+        residual_thresh = max(COLOR_RESIDUAL_FLOOR, 1.5 * border_spread)
 
         # Brighter-than-background pixels are foreground too (a shadow is never brighter)
-        luminance = work.sum(axis=2)
         border_lum = luminance[border_mask]
         bg_lum = float(np.median(border_lum))
         lum_spread = float(np.percentile(np.abs(border_lum - bg_lum), 99))
         lum_thresh = max(60.0, 1.5 * lum_spread)
 
-        mask = ((chroma_dist > chroma_thresh) | (luminance > bg_lum + lum_thresh)).astype(np.uint8) * 255
+        mask = ((residual > residual_thresh) | (luminance > bg_lum + lum_thresh)).astype(np.uint8) * 255
         mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((25, 25), dtype=np.uint8))
         mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((11, 11), dtype=np.uint8))
         return cast("np.ndarray", mask)
+
+    def _grabcut_quad(
+        self, work: "np.ndarray", seed_mask: "np.ndarray", work_w: int, work_h: int
+    ) -> Optional[Tuple["np.ndarray", float]]:
+        """Recover the subject region with GrabCut when the color mask is fragmented.
+
+        A washed-out puzzle under warm light can be so close to the background
+        color that thresholding only picks up scattered colorful fragments,
+        none large enough to pass the area gate. GrabCut — seeded with those
+        fragments as probable foreground and the border ring as definite
+        background — models both sides as color mixtures with spatial
+        smoothness, growing the fragments out to the subject's true color
+        boundary. The recovered foreground is often still fragmented — a ring
+        with washed-out holes, or patches along the subject's frame — so the
+        quad is fitted (and the area gate applied) on the convex hull of all
+        significant recovered components, treating them as one convex subject.
+
+        Args:
+            work: Blurred float RGB working image.
+            seed_mask: uint8 foreground mask (0/255) from _foreground_mask.
+            work_w: Working image width.
+            work_h: Working image height.
+
+        Returns:
+            A (quad, confidence) tuple where quad has shape (4, 2), or None
+            when the seeds are too sparse or no recovered region covers at
+            least MIN_AREA_RATIO.
+        """
+        total_area = work_w * work_h
+        count, labels, stats, _ = cv2.connectedComponentsWithStats(seed_mask, connectivity=8)
+        seeds = np.zeros_like(seed_mask)
+        for label in range(1, count):
+            if stats[label, cv2.CC_STAT_AREA] >= GRABCUT_SEED_COMPONENT_RATIO * total_area:
+                seeds[labels == label] = 255
+        if np.count_nonzero(seeds) < GRABCUT_MIN_SEED_RATIO * total_area:
+            return None
+
+        scale = min(1.0, GRABCUT_MAX_DIM / max(work_w, work_h))
+        grab_w = max(1, round(work_w * scale))
+        grab_h = max(1, round(work_h * scale))
+        image = cv2.resize(np.clip(work, 0, 255).astype(np.uint8), (grab_w, grab_h))
+        seeds_small = cv2.resize(seeds, (grab_w, grab_h), interpolation=cv2.INTER_NEAREST)
+
+        margin = max(2, round(BORDER_FRACTION * min(grab_w, grab_h)))
+        grab = np.full((grab_h, grab_w), cv2.GC_PR_BGD, dtype=np.uint8)
+        grab[seeds_small > 0] = cv2.GC_PR_FGD
+        grab[:margin] = grab[-margin:] = cv2.GC_BGD
+        grab[:, :margin] = grab[:, -margin:] = cv2.GC_BGD
+
+        background_model = np.zeros((1, 65), dtype=np.float64)
+        foreground_model = np.zeros((1, 65), dtype=np.float64)
+        try:
+            # The rect argument is unused in GC_INIT_WITH_MASK mode
+            cv2.grabCut(
+                image,
+                grab,
+                (0, 0, 0, 0),
+                background_model,
+                foreground_model,
+                GRABCUT_ITERATIONS,
+                cv2.GC_INIT_WITH_MASK,
+            )
+        except cv2.error:
+            return None
+
+        foreground = ((grab == cv2.GC_FGD) | (grab == cv2.GC_PR_FGD)).astype(np.uint8) * 255
+        foreground = cv2.resize(foreground, (work_w, work_h), interpolation=cv2.INTER_NEAREST)
+        foreground = cv2.morphologyEx(foreground, cv2.MORPH_OPEN, np.ones((11, 11), dtype=np.uint8))
+
+        count, labels, stats, _ = cv2.connectedComponentsWithStats(foreground, connectivity=8)
+        kept = np.zeros_like(foreground)
+        kept_area = 0
+        for label in range(1, count):
+            if stats[label, cv2.CC_STAT_AREA] >= GRABCUT_SEED_COMPONENT_RATIO * total_area:
+                kept[labels == label] = 255
+                kept_area += int(stats[label, cv2.CC_STAT_AREA])
+        points = cv2.findNonZero(kept)
+        if points is None:
+            return None
+        hull = cv2.convexHull(points)
+        hull_area = cv2.contourArea(hull)
+        hull_ratio = hull_area / total_area
+        if hull_ratio < MIN_AREA_RATIO:
+            return None
+
+        quad = self._quad_from_hull(hull)
+        confidence = self._confidence(quad, float(kept_area), hull_area, hull_ratio)
+        return quad, confidence
 
     def _edge_quad(self, work: "np.ndarray", work_w: int, work_h: int) -> Optional[Tuple["np.ndarray", float]]:
         """Detect the puzzle's rectangular boundary directly from image edges.
@@ -283,7 +405,10 @@ class PuzzleFrameDetector:
         the quad is, how much of the photo it covers, and how much of its
         outline actually lies on detected edges (edge support). Edge support is
         the key discriminator — a quad that traces a real bordered rectangle
-        sits on strong edges, an arbitrary quad does not.
+        sits on strong edges, an arbitrary quad does not. Support is measured
+        as the excess over the edge map's overall density: on a densely
+        textured background (a carpet) a random outline already hits many edge
+        pixels, so only support above that chance level counts.
 
         Args:
             quad: The candidate quadrilateral, shape (4, 2).
@@ -305,7 +430,13 @@ class PuzzleFrameDetector:
         outline_pixels = int(np.count_nonzero(outline))
         edge_support = float(np.count_nonzero(edges & outline)) / outline_pixels if outline_pixels else 0.0
 
-        confidence = rectangularity * edge_support * min(1.0, area_ratio / FULL_CONFIDENCE_AREA_RATIO)
+        edge_density = float(np.count_nonzero(edges)) / edges.size
+        if edge_density >= 1.0:
+            support_above_chance = 0.0
+        else:
+            support_above_chance = max(0.0, (edge_support - edge_density) / (1.0 - edge_density))
+
+        confidence = rectangularity * support_above_chance * min(1.0, area_ratio / FULL_CONFIDENCE_AREA_RATIO)
         return float(np.clip(confidence, 0.0, 1.0))
 
     def _quad_from_mask(self, mask: "np.ndarray", work_w: int, work_h: int) -> Optional[Tuple["np.ndarray", float]]:
