@@ -85,6 +85,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Free runner disk space
+        # The CUDA-flavored torch in uv.lock makes the image ~15 GB; drop the
+        # runner's unused preinstalled toolchains so the build doesn't ENOSPC.
+        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 

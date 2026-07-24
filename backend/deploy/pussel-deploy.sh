@@ -27,7 +27,9 @@ if [[ "$local_rev" == "$remote_rev" && "${1:-}" != "--force" ]]; then
 fi
 
 echo "Deploying $BRANCH: ${local_rev:0:9} -> ${remote_rev:0:9}"
-git checkout --quiet "$BRANCH"
+# --force: the checkout is deploy-managed, never hand-edited; any local
+# drift (e.g. a stray chmod) must not wedge the deploy loop.
+git checkout --quiet --force "$BRANCH"
 git reset --hard --quiet "origin/$BRANCH"
 
 docker compose -f "$COMPOSE_FILE" build backend
