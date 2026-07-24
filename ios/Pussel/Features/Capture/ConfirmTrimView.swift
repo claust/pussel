@@ -3,14 +3,18 @@ import SwiftUI
 struct ConfirmTrimView: View {
   /// Mirrors LOW_CONFIDENCE_THRESHOLD in frontend/src/app/real/page.tsx.
   private static let lowConfidence = 0.4
-  /// Piece-count quick-pick presets shown as chips above the numeric field.
-  private static let pieceCountPresets = [12, 24, 48, 100, 500, 1000]
+  /// Piece-count quick-pick presets shown as chips; anything else goes through
+  /// the "Other" chip, which reveals the numeric field.
+  private static let pieceCountPresets = [12, 24, 48, 100, 500, 1000, 1500]
   private static let pieceCountRange = 4...2000
 
   @Environment(AppModel.self) private var model
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var quarterTurns = 0
   @State private var pieceCountText = ""
+  /// The numeric field is hidden until the user picks "Other" — it is only
+  /// needed for counts the preset chips don't cover.
+  @State private var showsCustomField = false
   @FocusState private var pieceCountFieldFocused: Bool
   @State private var hintOpacity = 0.0
   @State private var hintTurns = 0
@@ -29,6 +33,10 @@ struct ConfirmTrimView: View {
     // means zero typing; the user can still edit or tap a preset chip.
     if let estimate = candidate.pieceCountEstimate, Self.pieceCountRange.contains(estimate) {
       _pieceCountText = State(initialValue: String(estimate))
+      // An estimate no chip covers has to be visible somewhere, so reveal the
+      // field (and light up "Other") rather than showing a count with nothing
+      // selected.
+      _showsCustomField = State(initialValue: !Self.pieceCountPresets.contains(estimate))
     }
   }
 
@@ -143,34 +151,35 @@ struct ConfirmTrimView: View {
     VStack(spacing: 10) {
       Text("How many pieces?")
         .font(.subheadline.bold())
-      ScrollView(.horizontal, showsIndicators: false) {
-        HStack(spacing: 8) {
-          ForEach(Self.pieceCountPresets, id: \.self) { preset in
-            Button {
-              pieceCountText = String(preset)
-              pieceCountFieldFocused = false
-            } label: {
-              Text("\(preset)")
-                .font(.subheadline.weight(.medium))
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .background(
-                  pieceCount == preset ? Color.accentColor : Color.secondary.opacity(0.15),
-                  in: Capsule()
-                )
-                .foregroundStyle(pieceCount == preset ? Color.white : Color.primary)
-            }
-            .buttonStyle(.plain)
+      // Wrapping rather than horizontally scrolling: "Other" is the only way
+      // to reach a count the chips don't list, so it must never sit off the
+      // scrolled edge where nobody finds it.
+      ChipFlowLayout(spacing: 8) {
+        ForEach(Self.pieceCountPresets, id: \.self) { preset in
+          chip("\(preset)", isSelected: !showsCustomField && pieceCount == preset) {
+            pieceCountText = String(preset)
+            showsCustomField = false
+            pieceCountFieldFocused = false
           }
         }
-        .padding(.horizontal, 1)
+        chip("Other", isSelected: showsCustomField) {
+          // Coming from a chip, the field would otherwise open pre-filled
+          // with that preset — clear it so typing starts on a blank field.
+          if let pieceCount, Self.pieceCountPresets.contains(pieceCount) {
+            pieceCountText = ""
+          }
+          showsCustomField = true
+          pieceCountFieldFocused = true
+        }
       }
-      TextField("Piece count (4–2000)", text: $pieceCountText)
-        .keyboardType(.numberPad)
-        .multilineTextAlignment(.center)
-        .textFieldStyle(.roundedBorder)
-        .focused($pieceCountFieldFocused)
-        .frame(maxWidth: 220)
+      if showsCustomField {
+        TextField("Piece count (4–2000)", text: $pieceCountText)
+          .keyboardType(.numberPad)
+          .multilineTextAlignment(.center)
+          .textFieldStyle(.roundedBorder)
+          .focused($pieceCountFieldFocused)
+          .frame(maxWidth: 220)
+      }
       if let grid = estimatedGrid, let pieceCount {
         Text("\(pieceCount) pieces → \(grid.rows) × \(grid.cols) grid")
           .font(.footnote)
@@ -181,6 +190,23 @@ struct ConfirmTrimView: View {
           .foregroundStyle(.red)
       }
     }
+  }
+
+  /// A capsule quick-pick chip in the piece-count row.
+  private func chip(_ title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+    Button(action: action) {
+      Text(title)
+        .font(.subheadline.weight(.medium))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(
+          isSelected ? Color.accentColor : Color.secondary.opacity(0.15),
+          in: Capsule()
+        )
+        .foregroundStyle(isSelected ? Color.white : Color.primary)
+    }
+    .buttonStyle(.plain)
+    .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
   }
 
   /// One-shot "tap here to rotate" demo drawn over the photo: a tapping finger
