@@ -6,7 +6,7 @@ photograph a loose piece to get its position, rotation, and confidence.
 ## Components
 
 - `backend/` — FastAPI service (Python 3.12): piece matching, puzzle store,
-  Google auth. Deployed to the home server from `main`
+  Google auth. Deployed from `main` to the project's own server
   (see `backend/deploy/README.md`).
 - `ios/` — native SwiftUI app (iOS 26), the shipped client.
 - `frontend/` — Next.js 16 + Bun + Tailwind web app. Dev/test client, **not
@@ -78,7 +78,7 @@ Per-component workflows in `.github/workflows/` (`backend-ci`, `frontend-ci`,
 `ios-ci`, `network-ci`, plus a Dependabot lockfile job) run the same checks as
 `make check`, on pushes and PRs touching that component. Backend CI also builds
 the container image to prove the Dockerfile; deployment itself is pull-based
-on the home server (`backend/deploy/README.md`). All checks must pass — run
+on the server (`backend/deploy/README.md`). All checks must pass — run
 `make check` locally first.
 
 ## More detail

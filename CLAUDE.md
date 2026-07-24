@@ -8,8 +8,10 @@ Pussel is a computer vision puzzle solver: photograph an assembled puzzle, then
 photograph a loose piece to get its position, rotation, and confidence.
 
 - `backend/` — FastAPI service (piece matching, puzzle store, Google auth).
-  Deployed to the home server (see `backend/deploy/README.md`): merging to
-  `main` triggers a pull-based redeploy at https://pussel.sabeltiger.dk.
+  Deployed to the project's own server (see `backend/deploy/README.md`):
+  merging to `main` triggers a pull-based redeploy. Keep production hostnames,
+  server names, and paths out of the repo — they belong in the deploy env file
+  on the server and in the gitignored `ios/Config/Secrets.xcconfig`.
 - `ios/` — native SwiftUI app, the shipped client. See `ios/README.md`.
 - `frontend/` — Next.js 16 + Bun web app. Dev/test client, **not deployed**.
 - `network/` — PyTorch Lightning experiments. Research, not the shipped path.

@@ -20,9 +20,8 @@ pussel/
 **Backend** — FastAPI service exposing puzzle upload, frame detection, piece
 matching, piece geometry, and Google-based auth. Piece matching defaults to a
 classical SIFT → NCC hybrid (`MATCHER=classical`); the CNN from `network/` is
-selectable with `MATCHER=cnn`. Deployed to the home server at
-https://pussel.sabeltiger.dk — merging to `main` triggers a pull-based
-redeploy (see `backend/deploy/README.md`).
+selectable with `MATCHER=cnn`. Deployed to the project's own server — merging
+to `main` triggers a pull-based redeploy (see `backend/deploy/README.md`).
 
 **iOS app** — SwiftUI, iOS 26, Google Sign-In, on-device persistence of every
 puzzle and its pieces. This is the real mobile client; see
@@ -77,10 +76,10 @@ frontend, swift-format + SwiftLint for iOS, and Codecov for coverage.
 
 ## Deployment
 
-The backend is the only deployed component. It runs on the home server as a
-Docker Compose stack behind Cloudflare, reachable at
-https://pussel.sabeltiger.dk and https://pussel.thomasen.dk (the URL the iOS
-app ships with).
+The backend is the only deployed component. It runs on the project's own
+server as a Docker Compose stack behind a CDN, under two hostnames: the
+server-native one and the one the iOS app ships with. Hostnames and other
+site-specific values live in an env file on the server, not in this repo.
 
 Merging to `main` is the deploy: a systemd timer on the server polls the
 repository every 5 minutes and, on a new commit, rebuilds the image natively

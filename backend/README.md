@@ -2,9 +2,8 @@
 
 FastAPI service behind the Pussel puzzle solver: stores an uploaded puzzle,
 matches loose pieces against it, and returns each piece's position, rotation,
-and confidence. Deployed to the home server at https://pussel.sabeltiger.dk —
-merging to `main` triggers a pull-based redeploy (see
-[deploy/README.md](deploy/README.md)).
+and confidence. Deployed to the project's own server — merging to `main`
+triggers a pull-based redeploy (see [deploy/README.md](deploy/README.md)).
 
 ## Setup
 
@@ -79,10 +78,10 @@ make format-backend      # auto-fix formatting
 
 ## Deployment
 
-Runs on the home server as a Docker Compose stack, routed through the
-Appwrite stack's Traefik and fronted by Cloudflare at
-https://pussel.sabeltiger.dk and https://pussel.thomasen.dk (the URL in the
-iOS app's Release config).
+Runs as a Docker Compose stack behind a Traefik instance already on the
+server, fronted by a CDN under two hostnames: the server-native one and the
+one in the iOS app's Release config. Both — and every other site-specific
+value — come from a deploy env file outside the checkout, never from git.
 
 Merging to `main` deploys: `pussel-deploy.timer` on the server polls every
 5 minutes and rebuilds/restarts on a new commit; a failed build leaves the
@@ -104,6 +103,6 @@ backend/
 ├── tests/
 ├── scripts/             # dev helpers (e.g. generate_test_token.py)
 ├── api.http             # sample requests
-├── deploy/              # home-server compose stack + systemd deploy units
+├── deploy/              # compose stack + systemd deploy units
 └── Dockerfile           # container image (build from the repo root)
 ```
