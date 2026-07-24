@@ -2267,7 +2267,7 @@ requires-dist = [
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.1.0" },
     { name = "python-multipart", specifier = ">=0.0.20" },
     { name = "pytorch-lightning", specifier = ">=2.6.1" },
-    { name = "rembg", extras = ["cpu"], specifier = ">=2.0.76" },
+    { name = "rembg", extras = ["cpu"], specifier = ">=2.0.77" },
     { name = "timm", specifier = ">=0.9.12" },
     { name = "torch", specifier = ">=2.12.1" },
     { name = "torchvision", specifier = ">=0.17.0" },
@@ -2775,7 +2775,7 @@ wheels = [
 
 [[package]]
 name = "rembg"
-version = "2.0.76"
+version = "2.0.77"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "jsonschema" },
@@ -2787,9 +2787,9 @@ dependencies = [
     { name = "scipy" },
     { name = "tqdm" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/26/54/516bb406aa1dd95de5d0d5bcce889ce292c37da5a0f0fc9b52790add403a/rembg-2.0.76.tar.gz", hash = "sha256:b55ba8a39a53961918506b36b7241adcf737f8e3ab452638d5f50927e16cdc7e", size = 30423, upload-time = "2026-06-03T13:27:16.423Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/0f/30/5681ca38c5ccf77c807d7d3302ef334fc426ef6a68fa2f6b222bc48000bc/rembg-2.0.77.tar.gz", hash = "sha256:848cb55027cbd5116105dcb86003a6a4ba66812237ec869c70d2960227256b01", size = 31373, upload-time = "2026-07-18T12:51:09.005Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a3/41/711e1c5763b5acc653b53a5f4c60b9ffa85b6298c4525f5e90844af7236e/rembg-2.0.76-py3-none-any.whl", hash = "sha256:c98ed085de93f4e1e984f8939afd361fa13d0e4922ed14b3ef77670438a76db3", size = 45230, upload-time = "2026-06-03T13:27:17.393Z" },
+    { url = "https://files.pythonhosted.org/packages/e5/8b/b6b6a7281b3125c25e1977cca6dcee1084caef51f1606089bd5084bc3cdd/rembg-2.0.77-py3-none-any.whl", hash = "sha256:27d5499214385a9255578a44d2db8bd0241d80ebf67aadb4109547ec49bfe71f", size = 46133, upload-time = "2026-07-18T12:51:09.992Z" },
 ]
 
 [package.optional-dependencies]
