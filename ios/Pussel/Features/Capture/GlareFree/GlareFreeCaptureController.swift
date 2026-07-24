@@ -170,10 +170,25 @@ final class GlareFreeCaptureController {
     // A composer failure still leaves the reference shot — degrade to a
     // normal single-photo capture rather than dead-ending the flow. The
     // view surfaces the degradation via `alignedFrameCount == 0`.
-    composite =
+    let result =
       await compose(reference, others, shifts)
       ?? GlareFreeComposer.Composite(image: reference, alignedFrameCount: 0)
+    composite = result
     phase = .done
+    // Fire-and-forget on a detached task: the flow shouldn't wait on disk
+    // I/O to reach `.done`, and detaching guarantees the JPEG encoding and
+    // writes run off this (main) actor regardless of where a nonisolated
+    // async body happens to execute under the current language mode. The
+    // whole call is compiled out of Release builds rather than relying on
+    // `record`'s own internal no-op, so production never even spawns the
+    // task.
+    #if DEBUG
+      Task.detached(priority: .utility) {
+        await GlareFreeDump.record(
+          reference: reference, others: others, expectedShifts: shifts,
+          composite: result.image, alignedFrameCount: result.alignedFrameCount)
+      }
+    #endif
   }
 
   /// Restarts the five-shot sequence (offered after a failed capture).
