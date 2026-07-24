@@ -719,7 +719,7 @@ def test_masked_mode_preserves_synthetic_starfield() -> None:
     assert float(alpha.mean()) < 0.01
 
 
-# --- Round 5: median-based robust darkening for the mask ---
+# --- Vote-based robust darkening for the mask ---
 
 TEXTURE_JITTER_PX = 1.5  # residual misalignment left after SIFT+ECC on a real capture, not raw corner jitter
 
@@ -742,20 +742,20 @@ def _make_high_freq_texture(rng: np.random.Generator, height: int, width: int) -
     return cv2.GaussianBlur(base, (0, 0), sigmaX=0.5)  # a little blur -- texture, not salt-and-pepper noise
 
 
-def test_masked_mode_median_darkening_ignores_textured_background_misalignment() -> None:
-    """The mask's darkening signal must not flag textured-background misalignment (Rounds 5-6).
+def test_masked_mode_vote_darkening_ignores_textured_background_misalignment() -> None:
+    """The mask's darkening signal must not flag textured-background misalignment.
 
-    Reproduces the real defect Round 5 fixed (and Round 6 tightened further): a min-of-frames
-    darkening signal reads a high-frequency, high-variance background (e.g. carpet) as "darkened"
-    almost everywhere once frames disagree by even a small residual 1-2px misalignment (the kind
-    SIFT+ECC still leaves after registration, not raw uncorrected corner jitter) -- a pure
-    order-statistics artifact with nothing to do with glare (see `compute_darkening_robust`'s
-    docstring). The robust (now vote-based, `compute_darkening_robust`) estimate must suppress
-    that noise (the mask stays off, the blended output stays close to the reference) while a
-    genuine glare disc -- present in the reference but, mirroring the real 5-shot technique,
-    glaring at a DIFFERENT spot in every covered frame -- must still darken enough to heal. This
-    fixture uses 4 covering frames throughout, so it exercises Round 6's 3-of-4 vote specifically
-    (not just Round 5's median).
+    Reproduces the real carpet-leakage defect (see README.md's "Mask signal tuning history"): a
+    min-of-frames darkening signal reads a high-frequency, high-variance background (e.g. carpet)
+    as "darkened" almost everywhere once frames disagree by even a small residual 1-2px
+    misalignment (the kind SIFT+ECC still leaves after registration, not raw uncorrected corner
+    jitter) -- a pure order-statistics artifact with nothing to do with glare (see
+    `compute_darkening_robust`'s docstring). The vote-based `compute_darkening_robust` estimate
+    must suppress that noise (the mask stays off, the blended output stays close to the
+    reference) while a genuine glare disc -- present in the reference but, mirroring the real
+    5-shot technique, glaring at a DIFFERENT spot in every covered frame -- must still darken
+    enough to heal. This fixture uses 4 covering frames throughout, so it exercises the 3-of-4
+    vote specifically (not just an all-of-N max).
     """
     rng = np.random.default_rng(404)
     height, width = SCENE_HEIGHT, SCENE_WIDTH

@@ -220,7 +220,7 @@ class FeatureMatchResult:
 _sift = None
 
 
-def _get_sift():  # type: ignore[no-untyped-def]
+def _get_sift() -> cv2.SIFT:
     """Get or create the shared `cv2.SIFT` detector (created once, reused across calls)."""
     global _sift
     if _sift is None:

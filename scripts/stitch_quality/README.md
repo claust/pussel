@@ -590,8 +590,7 @@ disk:
   bright-detail-retention test above uses to force a strong signal for
   `score_stitch`'s own detector.
 - A fixture for the robust darkening estimate
-  (`test_masked_mode_median_darkening_ignores_textured_background_misalignment`,
-  named for the median-era signal, now exercising the vote):
+  (`test_masked_mode_vote_darkening_ignores_textured_background_misalignment`):
   a high-frequency, high-contrast textured background (mirroring a real
   carpet) sampled by 4 frames each shifted ~1-2px from the reference (the
   scale of residual misalignment SIFT+ECC leaves behind, not raw uncorrected
