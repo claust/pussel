@@ -17,6 +17,17 @@ enum Config {
     #endif
   }
 
+  /// The deployed backend (`RELEASE_API_BASE_URL` in Config/Secrets.xcconfig),
+  /// or nil when the build has no valid value for it. Release builds already
+  /// resolve `apiBaseURL` to this; Debug builds keep it alongside their local
+  /// URL so `BackendSelection` can flip between the two at runtime.
+  static var remoteAPIBaseURL: URL? {
+    guard let url = URL(string: string(for: "RemoteAPIBaseURL")), url.scheme != nil else {
+      return nil
+    }
+    return url
+  }
+
   static var googleIOSClientID: String { string(for: "GoogleIOSClientID") }
 
   static var googleServerClientID: String { string(for: "GoogleServerClientID") }

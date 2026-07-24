@@ -46,6 +46,11 @@ targets:
           NSAllowsLocalNetworking: true
         ITSAppUsesNonExemptEncryption: false
         APIBaseURL: $(API_BASE_URL)
+        # The deployed backend, carried by Debug builds too so the account
+        # menu's backend switch has something to switch to (see
+        # BackendSelection); in Release it is what APIBaseURL already resolves
+        # to. Empty when Secrets.xcconfig omits it — the switch then hides.
+        RemoteAPIBaseURL: $(RELEASE_API_BASE_URL)
         GoogleIOSClientID: $(GOOGLE_IOS_CLIENT_ID)
         GoogleServerClientID: $(GOOGLE_SERVER_CLIENT_ID)
         CFBundleURLTypes:
