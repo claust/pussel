@@ -87,9 +87,15 @@ pr_node_id() {
 # returns gh's exit status, so callers can tell "query succeeded, no review yet"
 # (rc 0, empty) apart from "query failed" (rc != 0). stderr is kept for the
 # caller to surface on failure rather than swallowed here.
+#
+# The max is taken in the shell, not in jq: `--paginate` runs `--jq` per page and
+# concatenates the outputs, so a jq-side `max_by` emits one timestamp *per page*
+# — fine on a single-page PR (<30 reviews), silently multi-line beyond that. With
+# `pipefail` set, gh's exit status still propagates through the pipeline.
 latest_copilot_ts() {
   gh api "repos/$OWNER/$REPO/pulls/$PR/reviews" --paginate --jq \
-    "[.[] | select(.user.login==\"$BOT_REVIEW_LOGIN\" or .user.login==\"$BOT_DISPLAY_LOGIN\")] | max_by(.submitted_at) | .submitted_at // empty"
+    ".[] | select(.user.login==\"$BOT_REVIEW_LOGIN\" or .user.login==\"$BOT_DISPLAY_LOGIN\") | .submitted_at" \
+    | sort | tail -n 1
 }
 
 case "$cmd" in
