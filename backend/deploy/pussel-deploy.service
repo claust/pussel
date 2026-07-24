@@ -3,6 +3,7 @@
 [Unit]
 Description=Deploy pussel backend when origin/main moves
 After=docker.service network-online.target
+Wants=network-online.target
 Requires=docker.service
 
 [Service]

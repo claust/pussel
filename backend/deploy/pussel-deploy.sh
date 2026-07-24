@@ -27,10 +27,12 @@ if [[ "$local_rev" == "$remote_rev" && "${1:-}" != "--force" ]]; then
 fi
 
 echo "Deploying $BRANCH: ${local_rev:0:9} -> ${remote_rev:0:9}"
-# --force: the checkout is deploy-managed, never hand-edited; any local
-# drift (e.g. a stray chmod) must not wedge the deploy loop.
-git checkout --quiet --force "$BRANCH"
-git reset --hard --quiet "origin/$BRANCH"
+# The checkout is deploy-managed, never hand-edited: force-sync straight to
+# origin (works even if the local branch is missing) and drop any local
+# drift — a stray chmod once wedged a plain `git checkout` here. Secrets
+# live outside the checkout, so cleaning untracked files is safe.
+git checkout --quiet --force -B "$BRANCH" "origin/$BRANCH"
+git clean -fdq
 
 docker compose -f "$COMPOSE_FILE" build backend
 docker compose -f "$COMPOSE_FILE" up -d backend
