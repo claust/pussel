@@ -11,8 +11,12 @@ struct ChipFlowLayout: Layout {
   var spacing: CGFloat = 8
 
   func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Void) -> CGSize {
-    let rows = rows(for: subviews, width: proposal.width ?? .infinity)
-    let width = rows.map(\.width).max() ?? 0
+    let proposed = proposal.width ?? .infinity
+    let rows = rows(for: subviews, width: proposed)
+    // A chip too wide to wrap (long localization, large Dynamic Type) sits on
+    // a row of its own that overflows; report at most what we were offered so
+    // the parent isn't asked for width it won't hand back.
+    let width = min(rows.map(\.width).max() ?? 0, proposed)
     let height = rows.map(\.height).reduce(0, +) + spacing * CGFloat(max(rows.count - 1, 0))
     return CGSize(width: width, height: height)
   }
@@ -22,7 +26,9 @@ struct ChipFlowLayout: Layout {
   ) {
     var y = bounds.minY
     for row in rows(for: subviews, width: bounds.width) {
-      var x = bounds.minX + (bounds.width - row.width) / 2
+      // max() so an overflowing row starts at the leading edge rather than
+      // being centred into a negative origin, which would clip both ends.
+      var x = bounds.minX + max((bounds.width - row.width) / 2, 0)
       for index in row.indices {
         let size = subviews[index].sizeThatFits(.unspecified)
         subviews[index].place(
