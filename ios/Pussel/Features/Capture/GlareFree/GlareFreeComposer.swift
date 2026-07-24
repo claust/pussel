@@ -177,10 +177,11 @@ enum GlareFreeComposer {
       // The masked-healing math failed outright (an unexpected Core
       // Graphics allocation failure, say) — fall back to the reference
       // alone rather than losing the whole capture. `alignedFrameCount`
-      // still reports what registered, so the caller can tell this
-      // degraded case apart from a clean one.
+      // reports 0, not how many frames registered: no frame contributed
+      // to this output, and 0 is what the capture view keys its
+      // "used the center photo as-is" degradation message on.
       guard let outputCG = context.createCGImage(referenceImage, from: extent) else { return nil }
-      return Composite(image: UIImage(cgImage: outputCG), alignedFrameCount: verifiedFrames.count)
+      return Composite(image: UIImage(cgImage: outputCG), alignedFrameCount: 0)
     }
     return Composite(image: healed, alignedFrameCount: verifiedFrames.count)
   }
