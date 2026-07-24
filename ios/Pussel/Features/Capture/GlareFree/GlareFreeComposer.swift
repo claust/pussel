@@ -21,10 +21,10 @@ import simd
 /// (e.g. carpet), and lets an exposure-mismatched frame's global darkness
 /// win pixels that have nothing to do with glare. The masked-healing
 /// pipeline below (ported from `scripts/stitch_quality/stitch.py --mode
-/// masked` — "Round 5" in that directory's `HANDOFF.md`) fixes all three:
+/// masked`; see that directory's `README.md`) fixes all three:
 /// per-frame photometric gain compensation before the min-composite, and
 /// confining the min-composite's effect to a feathered mask built from a
-/// *robust* (median-of-covering-frames) darkening estimate, so pristine
+/// *robust* (vote-of-covering-frames) darkening estimate, so pristine
 /// reference pixels survive everywhere the mask doesn't fire.
 ///
 /// Registration is unchanged and still runs on Core Image/Vision
@@ -52,7 +52,7 @@ enum GlareFreeComposer {
   static let proxyMaxDimension: CGFloat = 1024
 
   // MARK: - Masked healing tunables (scripts/stitch_quality/stitch.py
-  // --mode masked; see that directory's HANDOFF.md, "Round 5")
+  // --mode masked; see that directory's README.md)
 
   /// Long-side size (pixels) the glare-mask math (gain compensation,
   /// robust darkening, threshold/dilate/feather) runs at. This is plain
@@ -88,10 +88,11 @@ enum GlareFreeComposer {
   /// `MASK_DARKENING_BLUR_SIGMA`.
   static let maskDarkeningBlurSigma: Float = 3.0
   /// Per-pixel (blurred) darkening above which a pixel is candidate glare,
-  /// measured on the median-of-covering-frames darkening estimate (see
+  /// measured on the vote-of-covering-frames darkening estimate (see
   /// `robustDarkening`) rather than a plain min-based signal, which
   /// carries a large, glare-unrelated noise floor on high-variance
-  /// textures like carpet — see HANDOFF.md's Round 5 for the tuning story.
+  /// textures like carpet — see the benchmark README's "Mask signal tuning
+  /// history" for the tuning story.
   /// Mirrors `stitch.py`'s `MASK_DARKENING_THRESHOLD`.
   static let maskDarkeningThreshold: Float = 30.0
   /// Reference gray level below which a pixel is excluded from the glare

@@ -42,8 +42,7 @@ unrestricted full-frame numbers -- useful since ghosting/edge stats are otherwis
 dominated by textured background (e.g. carpet) patches that have nothing to do with the
 puzzle.
 
-Usage:
-    cd network
+Usage (from the repo root):
     uv run python scripts/stitch_quality/score_stitch.py /path/to/dump
     uv run python scripts/stitch_quality/score_stitch.py /path/to/dump --out /path/to/report
 

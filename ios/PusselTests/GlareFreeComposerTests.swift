@@ -333,7 +333,8 @@ final class GlareFreeComposerTests: XCTestCase {
     // Only 2 of 4 covering frames read darker; the vote requires 3 of 4
     // (the second-brightest), so this must NOT register as darkening --
     // 2-of-4 agreement is exactly the coincidental-carpet-texture scenario
-    // Round 6 tightened the vote to reject (HANDOFF.md Round 6).
+    // the vote was tightened to reject (see the benchmark README's "Mask
+    // signal tuning history").
     let reference = grayMap(width: 1, height: 1, value: 200)
     let frames = [
       grayMap(width: 1, height: 1, value: 195),
@@ -424,7 +425,8 @@ final class GlareFreeComposerTests: XCTestCase {
   /// `testCard()`'s own texture (proven to register reliably -- see
   /// `testComposeRemovesReferenceGlare`) with small bright specks burned in
   /// on top -- the starfield scenario that motivated the whole
-  /// masked-healing port (HANDOFF.md Round 3): a plain global min-composite
+  /// masked-healing port (see the benchmark README's real-dump findings):
+  /// a plain global min-composite
   /// under 1-3px residual misalignment lets a neighboring frame's darker
   /// local-background pixel consistently win a speck's exact location,
   /// erasing it. A flat, nearly textureless backdrop would be closer to a
@@ -460,7 +462,8 @@ final class GlareFreeComposerTests: XCTestCase {
     // pixels (so registration has real work to do) plus a deliberate
     // sub-pixel nudge on top -- residual misalignment at roughly the scale
     // that survives even a converged registration, which is exactly what
-    // erased stars in the old global min-composite (HANDOFF.md Round 3).
+    // erased stars in the old global min-composite (see the benchmark
+    // README's real-dump findings).
     let shots: [CGSize] = [
       CGSize(width: 42, height: -38),
       CGSize(width: -40, height: 36),
@@ -502,7 +505,7 @@ final class GlareFreeComposerTests: XCTestCase {
       // of white; a speck that merely softened under resampling stays much
       // closer to its original brightness. This is the regression check:
       // the OLD plain min-composite erased roughly half the stars in
-      // HANDOFF.md's real captures (retention_ratio_excl_healed 0.525) --
+      // the benchmark's real captures (retention_ratio_excl_healed 0.525) --
       // masked healing should keep nearly all of them here, since none of
       // these specks are ever actually glared.
       if compositedBrightness > untouchedBrightness - 60 { survivedCount += 1 }

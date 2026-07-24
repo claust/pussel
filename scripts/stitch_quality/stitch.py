@@ -25,8 +25,7 @@ regions instead of the whole frame.
 Neither mode is a byte-identical port of the Swift pipeline -- both exist to let us iterate on
 the stitching approach offline in Python.
 
-Usage:
-    cd network
+Usage (from the repo root):
     uv run python scripts/stitch_quality/stitch.py /path/to/dump --out /tmp/restitched.jpg
     uv run python scripts/stitch_quality/stitch.py /path/to/dump --out /tmp/restitched.jpg --skip-unverified
     uv run python scripts/stitch_quality/stitch.py /path/to/dump --out /tmp/masked.jpg --mode masked
@@ -74,28 +73,15 @@ GAIN_GRAY_HIGH = 220
 # suppress resample/JPEG noise rather than reacting to it pixel-for-pixel.
 MASK_DARKENING_BLUR_SIGMA = 3.0
 # Per-pixel darkening (0-255 gray levels) above which a pixel is considered candidate glare, as
-# measured on `compute_darkening_robust`'s median-of-covered-frames darkening estimate (see that
-# function's docstring for why median rather than min). Round 4 tuned the previous value of 30
-# against a MIN-based darkening signal, which carries a large, glare-unrelated noise floor: the
-# min of several noisy/misaligned samples of a high-variance texture (carpet) reads systematically
-# lower than any one of them, everywhere. Round 5's median-based signal (`compute_darkening_robust`)
-# removes most, but empirically not all, of that floor -- a sweep over {10, 15, 20, 30} on
-# `20260724-123532` (see HANDOFF.md Round 5) found carpet-region alpha>0.5 coverage of 83.8% / 80.1%
-# / 68.6% / 31.3% respectively (down from Round 4's 92.6%/93% at the equivalent min-based settings,
-# but not under the ~10% originally hoped for at any swept value) alongside local-ghosting p95 of
-# 32.2 / 27.2 / 8.5 / 0.5px (carpet leakage directly feeds spurious phase-correlation readings on
-# that dump's fabric texture -- see Round 4's carpet caveat). 30 remains the best of the four
-# swept values by a wide margin on both axes, while still clearing the bright-detail
-# retention-excl-healed >= 0.9 target at every threshold tried (0.975/1.065/1.074/1.084) -- so the
-# value is UNCHANGED from Round 4, but it now means something different: applied to a darkening
-# signal an order of magnitude less carpet-contaminated than before. See HANDOFF.md Round 5 for
-# the full sweep table and the residual-leakage caveat. Round 5's residual leakage (Vision/ECC
-# registration error is largest near frame edges, since the verification gate only checks the
-# central 50%, so a border carpet pixel could still get 2-of-3 or 2-of-4 median "agreement" on a
-# coincidentally shifted-texture reading) motivated Round 6's replacement of the median with an
-# explicit all-of-N (n=2,3) / 3-of-4 (n=4) vote in `compute_darkening_robust` -- this threshold's
-# own value is UNCHANGED again, still applied against gray levels, just a stricter estimator
-# feeding it now. See HANDOFF.md Round 6.
+# measured on `compute_darkening_robust`'s vote-of-covered-frames darkening estimate (see that
+# function's docstring for why a vote rather than min or median). Empirically tuned on the real
+# dumps: a sweep over {10, 15, 20, 30} on the glossy starry-box capture found carpet-region
+# alpha>0.5 coverage of 83.8% / 80.1% / 68.6% / 31.3% (median-era signal) alongside local-ghosting
+# p95 of 32.2 / 27.2 / 8.5 / 0.5px -- carpet leakage directly feeds spurious phase-correlation
+# readings on fabric texture -- while bright-detail retention-excl-healed cleared the 0.9 target
+# at every value tried (0.975/1.065/1.074/1.084). 30 was the best of the four on both leakage
+# axes by a wide margin for negligible retention cost. See README.md's "Mask signal tuning
+# history" for the full story (min -> median -> vote) and the residual-leakage caveat.
 MASK_DARKENING_THRESHOLD = 30.0
 # Reference gray level below which a pixel is excluded from the glare mask regardless of
 # darkening -- keeps moving hand shadows (dark in the reference already) out: glare heals FROM
@@ -365,7 +351,7 @@ def compute_darkening_robust(
 ) -> np.ndarray:
     """Per-pixel darkening estimate for the glare MASK, robust to min-of-N order-statistic noise.
 
-    `compute_glare_alpha` (Round 4) drove the glare mask directly off
+    `compute_glare_alpha` originally drove the glare mask directly off
     `max(0, gray(reference) - gray(min_composite))` -- the same signal `common.compute_darkening_map`
     uses for scoring. That is an honest benefit signal for SCORING (the min-composite really did
     pick that darker pixel), but as the mask's OWN candidate-selection signal it conflates real
@@ -373,29 +359,29 @@ def compute_darkening_robust(
     high-variance texture (e.g. carpet) reads systematically lower than any individual sample,
     everywhere, with nothing to do with glare. On a real capture with a gray carpet background
     (median gray ~135, above `MASK_BRIGHTNESS_FLOOR`), that noise floor alone pushed the min-based
-    mask's alpha above 0.5 over 93% of the carpet (see HANDOFF.md Round 5).
+    mask's alpha above 0.5 over 93% of the carpet (see README.md's "Mask signal tuning history").
 
-    Round 5's fix (a median across covered frames) still left real carpet leakage: Vision/ECC
+    The first fix (a median across covered frames) still left real carpet leakage: Vision/ECC
     registration error is largest near the frame edges (the verification gate only checks the
     CENTRAL 50%), so at a border carpet pixel it's common for exactly 2 of 3 (or 2 of 4) covered
     frames to agree on the same shifted-texture-driven darker reading -- a coincidence, not
-    glare, but the old median treated 2-of-3 agreement as "most frames" and let it through. Round
-    6 replaces the median with an explicit VOTE, tuned to require broader agreement before the
+    glare, but a median treats 2-of-3 agreement as "most frames" and lets it through. The current
+    rule replaces the median with an explicit VOTE, tuned to require broader agreement before the
     mask fires at all:
 
     - 2 or 3 covered frames: the MAX (brightest) covered gray -- i.e. an ALL-of-N vote. Every
       single covered frame must read darker than the reference for the pixel to register as
       darkened at all; one frame reading bright (still glared, or just texture noise) is enough
-      to veto it. For n=2 this is unchanged from Round 5 (a 2-sample median is just their
+      to veto it. For n=2 this matches the median-era rule (a 2-sample median is just their
       average, which understates darkening at a genuinely glared pixel where only one frame sees
-      through the glare, so max was already used); for n=3 this TIGHTENS Round 5's median
+      through the glare, so max was already used); for n=3 this TIGHTENS the previous median
       (effectively a 2-of-3 vote: the median is decided by whichever 2 of the 3 samples are
       closer together) into an all-of-3 vote.
     - 4 covered frames: the SECOND-brightest covered gray -- a 3-of-4 vote. Four is common enough
       (every corner frame aligned) that requiring literal unanimity would make the mask too
       trigger-happy to reject on a single coincidental bright reading, so one frame is allowed to
       disagree (e.g. a corner shot that happens to share glare position with the reference).
-      Round 5's plain median-of-4 was, in effect, closer to a 2-of-4 vote (the median of 4 sits
+      A plain median-of-4 was, in effect, closer to a 2-of-4 vote (the median of 4 sits
       between the 2nd and 3rd values, and `np.nanmedian` averages them) -- the new second-highest
       rule requires a full extra frame's agreement.
 

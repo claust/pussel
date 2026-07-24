@@ -1,4 +1,4 @@
-# Experiment 29: Glare-Free Stitch Quality Benchmark
+# Glare-Free Stitch Quality Benchmark
 
 ## Objective
 
@@ -6,9 +6,9 @@ The iOS app's glare-free capture flow takes 5 photos of an assembled puzzle (1
 centered reference + 4 corner-offset shots), registers each corner shot onto
 the reference with a homography, and min-composites them (darkest pixel wins)
 to remove glare. Misregistration shows up as ghosting/double edges in the
-composite and confuses downstream piece matching. This experiment is an
-**offline benchmark tool**, not a model-training experiment: it scores how
-well that stitch worked on one concrete capture, given a DEBUG-build dump
+composite and confuses downstream piece matching. This is an **offline
+benchmark tool**: it scores how well that stitch worked on one concrete
+capture, given a DEBUG-build dump
 directory (`reference.jpg`, `corner_1.jpg`..`corner_4.jpg`, `composite.jpg`,
 optional `metadata.json`).
 
@@ -41,7 +41,7 @@ optional `metadata.json`).
 
 ## Usage
 
-All commands run from `network/`:
+All commands run from the repo root:
 
 ```bash
 # Score the app's own composite against the reference
@@ -296,8 +296,8 @@ let us iterate on the stitching approach offline in Python, and to give
 
 ## `stitch.py --mode masked`, in detail
 
-Motivated by three failure modes the exp29 benchmark tool exposed on real
-captures (see [Round 4 in `HANDOFF.md`](HANDOFF.md#round-4-glare-masked-compositing-2026-07-24)): a global
+Motivated by three failure modes this benchmark exposed on real captures
+(see [Real-dump validation](#real-dump-validation-2026-07-24)): a global
 min-composite erases fine bright detail (stars) under 1-3px residual
 misalignment; matte glare is a desaturating gray sheen, never full white;
 and background micro-parallax a homography can't fit (e.g. carpet) smears
@@ -330,11 +330,10 @@ else:
    the running min here — its contribution happens entirely through the
    blend in step 6).
 5. **Glare mask**: a **robust darkening estimate**, `compute_darkening_robust`
-   (see [Round 5](HANDOFF.md#round-5-median-based-robust-darkening-for-the-mask-2026-07-24)
-   and [Round 6](HANDOFF.md#round-6-a-stricter-vote-for-the-robust-darkening-estimate-2026-07-24)
-   in `HANDOFF.md` for why this replaced a plain
-   `max(0, gray(reference) - gray(min_composite))` signal, and then why the
-   median itself was replaced with a vote) — at each pixel covered by ≥2
+   (see [Mask signal tuning history](#mask-signal-tuning-history) for why
+   this replaced a plain `max(0, gray(reference) - gray(min_composite))`
+   signal, and then why the median itself was replaced with a vote) — at
+   each pixel covered by ≥2
    gain-corrected verified frames, take a **vote** among the covered frames'
    gray values: 2 or 3 covered, the brightest (an ALL-of-N vote — every
    covered frame must read darker than the reference); exactly 4 covered,
@@ -355,32 +354,53 @@ else:
    `<out-stem>_mask.png` next to `--out`, as a diagnostic, and the CLI prints
    the fraction of pixels with alpha > 0.5 ("mask coverage").
 
-`MASK_DARKENING_THRESHOLD` needed to be tuned well above the spec's naive
-starting point of 10/255: real captures show a systemic, glare-unrelated
-"darkening" floor from two sources — taking the min of several noisy photos
-reads lower than any one of them everywhere (an order-statistics effect),
-and `cv2.warpPerspective`'s resampling softens fine bright detail (diluting
-a star's peak into its darker neighbors, which shows up as "darkening"
-exactly where the star is, from the resample alone). At threshold 10, that
-floor was large enough to blanket 80-93% of the frame in alpha and erase the
-same fine detail the mask was meant to protect. See `stitch.py`'s
-`MASK_DARKENING_THRESHOLD` docstring and
-[Round 4 in `HANDOFF.md`](HANDOFF.md#round-4-glare-masked-compositing-2026-07-24) for the full tuning story and
-measured numbers on all three real dumps. **Round 5** replaced the mask's
-darkening signal itself (step 5 above) with the median-based
-`compute_darkening_robust`, which suppresses most (not all) of that same
-order-statistics floor directly on a highly-textured background (e.g.
-carpet) — see
-[Round 5 in `HANDOFF.md`](HANDOFF.md#round-5-median-based-robust-darkening-for-the-mask-2026-07-24)
-for the re-swept threshold numbers and the residual-leakage caveat. **Round
-6** found that Round 5's residual leakage was concentrated near frame
-borders, where registration error is largest (the verification gate only
-checks the central 50%) and a plain median let 2-of-3 or 2-of-4 covered
-frames' coincidental agreement through; replacing the median with an
-explicit all-of-N (2 or 3 covered) / 3-of-4 (4 covered) vote in
-`compute_darkening_robust` closed most of that gap — see
-[Round 6 in `HANDOFF.md`](HANDOFF.md#round-6-a-stricter-vote-for-the-robust-darkening-estimate-2026-07-24)
-for the before/after numbers.
+### Mask signal tuning history
+
+The mask's darkening signal went through three iterations against the real
+dumps, and the reasons are load-bearing for anyone re-tuning it:
+
+1. **Min-composite darkening (rejected).** The first mask keyed off
+   `max(0, gray(reference) - gray(min_composite))` — the same signal
+   `score_stitch.py` uses for its glare-healing benefit metric. Honest for
+   *scoring*, but as a mask signal it conflates glare with two systemic,
+   glare-unrelated darkening sources: the min of several independent noisy
+   samples reads lower than any one sample everywhere (order statistics),
+   and `cv2.warpPerspective` resampling dilutes a small bright feature's
+   peak into its darker neighbors — which perversely targets stars for
+   "healing" precisely because resampling already dimmed them. On the
+   glossy starry-box dump (`20260724-123532`, gray carpet ≈ gray 135 —
+   above `MASK_BRIGHTNESS_FLOOR`), this put alpha > 0.5 over **93% of the
+   carpet**; at the naive threshold of 10/255 it blanketed 80-93% of the
+   whole frame and pushed star retention down to 0.74. The threshold sweep
+   showed a sharp knee at 15-20 (noise floor, not signal); 30 sits past it.
+2. **Median of covered frames (better, insufficient).** `compute_darkening_robust`
+   switched the signal to the median gray of the ≥2 covering, gain-corrected
+   frames: glare moves between shots, so at a genuinely glared reference
+   pixel most frames show the true darker surface and the median stays dark,
+   while an unglared texture pixel's median is a typical sample, not the
+   extreme minimum. Carpet leakage on `123532` dropped 93% → 31%, and with
+   the noise floor gone, `123532`'s local-ghosting p95 fell 32px → 0.44px —
+   most of what had been attributed to `cv2.phaseCorrelate` instability on
+   fabric texture was actually the mask blending the carpet.
+3. **Explicit vote (current).** The residual leakage concentrates near frame
+   borders, where registration error is largest (`frame_is_verified` only
+   checks the central 50%, so border-bad warps pass) — and a median of 3 is
+   effectively a 2-of-3 vote, letting two coincidentally-agreeing frames
+   through. The current rule: **2 or 3 covered frames → the brightest
+   covered gray (all-of-N vote — one bright frame vetoes); 4 covered → the
+   second-brightest (3-of-4, tolerating one corner shot whose own glare
+   lands where the reference's does)**. Real glare clears this easily (it
+   moves between shots by construction). Carpet leakage fell further,
+   31% → 17%, healing intact (retention_excl_healed 1.128, darkened_fraction
+   14.4% at mean 33/255). In the iOS port the same change was worth far
+   more: the matte-sheen dump's ghost p95 dropped **11.4px → 0.46px**,
+   because Vision's registration leaves even more border error than
+   SIFT+ECC.
+
+Final constants: `MASK_DARKENING_THRESHOLD = 30`, `MASK_BRIGHTNESS_FLOOR =
+110`, `MASK_DILATE_RADIUS_PX = 15`, `MASK_FEATHER_SIGMA = 8` (all at the
+reference's working scale). The threshold was tuned against only two real
+dumps — revisit as more accumulate.
 
 ## Real-dump validation (2026-07-24)
 
@@ -451,6 +471,27 @@ detected reference specks subtracted out before that number is computed
 (see [Glare healing](#glare-healing--the-primary-benefit-metric) above):
 without the subtraction, this dump's `darkened_fraction` reads 63.35%,
 crediting the composite for ~3,200 deleted stars as if they'd been healed.
+
+### Masked healing vs the app's global min-composite (final numbers)
+
+The masked-mode recipe (including its Swift port in
+`ios/Pussel/Features/Capture/GlareFree/GlareFreeMaskedHealing.swift`,
+validated by scoring its real-dump output with this same tool) against the
+shipped app composite, on the two dumps with verified frames:
+
+| Metric | `115323` app · py-masked · swift | `123532` app · py-masked · swift |
+|---|---:|---:|
+| Local ghosting `p95_shift_px` | 1.11 · 0.10 · 0.46 | 1.49 · 0.30 · 0.39 |
+| Bright detail `retention_ratio_excl_healed` | 1.16 · 1.06 · 1.09 | **0.53** · 1.13 · 1.11 |
+| Glare healing `darkened_fraction` | 49.9% · 0.8% · 7.2% | 60.4% · 14.4% · 14.2% |
+| Glare healing `mean_darkening_over_darkened` | 30.3 · 38.3 · 33.5 | 36.3 · 33.2 · 35.5 |
+
+The much lower masked-mode `darkened_fraction` is the design goal, not a
+regression: the app numbers include exposure-mismatch darkening of the
+whole frame, while masked healing touches only genuine glare and leaves
+everything else as pristine reference pixels. Known residual: ~17% of
+`123532`'s carpet still enters the mask (subtle background mottling) — see
+[Known gaps](#known-gaps).
 
 ## Expected value ranges
 
@@ -548,9 +589,9 @@ disk:
   residual resampling softening, unlike the full-erasure fixture the
   bright-detail-retention test above uses to force a strong signal for
   `score_stitch`'s own detector.
-- A Round 5/6 fixture for the robust darkening estimate
+- A fixture for the robust darkening estimate
   (`test_masked_mode_median_darkening_ignores_textured_background_misalignment`,
-  name unchanged from Round 5, now exercising Round 6's vote):
+  named for the median-era signal, now exercising the vote):
   a high-frequency, high-contrast textured background (mirroring a real
   carpet) sampled by 4 frames each shifted ~1-2px from the reference (the
   scale of residual misalignment SIFT+ECC leaves behind, not raw uncorrected
@@ -562,12 +603,32 @@ disk:
   fix, confirms a plain MIN-composite-based darkening signal (Round 4's
   approach) over the SAME fixture WOULD have flagged much of that same
   background region (> 30% at alpha > 0.5). See
-  [Round 6 in `HANDOFF.md`](HANDOFF.md#round-6-a-stricter-vote-for-the-robust-darkening-estimate-2026-07-24)
-  for why the median itself was later replaced with a stricter vote.
+  [Mask signal tuning history](#mask-signal-tuning-history) for why the
+  median itself was later replaced with a stricter vote.
 
 ```bash
-cd network
 uv run pytest scripts/stitch_quality/test_stitch_quality.py -v
 ```
+
+## Known gaps
+
+1. **Only three real dumps exist** (one failed-registration no-op, one matte
+   glare sheen, one glossy starfield box). Every empirically-tuned threshold
+   (`HEALED_PATCH_DARKENING_THRESHOLD`, `MASK_DARKENING_THRESHOLD`) and the
+   good/bad guidance above should be revisited as more accumulate.
+2. **Edge-doubling ratio is a weak global signal in practice** — diluted by
+   the whole frame, it barely moved even on confirmed real ghosting. Trust
+   local ghosting (`p95_shift_px`, `worst_patch`) instead.
+3. **`stitch.py` is not byte-identical to the Swift pipeline** (different
+   registration, approximate highlight cap) — it's an offline iteration aid,
+   not a conformance reference.
+4. **No automatic `--quad` estimation** — region focus must be hand-supplied.
+5. **Masked mode still leaks onto ~17% of heavy carpet texture** (down from
+   93% with the original min-based signal): the vote is per-pixel and
+   texture-blind, and border registration error (the verification gate only
+   checks the central 50%) still lets shifted texture edges agree often
+   enough to clear the threshold. Next levers, if it ever matters: a
+   local-variance/texture-aware mask gate, a border-aware verification gate,
+   or a higher (untested) `MASK_DARKENING_THRESHOLD` at some healing cost.
 
 `outputs/` (and any `--out` directory under a dump) is gitignored.

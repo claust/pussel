@@ -7,7 +7,7 @@ import UIKit
 /// gain-corrected min-composite, and a feathered glare mask built from a
 /// robust darkening estimate, blended over the reference. Ported from
 /// `scripts/stitch_quality/stitch.py --mode masked`; see that file, its
-/// directory's `HANDOFF.md` (Round 5), and `GlareFreeComposer.swift`'s own
+/// directory's `README.md`, and `GlareFreeComposer.swift`'s own
 /// doc comment for the full picture. Split into its own file (an extension
 /// on `GlareFreeComposer`, not a body of that enum's own declaration) so
 /// this substantial amount of plumbing doesn't push `GlareFreeComposer`
@@ -24,8 +24,8 @@ extension GlareFreeComposer {
   ///
   /// Ported from `scripts/stitch_quality/stitch.py --mode masked`
   /// (`register_and_composite_masked` + `blend_with_glare_mask`); see that
-  /// file and its directory's `HANDOFF.md` (Round 5) for the recipe's
-  /// validation against real device captures.
+  /// file and its directory's `README.md` for the recipe's validation
+  /// against real device captures.
   static func healedComposite(
     reference: CIImage, verifiedFrames: [CIImage], extent: CGRect
   ) -> UIImage? {
@@ -63,16 +63,16 @@ extension GlareFreeComposer {
     }
     let correctedMaskGray = zip(warpedMaskGray, gains).map { gray, gain in gray.scaled(by: gain) }
 
-    // The mask's own candidacy signal: a robust (median-of-covering-
+    // The mask's own candidacy signal: a robust (vote-of-covering-
     // frames) darkening estimate, blurred, thresholded, dilated, and
     // feathered into a smooth alpha — see `robustDarkening` and
-    // `glareAlpha`'s docs for why median (not min) and why the brightness
+    // `glareAlpha`'s docs for why a vote (not min) and why the brightness
     // floor. All at mask resolution; the spatial constants are tuned at
     // `workingMaxDimension` scale (matching `stitch.py`'s own working
     // size), so they're scaled down by `maskScale` here. (An earlier
     // version of this pipeline ran the mask math at full working
     // resolution instead, to rule out this extra downscale as a source of
-    // the carpet-leakage HANDOFF.md's Round 4/5 describe -- it made no
+    // the carpet leakage the benchmark README describes -- it made no
     // measurable difference to that leakage, so the coarser, ~5x cheaper
     // resolution stays; see git history / the PR description for the
     // investigation.)
@@ -387,36 +387,38 @@ extension GlareFreeComposer {
   /// Per-pixel darkening estimate for the glare MASK's own candidacy
   /// signal, robust to min-of-N order-statistic noise. Mirrors
   /// `stitch.py`'s `compute_darkening_robust` (see that function's
-  /// docstring, and HANDOFF.md's Round 6, for the full rationale): a plain
+  /// docstring, and the benchmark README's "Mask signal tuning history",
+  /// for the full rationale): a plain
   /// `max(0, reference - min_composite)` signal conflates real glare with
   /// order-statistics noise, since the min of several independent noisy
   /// samples of a high-variance texture (e.g. carpet) reads systematically
   /// lower than any one of them everywhere, with nothing to do with glare.
   ///
-  /// Round 5 used the median across covering frames instead, but that
-  /// still leaked on carpet: Vision's registration error is largest near
-  /// the frame edges (the verification gate only checks the central 50%),
-  /// so a border carpet pixel commonly had exactly 2 of 3 (or 2 of 4)
-  /// covering frames coincidentally agree on the same shifted-texture
-  /// reading, and a plain median treats 2-of-N agreement as "most frames".
-  /// Round 6 replaces the median with an explicit vote requiring broader
-  /// agreement:
+  /// An earlier iteration used the median across covering frames instead,
+  /// but that still leaked on carpet: Vision's registration error is
+  /// largest near the frame edges (the verification gate only checks the
+  /// central 50%), so a border carpet pixel commonly had exactly 2 of 3
+  /// (or 2 of 4) covering frames coincidentally agree on the same
+  /// shifted-texture reading, and a plain median treats 2-of-N agreement
+  /// as "most frames". The current rule is an explicit vote requiring
+  /// broader agreement:
   ///
   /// - 2 or 3 covering frames: the MAX (brightest) covered gray -- an
   ///   ALL-of-N vote. Every covering frame must read darker than the
   ///   reference for the pixel to register as darkened; one bright frame
-  ///   vetoes it. For 2 frames this is unchanged from Round 5 (a 2-sample
-  ///   median is just their average, which would understate darkening at
-  ///   a genuinely glared pixel where only one frame sees through the
-  ///   glare, so max was already used there); for 3 frames this TIGHTENS
-  ///   Round 5's median (effectively a 2-of-3 vote) into an all-of-3 vote.
+  ///   vetoes it. For 2 frames this matches the median-era rule (a
+  ///   2-sample median is just their average, which would understate
+  ///   darkening at a genuinely glared pixel where only one frame sees
+  ///   through the glare, so max was already used there); for 3 frames
+  ///   this TIGHTENS the median (effectively a 2-of-3 vote) into an
+  ///   all-of-3 vote.
   /// - 4 covering frames: the SECOND-brightest covered gray -- a 3-of-4
   ///   vote. Four covering frames is common enough that requiring literal
   ///   unanimity would make the mask too eager to reject on one
   ///   coincidentally bright reading, so a single dissenting frame (e.g. a
   ///   corner shot that happens to share glare position with the
-  ///   reference) is tolerated. Round 5's median-of-4 was, in effect,
-  ///   closer to a 2-of-4 vote.
+  ///   reference) is tolerated. A median-of-4 was, in effect, closer to
+  ///   a 2-of-4 vote.
   ///
   /// Real glare survives this tightening because it moves between shots
   /// (each corner frame glares, if at all, at a different location), so a
@@ -427,22 +429,27 @@ extension GlareFreeComposer {
   static func robustDarkening(reference: GrayMap, correctedFrames: [GrayMap]) -> [Float] {
     var darkening = [Float](repeating: 0, count: reference.values.count)
     guard !correctedFrames.isEmpty else { return darkening }
-    var samples: [Float] = []
-    samples.reserveCapacity(correctedFrames.count)
     for index in 0..<reference.values.count {
-      samples.removeAll(keepingCapacity: true)
+      // Track the two brightest covering samples in a single pass — this
+      // runs per pixel at mask resolution, where a per-pixel sort's
+      // allocations would be a real CPU cost during capture.
+      var count = 0
+      var maxGray = -Float.infinity
+      var secondMaxGray = -Float.infinity
       for frame in correctedFrames where frame.coverage[index] {
-        samples.append(frame.values[index])
+        let value = frame.values[index]
+        count += 1
+        if value > maxGray {
+          secondMaxGray = maxGray
+          maxGray = value
+        } else if value > secondMaxGray {
+          secondMaxGray = value
+        }
       }
-      guard samples.count >= 2 else { continue }
+      guard count >= 2 else { continue }
       // 4 covering frames: second-brightest (3-of-4 vote). 2 or 3: the
       // brightest (all-of-N vote) -- see the docs above for why.
-      let robustGray: Float
-      if samples.count == 4 {
-        robustGray = samples.sorted(by: >)[1]
-      } else {
-        robustGray = samples.max()!
-      }
+      let robustGray = count == 4 ? secondMaxGray : maxGray
       darkening[index] = max(0, reference.values[index] - robustGray)
     }
     return darkening

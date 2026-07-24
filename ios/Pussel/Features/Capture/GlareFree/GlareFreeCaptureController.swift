@@ -179,12 +179,16 @@ final class GlareFreeCaptureController {
     // and-write work already runs off this (main) actor, but the flow
     // shouldn't wait on disk I/O to reach `.done` — the unstructured Task
     // lets it happen in the background instead of stalling this method's
-    // return.
-    Task {
-      await GlareFreeDump.record(
-        reference: reference, others: others, expectedShifts: shifts,
-        composite: result.image, alignedFrameCount: result.alignedFrameCount)
-    }
+    // return. The whole call is compiled out of Release builds rather than
+    // relying on `record`'s own internal no-op, so production never even
+    // spawns the Task.
+    #if DEBUG
+      Task {
+        await GlareFreeDump.record(
+          reference: reference, others: others, expectedShifts: shifts,
+          composite: result.image, alignedFrameCount: result.alignedFrameCount)
+      }
+    #endif
   }
 
   /// Restarts the five-shot sequence (offered after a failed capture).
