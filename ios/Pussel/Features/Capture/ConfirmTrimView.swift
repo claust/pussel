@@ -145,6 +145,22 @@ struct ConfirmTrimView: View {
       }
     }
     .padding(24)
+    .toolbar {
+      // Neither "Retake" nor "Use This" leads back out of the wizard, so the
+      // standard back chevron is the way to abandon this photo and return to
+      // the home screen. Hidden mid-upload: the session is already being
+      // created by then, and leaving would strand it.
+      ToolbarItem(placement: .topBarLeading) {
+        if !model.flow.isBusy {
+          Button {
+            model.flow.reset()
+          } label: {
+            Image(systemName: "chevron.left")
+          }
+          .accessibilityLabel("Back to puzzles")
+        }
+      }
+    }
   }
 
   private var pieceCountSection: some View {
