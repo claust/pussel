@@ -17,7 +17,8 @@ cp .env.example .env.local     # then fill in the values
 `.env.local` needs Google OAuth credentials (`GOOGLE_CLIENT_ID`,
 `GOOGLE_CLIENT_SECRET`), an `AUTH_SECRET` (`openssl rand -base64 32`),
 `AUTH_URL`, and `NEXT_PUBLIC_API_URL` pointing at the backend — `http://localhost:8000`
-locally, or the Azure backend. See `.env.example` for the full list.
+locally, or `https://pussel.sabeltiger.dk` for the deployed backend. See
+`.env.example` for the full list.
 
 Start the backend first (`make start-backend` from the repo root), then:
 

@@ -13,7 +13,6 @@ pussel/
 ├── frontend/         # Next.js 16 web app (development/test client, run locally)
 ├── network/          # PyTorch Lightning experiments for learned piece matching
 ├── shared/           # puzzle_shapes — Python library shared by backend and network
-└── infrastructure/   # Bicep templates for the Azure backend deployment
 ```
 
 ## Components
@@ -21,8 +20,9 @@ pussel/
 **Backend** — FastAPI service exposing puzzle upload, frame detection, piece
 matching, piece geometry, and Google-based auth. Piece matching defaults to a
 classical SIFT → NCC hybrid (`MATCHER=classical`); the CNN from `network/` is
-selectable with `MATCHER=cnn`. Deployed to Azure App Service from `main` via
-GitHub Actions.
+selectable with `MATCHER=cnn`. Deployed to the home server at
+https://pussel.sabeltiger.dk — merging to `main` triggers a pull-based
+redeploy (see `backend/deploy/README.md`).
 
 **iOS app** — SwiftUI, iOS 26, Google Sign-In, on-device persistence of every
 puzzle and its pieces. This is the real mobile client; see
@@ -32,7 +32,7 @@ puzzle and its pieces. This is the real mobile client; see
 
 **Web frontend** — Next.js 16 + Bun + Tailwind, used for capture/test flows
 during development. Not deployed anywhere; it runs locally against a local or
-Azure backend via `NEXT_PUBLIC_API_URL`.
+the deployed backend via `NEXT_PUBLIC_API_URL`.
 
 **Network** — training code, datasets tooling, and experiments for learned
 position/rotation prediction. Current production matching is classical, so

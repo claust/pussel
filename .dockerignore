@@ -1,0 +1,14 @@
+# Context for backend/Dockerfile is the repo root (uv workspace); keep the
+# upload small and secrets/artifacts out of the image.
+*
+!pyproject.toml
+!uv.lock
+!backend/
+!network/pyproject.toml
+!shared/puzzle_shapes/
+
+backend/.env*
+backend/uploads/
+backend/.pytest_cache/
+**/__pycache__/
+**/.venv/
