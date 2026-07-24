@@ -19,8 +19,6 @@ dependencies = [
     "pyjwt>=2.10.1",
     # HTTP client
     "httpx>=0.26.0",
-    # Azure
-    "azure-storage-blob>=12.19.0",
     # ML dependencies
     "Pillow>=11.0.0",
     "torch>=2.12.1",
