@@ -338,13 +338,20 @@ extension GlareFreeComposer {
     var values: [Float]
     var coverage: [Bool]
 
-    /// A copy with every value multiplied by `gain`. Gray is a linear
-    /// combination of RGB, and gain multiplies every channel identically,
-    /// so this is exactly `gray(warped * gain)` without re-rendering the
-    /// gain-corrected color image just to regray it.
+    /// A copy with every value multiplied by `gain` and clamped to the
+    /// 0-255 byte range, mirroring `applyGain` (and `stitch.py`'s
+    /// `np.clip(warped * gain, 0, 255)`) so the mask math sees the same
+    /// clipped values as the composited color buffers. Gray is a linear
+    /// combination of RGB and gain multiplies every channel identically,
+    /// so below saturation this is exactly `gray(warped * gain)` without
+    /// re-rendering the gain-corrected color image just to regray it;
+    /// once a channel would saturate, clamping the gray instead of each
+    /// channel differs only for near-white pixels at gain > 1, which the
+    /// darkening signal (reference minus a BRIGHT robust gray) doesn't
+    /// meaningfully read anyway.
     func scaled(by gain: Float) -> GrayMap {
       var result = self
-      result.values = values.map { $0 * gain }
+      result.values = values.map { max(0, min(255, $0 * gain)) }
       return result
     }
   }

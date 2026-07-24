@@ -53,13 +53,15 @@ enum GlareFreeDump {
   /// internally downscaled working copies — so the dump preserves the full
   /// resolution the on-device pipeline actually saw.
   ///
-  /// Not actor-isolated: awaiting this from the `@MainActor` capture
-  /// controller already runs the encode-and-write work off the main actor,
-  /// since Swift schedules a nonisolated `async` function's body on the
-  /// cooperative thread pool rather than the caller's actor. Callers that
-  /// don't want to wait for it (the capture flow shouldn't stall on disk
-  /// I/O) should fire it from an unstructured `Task` instead of awaiting it
-  /// inline.
+  /// Not actor-isolated, but don't rely on that alone to keep the encode-
+  /// and-write work off the main actor: where a nonisolated `async`
+  /// function's body runs is a language-version detail (SE-0338 hops it to
+  /// the cooperative pool today; Swift 6.2's `nonisolated(nonsending)`
+  /// direction runs it on the caller's actor), and this function has no
+  /// suspension points of its own. Call it from an unstructured background
+  /// `Task` (as the capture controller does) rather than awaiting it inline
+  /// from `@MainActor` code — the capture flow shouldn't stall on disk I/O
+  /// either way.
   ///
   /// Returns the dump directory on success, so tests can locate the files
   /// without duplicating the timestamp formatting; `nil` in Release builds
