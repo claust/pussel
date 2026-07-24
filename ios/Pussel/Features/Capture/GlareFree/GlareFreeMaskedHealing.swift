@@ -502,13 +502,57 @@ extension GlareFreeComposer {
 
   /// The median of `values`; numpy's convention for an even count (the
   /// average of the two middle elements) so this matches `np.median`
-  /// exactly.
+  /// exactly. Selected via quickselect rather than a full sort: the gain
+  /// estimate feeds this a large fraction of the mask-resolution pixels
+  /// per verified frame, where an O(n log n) sort (plus its full-size
+  /// sorted copy) is measurable capture-time work for two order
+  /// statistics.
   private static func median(of values: [Float]) -> Float {
-    let sorted = values.sorted()
-    let count = sorted.count
+    let count = values.count
     guard count > 0 else { return 0 }
-    if count % 2 == 1 { return sorted[count / 2] }
-    return (sorted[count / 2 - 1] + sorted[count / 2]) / 2
+    var buffer = values
+    let upper = quickselect(&buffer, rank: count / 2)
+    if count % 2 == 1 { return upper }
+    // Quickselect leaves everything below index k partitioned <= the kth
+    // order statistic, so the lower middle element is that prefix's max.
+    let lower = buffer[0..<(count / 2)].max() ?? upper
+    return (lower + upper) / 2
+  }
+
+  /// The `k`th-smallest element of `buffer` (0-based) via iterative
+  /// Hoare-partition quickselect with a median-of-three pivot, expected
+  /// O(n) with no allocations. Postcondition: `buffer[..<k]` holds only
+  /// values `<=` the returned element.
+  private static func quickselect(_ buffer: inout [Float], rank: Int) -> Float {
+    var low = 0
+    var high = buffer.count - 1
+    while low < high {
+      // Median-of-three pivot, guarding against already-ordered input.
+      let mid = low + (high - low) / 2
+      if buffer[mid] < buffer[low] { buffer.swapAt(mid, low) }
+      if buffer[high] < buffer[low] { buffer.swapAt(high, low) }
+      if buffer[high] < buffer[mid] { buffer.swapAt(high, mid) }
+      let pivot = buffer[mid]
+      var left = low
+      var right = high
+      while left <= right {
+        while buffer[left] < pivot { left += 1 }
+        while buffer[right] > pivot { right -= 1 }
+        if left <= right {
+          buffer.swapAt(left, right)
+          left += 1
+          right -= 1
+        }
+      }
+      if rank <= right {
+        high = right
+      } else if rank >= left {
+        low = left
+      } else {
+        break
+      }
+    }
+    return buffer[rank]
   }
 
   /// Separable Gaussian blur of a flattened `width`x`height` map,

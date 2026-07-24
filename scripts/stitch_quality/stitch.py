@@ -155,8 +155,9 @@ def refine_homography_ecc(
             working size.
 
     Returns:
-        Tuple of (refined homography, corner -> reference, working-size scale -- or
-        `homography` unchanged on failure --, whether ECC refinement actually succeeded).
+        Tuple of (3x3 corner -> reference homography in working-size coordinates -- ECC-refined
+        on success, `homography` unchanged on failure -- and whether ECC refinement actually
+        succeeded).
     """
     reference_gray = cv2.cvtColor(reference_bgr, cv2.COLOR_BGR2GRAY)
     corner_gray = cv2.cvtColor(corner_bgr, cv2.COLOR_BGR2GRAY)
