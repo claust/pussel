@@ -43,6 +43,20 @@ final class BackendSelection {
     return Config.apiBaseURL
   }
 
+  /// The selected backend as the account menu shows it: host and port without
+  /// the scheme. Menu rows are only about 250pt wide, so a full URL wraps onto
+  /// a second line — and the scheme is the part worth dropping, since by then
+  /// the only question is which server you are pointed at.
+  var displayName: String { Self.displayName(for: baseURL) }
+
+  /// Split out from `displayName` so it can be tested without a build whose
+  /// Info.plist carries a particular backend.
+  nonisolated static func displayName(for url: URL) -> String {
+    guard let host = url.host() else { return url.absoluteString }
+    guard let port = url.port else { return host }
+    return "\(host):\(port)"
+  }
+
   /// False when there is nothing to switch to, so the account menu can leave
   /// the row out entirely: Release builds, and Debug builds whose
   /// Secrets.xcconfig defines no `RELEASE_API_BASE_URL`.
