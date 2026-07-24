@@ -170,7 +170,13 @@ extension GlareFreeComposer {
       return CGImage(
         width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32,
         bytesPerRow: width * 4, space: srgb,
-        bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+        // Explicit byte order, matching `rgbaBuffer(of:extent:)` and
+        // `ImageUtilities.rgbaPixels(of:)` — an implicit order could
+        // reinterpret the channel layout (swapping colors and, worse,
+        // coverage alpha) on the way back into Core Graphics.
+        bitmapInfo: CGBitmapInfo(
+          rawValue: CGImageAlphaInfo.premultipliedLast.rawValue
+            | CGBitmapInfo.byteOrder32Big.rawValue),
         provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent)
     }
 
@@ -248,7 +254,11 @@ extension GlareFreeComposer {
       let srgb = CGColorSpace(name: CGColorSpace.sRGB),
       let bitmapContext = CGContext(
         data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
-        space: srgb, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        space: srgb,
+        // Explicit byte order (same convention as ImageUtilities
+        // .rgbaPixels(of:)) so `bytes` is unambiguously R,G,B,A in memory.
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+          | CGBitmapInfo.byteOrder32Big.rawValue)
     else { return nil }
     bitmapContext.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
     guard let data = bitmapContext.data else { return nil }
