@@ -36,13 +36,16 @@ services:
       - traefik.constraint-label-stack=appwrite
       - traefik.docker.network=gateway
       - traefik.http.services.pussel.loadbalancer.server.port=8000
-      - traefik.http.routers.pussel.rule=Host(`pussel.sabeltiger.dk`)
+      # pussel.thomasen.dk is the URL shipped in the iOS app's
+      # Release.xcconfig (formerly a CNAME to Azure App Service);
+      # pussel.sabeltiger.dk is the home-server-native name.
+      - traefik.http.routers.pussel.rule=Host(`pussel.sabeltiger.dk`) || Host(`pussel.thomasen.dk`)
       - traefik.http.routers.pussel.entrypoints=appwrite_websecure
       - traefik.http.routers.pussel.tls=true
       - traefik.http.routers.pussel.service=pussel
       # Plain-HTTP router for LAN testing; public traffic arrives via
       # Cloudflare over the TLS entrypoint.
-      - traefik.http.routers.pussel-http.rule=Host(`pussel.sabeltiger.dk`)
+      - traefik.http.routers.pussel-http.rule=Host(`pussel.sabeltiger.dk`) || Host(`pussel.thomasen.dk`)
       - traefik.http.routers.pussel-http.entrypoints=appwrite_web
       - traefik.http.routers.pussel-http.service=pussel
 

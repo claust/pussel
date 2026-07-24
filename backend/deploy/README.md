@@ -24,8 +24,10 @@ Appwrite's Traefik (`appwrite-traefik`, owns ports 80/443) has its Docker
 provider constrained to containers labeled
 `traefik.constraint-label-stack=appwrite` on the external `gateway` network.
 The labels in [docker-compose.yml](docker-compose.yml) register the backend
-under `Host(pussel.sabeltiger.dk)`. DNS is a proxied Cloudflare CNAME
-`pussel` → `sabeltiger.dk`; Cloudflare terminates public TLS (SSL mode
+under two hostnames: `pussel.sabeltiger.dk` (home-server-native) and
+`pussel.thomasen.dk` (the URL shipped in the iOS app's Release build,
+formerly pointing at Azure). Each is a proxied Cloudflare CNAME →
+`sabeltiger.dk` in its own zone; Cloudflare terminates public TLS (SSL mode
 "Full"), Traefik serves its default certificate to Cloudflare — the same
 recipe as `photos.sabeltiger.dk` in the home-server repo.
 
