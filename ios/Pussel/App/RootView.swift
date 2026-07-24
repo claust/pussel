@@ -41,6 +41,9 @@ struct AppFlowView: View {
             if let user = model.auth.user {
               Text(user.email)
             }
+            #if DEBUG
+              BackendMenuSection()
+            #endif
             Button("Sign Out", role: .destructive) {
               model.authService.signOut()
               model.flow.reset()
@@ -54,6 +57,31 @@ struct AppFlowView: View {
     }
   }
 }
+
+#if DEBUG
+  /// Debug-only backend switch inside the account menu: a checkmark row that
+  /// flips between the local FastAPI server and the deployed home server, with
+  /// the current URL underneath it. Release builds don't show it — they only
+  /// ever have the one backend (see `BackendSelection`).
+  private struct BackendMenuSection: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+      Section("Backend") {
+        if model.backend.isSwitchable {
+          Toggle(
+            "Use Local Backend",
+            isOn: Binding(
+              get: { model.backend.usesLocalBackend },
+              set: { model.useLocalBackend($0) }
+            )
+          )
+        }
+        Text(model.backend.baseURL.absoluteString)
+      }
+    }
+  }
+#endif
 
 /// The account menu icon: the user's Google profile picture when available
 /// (fetched via AsyncImage), otherwise the generic person symbol.

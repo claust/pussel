@@ -5,7 +5,7 @@ import Foundation
 enum Config {
   static var apiBaseURL: URL {
     let raw = string(for: "APIBaseURL")
-    if let url = URL(string: raw), url.scheme != nil {
+    if let url = backendURL(from: raw) {
       return url
     }
     #if DEBUG
@@ -15,6 +15,33 @@ enum Config {
       // fail fast instead.
       fatalError("APIBaseURL is missing or invalid in Info.plist: '\(raw)'")
     #endif
+  }
+
+  /// The deployed backend (`RELEASE_API_BASE_URL` in Config/Secrets.xcconfig),
+  /// or nil when the build has no valid value for it. Release builds already
+  /// resolve `apiBaseURL` to this; Debug builds keep it alongside their local
+  /// URL so `BackendSelection` can flip between the two at runtime.
+  static var remoteAPIBaseURL: URL? {
+    backendURL(from: string(for: "RemoteAPIBaseURL"))
+  }
+
+  /// Parses a configured backend URL, rejecting anything requests can't be
+  /// built against. A scheme alone is too weak a test: `https://` and `http:/`
+  /// both parse with a scheme and no host, and this project's xcconfigs have
+  /// to write URLs as `https:/$()/host` to keep `//` from starting a comment —
+  /// so a value truncated at the `$()` is exactly the shape that slips
+  /// through. Without the host check that yields a Debug build offering a
+  /// backend switch whose requests go nowhere, and a Release build making
+  /// malformed requests where the `fatalError` above is meant to fire.
+  static func backendURL(from raw: String) -> URL? {
+    guard let url = URL(string: raw),
+      let scheme = url.scheme?.lowercased(),
+      scheme == "http" || scheme == "https",
+      let host = url.host(), !host.isEmpty
+    else {
+      return nil
+    }
+    return url
   }
 
   static var googleIOSClientID: String { string(for: "GoogleIOSClientID") }

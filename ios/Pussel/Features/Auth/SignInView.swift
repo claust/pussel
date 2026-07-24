@@ -53,7 +53,10 @@ struct SignInView: View {
 
   private var statusFooter: some View {
     VStack(spacing: 2) {
-      Text(Config.apiBaseURL.absoluteString)
+      // The selected backend, not the build's default — Debug builds can be
+      // pointed elsewhere from the account menu, and this is the screen you
+      // land back on after such a switch drops the session.
+      Text(model.backend.baseURL.absoluteString)
       Text("Backend: \(backendHealthy.map { $0 ? "healthy" : "unreachable" } ?? "checking…")")
     }
     .font(.caption.monospaced())

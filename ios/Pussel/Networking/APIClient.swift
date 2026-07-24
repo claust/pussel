@@ -3,7 +3,10 @@ import Foundation
 /// Async client for the Pussel FastAPI backend, mirroring frontend/src/lib/api.ts.
 @MainActor
 final class APIClient {
-  private let baseURL: URL
+  /// The backend every request is addressed to. Mutable so the account menu's
+  /// backend switch can repoint the live client (see `AppModel`) rather than
+  /// rebuild it and everything holding on to it.
+  var baseURL: URL
   private let session: URLSession
   private let authStore: AuthStore
   private let decoder: JSONDecoder
