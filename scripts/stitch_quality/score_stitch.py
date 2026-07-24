@@ -830,7 +830,7 @@ def score_dump(
         dump: A `CaptureDump` loaded by `common.load_dump`.
         patch_size: Grid patch side length in pixels for the local-ghosting metrics.
         quad_unit: Optional (4, 2) unit-coordinate quad (see `common.parse_quad`); when
-            given, `report.region` reports the same six axes restricted to it.
+            given, `report.region` reports the same seven axes restricted to it.
 
     Returns:
         Tuple of (the `StitchQualityReport`, the full-frame ghosting patch grid -- needed

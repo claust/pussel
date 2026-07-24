@@ -159,7 +159,13 @@ def load_dump(dump_dir: Path, long_side: int = WORKING_LONG_SIDE) -> CaptureDump
     for index in range(1, N_CORNERS + 1):
         corner_path = dump_dir / CORNER_FILENAME_TEMPLATE.format(index=index)
         if corner_path.exists():
-            corners[index], _ = resize_to_long_side(_imread(corner_path), long_side)
+            corner, _ = resize_to_long_side(_imread(corner_path), long_side)
+            if corner.shape[:2] != reference.shape[:2]:
+                # Same guard as the composite above: keep every frame at the
+                # reference's exact working size even when a source JPEG's
+                # native aspect ratio drifted a pixel in re-encoding.
+                corner = cv2.resize(corner, working_size, interpolation=cv2.INTER_AREA)
+            corners[index] = corner
 
     metadata: Optional[dict] = None
     metadata_path = dump_dir / METADATA_FILENAME
