@@ -47,6 +47,7 @@ from common import (  # noqa: E402
     HEALED_PATCH_DARKENING_THRESHOLD,
     CaptureDump,
     compute_darkening_map,
+    detect_bright_specks,
     near_saturated_fraction,
     phase_correlation_grid,
 )
@@ -75,10 +76,22 @@ def _make_scene(rng: np.random.Generator) -> np.ndarray:
             y0, y1 = row * SCENE_HEIGHT // grid, (row + 1) * SCENE_HEIGHT // grid
             x0, x1 = col * SCENE_WIDTH // grid, (col + 1) * SCENE_WIDTH // grid
             color = tuple(int(c) for c in rng.integers(40, 220, size=3))
-            cv2.rectangle(scene, (x0, y0), (x1, y1), color, thickness=-1 if rng.random() < 0.5 else 3)
+            cv2.rectangle(
+                scene,
+                (x0, y0),
+                (x1, y1),
+                color,
+                thickness=-1 if rng.random() < 0.5 else 3,
+            )
             if rng.random() < 0.5:
                 circle_color = tuple(int(c) for c in rng.integers(0, 255, size=3))
-                cv2.circle(scene, ((x0 + x1) // 2, (y0 + y1) // 2), min(x1 - x0, y1 - y0) // 3, circle_color, -1)
+                cv2.circle(
+                    scene,
+                    ((x0 + x1) // 2, (y0 + y1) // 2),
+                    min(x1 - x0, y1 - y0) // 3,
+                    circle_color,
+                    -1,
+                )
     return scene
 
 
@@ -215,7 +228,9 @@ def fixture() -> SyntheticFixture:
 
 
 def _report(
-    fixture: SyntheticFixture, composite: np.ndarray, quad_unit: Optional[np.ndarray] = None
+    fixture: SyntheticFixture,
+    composite: np.ndarray,
+    quad_unit: Optional[np.ndarray] = None,
 ) -> score_stitch.StitchQualityReport:
     """Score a synthetic composite against the fixture's reference, skipping disk I/O."""
     dump = CaptureDump(
@@ -243,7 +258,9 @@ def test_aligned_composite_scores_near_clean(fixture: SyntheticFixture) -> None:
     assert 0.85 < report.edge_doubling.canny_edge_ratio < 1.2
 
 
-def test_misaligned_composite_shows_more_ghosting_and_edge_doubling(fixture: SyntheticFixture) -> None:
+def test_misaligned_composite_shows_more_ghosting_and_edge_doubling(
+    fixture: SyntheticFixture,
+) -> None:
     """A deliberately ~8px-misaligned frame should push ghosting and edge metrics up."""
     aligned_report = _report(fixture, fixture.aligned_composite)
     misaligned_report = _report(fixture, fixture.misaligned_composite)
@@ -256,7 +273,9 @@ def test_misaligned_composite_shows_more_ghosting_and_edge_doubling(fixture: Syn
     assert misaligned_report.edge_doubling.canny_edge_ratio > aligned_report.edge_doubling.canny_edge_ratio
 
 
-def test_glare_reduction_favors_composite_over_reference(fixture: SyntheticFixture) -> None:
+def test_glare_reduction_favors_composite_over_reference(
+    fixture: SyntheticFixture,
+) -> None:
     """Both composites should remove far more glare than the raw reference has -- the benefit metric."""
     for composite in (fixture.aligned_composite, fixture.misaligned_composite):
         report = _report(fixture, composite)
@@ -376,10 +395,15 @@ def test_healed_patch_excluded_from_worst_patch_selection() -> None:
     assert annotated[(shift_row, shift_col)].healed is False
 
     assert ghosting.worst_patch is not None
-    assert (ghosting.worst_patch.row, ghosting.worst_patch.col) == (shift_row, shift_col)
+    assert (ghosting.worst_patch.row, ghosting.worst_patch.col) == (
+        shift_row,
+        shift_col,
+    )
 
 
-def test_quad_region_restricts_stats_and_reports_alongside_full_frame(fixture: SyntheticFixture) -> None:
+def test_quad_region_restricts_stats_and_reports_alongside_full_frame(
+    fixture: SyntheticFixture,
+) -> None:
     """`--quad` restricts stats to a region while the full-frame report stays unchanged."""
     quad_unit = np.array([[0.2, 0.2], [0.8, 0.2], [0.8, 0.8], [0.2, 0.8]])
     report = _report(fixture, fixture.misaligned_composite, quad_unit=quad_unit)
@@ -420,7 +444,11 @@ def _make_starfield_scene(
     scene = background.copy()
     margin = 20
     centers = [
-        (int(rng.integers(margin, width - margin)), int(rng.integers(margin, height - margin))) for _ in range(n_dots)
+        (
+            int(rng.integers(margin, width - margin)),
+            int(rng.integers(margin, height - margin)),
+        )
+        for _ in range(n_dots)
     ]
     for x, y in centers:
         cv2.circle(scene, (x, y), 2, (235, 235, 235), -1, lineType=cv2.LINE_8)
@@ -451,7 +479,12 @@ def test_bright_detail_preservation_and_glare_healing_speck_exclusion() -> None:
 
     def _dump(composite: np.ndarray) -> CaptureDump:
         return CaptureDump(
-            dump_dir=Path("<synthetic>"), reference=reference, composite=composite, corners={}, metadata=None, scale=1.0
+            dump_dir=Path("<synthetic>"),
+            reference=reference,
+            composite=composite,
+            corners={},
+            metadata=None,
+            scale=1.0,
         )
 
     report_preserved, _ = score_stitch.score_dump(_dump(composite_preserved))
@@ -555,7 +588,11 @@ def test_stitch_cli_writes_output_image(
     fixture.write_dump(dump_dir, fixture.aligned_composite, with_metadata=True)
     out_path = tmp_path / "restitched.jpg"
 
-    monkeypatch.setattr(sys, "argv", ["stitch.py", str(dump_dir), "--out", str(out_path), "--skip-unverified"])
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["stitch.py", str(dump_dir), "--out", str(out_path), "--skip-unverified"],
+    )
     stitch.main()
 
     assert out_path.exists()
@@ -566,3 +603,208 @@ def test_stitch_cli_writes_output_image(
     fixture_aspect = fixture.reference.shape[1] / fixture.reference.shape[0]
     written_aspect = written.shape[1] / written.shape[0]
     assert written_aspect == pytest.approx(fixture_aspect, rel=0.01)
+
+
+# --- --mode masked ---
+
+
+def test_masked_mode_heals_synthetic_glare_disc(fixture: SyntheticFixture) -> None:
+    """`stitch_masked` end to end must still heal the reference's own centered glare disc.
+
+    None of the 4 corner shots glares at the reference's own (centered) disc location -- each
+    glares in a different quadrant (see `SyntheticFixture`) -- so a correctly working masked
+    pipeline (SIFT+RANSAC -> ECC refine -> gain-corrected min-composite -> glare mask) should
+    still darken that region markedly and flag it in the alpha mask, the same benefit `stitch()`
+    (`--mode app`) provides.
+    """
+    dump = CaptureDump(
+        dump_dir=Path("<synthetic>"),
+        reference=fixture.reference,
+        composite=fixture.reference,  # unused by stitch_masked
+        corners=fixture.corner_shots,
+        metadata=None,
+        scale=1.0,
+    )
+    output, alpha_mask, frame_reports = stitch.stitch_masked(dump)
+
+    assert len(frame_reports) == 4
+    assert sum(1 for r in frame_reports if r.status == "verified") >= 3
+
+    cy, cx = SCENE_HEIGHT // 2, SCENE_WIDTH // 2
+    half = 20
+    reference_gray = cv2.cvtColor(fixture.reference, cv2.COLOR_BGR2GRAY).astype(np.float32)
+    output_gray = cv2.cvtColor(output, cv2.COLOR_BGR2GRAY).astype(np.float32)
+    center_darkening = float(
+        (
+            reference_gray[cy - half : cy + half, cx - half : cx + half]
+            - output_gray[cy - half : cy + half, cx - half : cx + half]
+        ).mean()
+    )
+    assert center_darkening > 20.0
+
+    assert float(alpha_mask[cy - half : cy + half, cx - half : cx + half].mean()) > 127.0
+
+
+def test_masked_mode_preserves_non_glare_reference_pixels(
+    fixture: SyntheticFixture,
+) -> None:
+    """Away from every glare disc, masked mode's output must stay close to the reference.
+
+    This is the core claim behind restricting compositing to a glare mask: pristine reference
+    pixels elsewhere in the frame should survive close to untouched, not get pulled toward the
+    min-composite's registration/resampling noise.
+    """
+    dump = CaptureDump(
+        dump_dir=Path("<synthetic>"),
+        reference=fixture.reference,
+        composite=fixture.reference,
+        corners=fixture.corner_shots,
+        metadata=None,
+        scale=1.0,
+    )
+    output, _alpha_mask, _frame_reports = stitch.stitch_masked(dump)
+
+    # A small patch near the top edge, chosen to sit far outside the reference's own centered
+    # glare disc and all 4 corner-glare quadrants (see `SyntheticFixture`), plus the mask's own
+    # dilation/feather margins.
+    y0, y1 = 4, 24
+    x0, x1 = SCENE_WIDTH // 2 - 10, SCENE_WIDTH // 2 + 10
+    reference_patch = fixture.reference[y0:y1, x0:x1].astype(np.float32)
+    output_patch = output[y0:y1, x0:x1].astype(np.float32)
+    max_abs_diff = float(np.abs(reference_patch - output_patch).max())
+    assert max_abs_diff <= 3.0
+
+
+def test_masked_mode_preserves_synthetic_starfield() -> None:
+    """The glare mask must not mistake fine bright detail for glare (retention ~= 1).
+
+    Mirrors `score_stitch`'s own starfield fixture (`_make_starfield_scene`), but simulates what
+    a WELL-registered masked-mode min-composite actually produces at a star under residual
+    resampling softening -- a modest dimming, not full erasure to the background color (that
+    erase-to-background trick is `score_stitch`'s test's way of forcing a strong signal for ITS
+    detector, not representative of `compute_glare_alpha`'s input). A few gray levels of localized
+    dimming must fall under `MASK_DARKENING_THRESHOLD` after the mask's blur, so the glare mask
+    stays at 0 there and the blend leaves the bright dot's reference pixels untouched.
+    """
+    rng = np.random.default_rng(303)
+    background, reference, centers = _make_starfield_scene(rng)
+
+    min_composite = reference.copy()
+    dimmed_value = 150  # down from 235, well short of the background's ~20-40 -- see docstring
+    for x, y in centers:
+        cv2.circle(min_composite, (x, y), 2, (dimmed_value,) * 3, -1, lineType=cv2.LINE_8)
+
+    # `compute_glare_alpha` takes a precomputed darkening map (see `compute_darkening_robust`) --
+    # this test is about the mask/threshold logic, not the median-vs-min robustness `stitch_masked`
+    # itself exercises end to end, so a plain reference-vs-composite darkening map is enough input.
+    reference_gray_f = cv2.cvtColor(reference, cv2.COLOR_BGR2GRAY).astype(np.float32)
+    min_composite_gray_f = cv2.cvtColor(min_composite, cv2.COLOR_BGR2GRAY).astype(np.float32)
+    darkening = np.maximum(0.0, reference_gray_f - min_composite_gray_f)
+
+    alpha = stitch.compute_glare_alpha(reference, darkening)
+    output = np.clip(
+        reference.astype(np.float32) * (1 - alpha[..., None]) + min_composite.astype(np.float32) * alpha[..., None],
+        0,
+        255,
+    ).astype(np.uint8)
+
+    reference_gray = cv2.cvtColor(reference, cv2.COLOR_BGR2GRAY)
+    output_gray = cv2.cvtColor(output, cv2.COLOR_BGR2GRAY)
+    reference_specks = detect_bright_specks(reference_gray)
+    output_specks = detect_bright_specks(output_gray)
+
+    assert reference_specks.count >= n_dots_detected_floor(len(centers))
+    retention = output_specks.count / reference_specks.count
+    assert retention == pytest.approx(1.0, abs=0.05)
+    assert float(alpha.mean()) < 0.01
+
+
+# --- Round 5: median-based robust darkening for the mask ---
+
+TEXTURE_JITTER_PX = 1.5  # residual misalignment left after SIFT+ECC on a real capture, not raw corner jitter
+
+
+def _make_high_freq_texture(rng: np.random.Generator, height: int, width: int) -> np.ndarray:
+    """A carpet-like, high-frequency-textured BGR background for the mask-robustness test.
+
+    Args:
+        rng: Numpy random generator.
+        height: Image height.
+        width: Image width.
+
+    Returns:
+        BGR image (height, width, 3), full-range per-pixel texture variation -- deliberately
+        higher-contrast than a real gray-carpet capture (whose fibers still vary sharply pixel to
+        pixel at the sensor's resolution) so the fixture reliably reproduces the min-of-frames
+        order-statistics artifact even at the small sub-pixel `TEXTURE_JITTER_PX` scale.
+    """
+    base = rng.integers(0, 255, size=(height, width, 3), dtype=np.uint8)
+    return cv2.GaussianBlur(base, (0, 0), sigmaX=0.5)  # a little blur -- texture, not salt-and-pepper noise
+
+
+def test_masked_mode_median_darkening_ignores_textured_background_misalignment() -> None:
+    """The mask's darkening signal must not flag textured-background misalignment (Rounds 5-6).
+
+    Reproduces the real defect Round 5 fixed (and Round 6 tightened further): a min-of-frames
+    darkening signal reads a high-frequency, high-variance background (e.g. carpet) as "darkened"
+    almost everywhere once frames disagree by even a small residual 1-2px misalignment (the kind
+    SIFT+ECC still leaves after registration, not raw uncorrected corner jitter) -- a pure
+    order-statistics artifact with nothing to do with glare (see `compute_darkening_robust`'s
+    docstring). The robust (now vote-based, `compute_darkening_robust`) estimate must suppress
+    that noise (the mask stays off, the blended output stays close to the reference) while a
+    genuine glare disc -- present in the reference but, mirroring the real 5-shot technique,
+    glaring at a DIFFERENT spot in every covered frame -- must still darken enough to heal. This
+    fixture uses 4 covering frames throughout, so it exercises Round 6's 3-of-4 vote specifically
+    (not just Round 5's median).
+    """
+    rng = np.random.default_rng(404)
+    height, width = SCENE_HEIGHT, SCENE_WIDTH
+    background = _make_high_freq_texture(rng, height, width)
+
+    glare_center = (width // 2, height // 2)
+    reference = _add_glare(background, glare_center, GLARE_RADIUS_PX)
+
+    frame_glare_centers = [
+        (width // 5, height // 5),
+        (4 * width // 5, height // 5),
+        (width // 5, 4 * height // 5),
+        (4 * width // 5, 4 * height // 5),
+    ]
+    full_coverage = np.full((height, width), 255, dtype=np.uint8)
+    corrected_frames: List[Tuple[np.ndarray, np.ndarray]] = []
+    for center in frame_glare_centers:
+        dx, dy = rng.uniform(-TEXTURE_JITTER_PX, TEXTURE_JITTER_PX, size=2)
+        shift = np.array([[1, 0, dx], [0, 1, dy]], dtype=np.float32)
+        shifted_background = cv2.warpAffine(background, shift, (width, height), borderMode=cv2.BORDER_REFLECT)
+        frame = _add_glare(shifted_background, center, GLARE_RADIUS_PX)
+        corrected_frames.append((frame.astype(np.float32), full_coverage))
+
+    darkening_robust = stitch.compute_darkening_robust(reference, corrected_frames)
+    alpha = stitch.compute_glare_alpha(reference, darkening_robust)
+
+    # Genuine glare (reference-only -- no covered frame glares there) must still trigger the mask.
+    half = GLARE_RADIUS_PX // 3
+    cy, cx = glare_center[1], glare_center[0]
+    assert float(alpha[cy - half : cy + half, cx - half : cx + half].mean()) > 0.5
+
+    # Background far from every glare disc (reference's own + all 4 frames') must stay essentially
+    # unmasked -- this is the regression the median fix targets.
+    background_region = np.ones((height, width), dtype=bool)
+    margin = GLARE_RADIUS_PX + stitch.MASK_DILATE_RADIUS_PX + 10
+    for cx_glare, cy_glare in [glare_center] + frame_glare_centers:
+        y0, y1 = max(0, cy_glare - margin), min(height, cy_glare + margin)
+        x0, x1 = max(0, cx_glare - margin), min(width, cx_glare + margin)
+        background_region[y0:y1, x0:x1] = False
+
+    assert float(alpha[background_region].mean()) < 0.05
+    assert float((alpha[background_region] > 0.5).mean()) < 0.05
+
+    # Sanity: without the median fix (a plain min-composite darkening signal, Round 4's approach),
+    # this exact fixture WOULD have flagged much of that same background region -- otherwise this
+    # test wouldn't actually be exercising the fix.
+    min_composite, _coverage_any = stitch.build_gain_corrected_min_composite(reference, corrected_frames)
+    reference_gray_f = cv2.cvtColor(reference, cv2.COLOR_BGR2GRAY).astype(np.float32)
+    min_composite_gray_f = cv2.cvtColor(min_composite, cv2.COLOR_BGR2GRAY).astype(np.float32)
+    min_darkening = np.maximum(0.0, reference_gray_f - min_composite_gray_f)
+    min_alpha = stitch.compute_glare_alpha(reference, min_darkening)
+    assert float((min_alpha[background_region] > 0.5).mean()) > 0.3

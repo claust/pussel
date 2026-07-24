@@ -28,11 +28,14 @@ optional `metadata.json`).
   `metrics.json` + 3 diagnostic images. Optional `--quad` restricts all seven
   axes to a region, reported alongside the full-frame numbers.
 - `stitch.py` — an independent, offline Python reimplementation of the
-  app's stitch (highlight-capping → SIFT+RANSAC per corner → warp with white
-  fill → min-composite), so we can rebuild a second composite from the raw
-  `corner_N.jpg` shots and score it the same way, e.g. to check whether a
-  registration failure the app hit is a capture-pipeline bug or an
-  inherently hard scene.
+  app's stitch, in two modes: `--mode app` (default; highlight-capping →
+  SIFT+RANSAC per corner → warp with white fill → min-composite), so we can
+  rebuild a second composite from the raw `corner_N.jpg` shots and score it
+  the same way, e.g. to check whether a registration failure the app hit is
+  a capture-pipeline bug or an inherently hard scene; and `--mode masked`
+  (ECC-refined registration → photometric gain compensation →
+  gain-corrected min-composite → a feathered glare mask that restricts
+  compositing to regions that actually show glare, see below).
 - `test_stitch_quality.py` — synthetic self-tests (no fixtures on disk); see
   [Tests](#tests) below.
 
@@ -53,6 +56,11 @@ uv run python scripts/stitch_quality/score_stitch.py /path/to/dump \
 # Rebuild the composite offline from the raw corner shots and compare
 uv run python scripts/stitch_quality/stitch.py /path/to/dump --out /tmp/restitched.jpg
 uv run python scripts/stitch_quality/stitch.py /path/to/dump --out /tmp/restitched.jpg --skip-unverified
+
+# `--mode masked`: ECC-refined registration + gain compensation + a glare mask that
+# restricts compositing to actual glare regions (see below) -- also writes a diagnostic
+# alpha-mask PNG next to --out (<out-stem>_mask.png)
+uv run python scripts/stitch_quality/stitch.py /path/to/dump --out /tmp/masked.jpg --mode masked
 
 # Score the offline reimplementation's output the same way, by pointing a
 # second dump directory's composite.jpg at it (or just diff the two
@@ -286,6 +294,94 @@ This is **not** a byte-identical port of the Swift pipeline — it exists to
 let us iterate on the stitching approach offline in Python, and to give
 `score_stitch.py` a second composite to compare the app's own output against.
 
+## `stitch.py --mode masked`, in detail
+
+Motivated by three failure modes the exp29 benchmark tool exposed on real
+captures (see [Round 4 in `HANDOFF.md`](HANDOFF.md#round-4-glare-masked-compositing-2026-07-24)): a global
+min-composite erases fine bright detail (stars) under 1-3px residual
+misalignment; matte glare is a desaturating gray sheen, never full white;
+and background micro-parallax a homography can't fit (e.g. carpet) smears
+under compositing. `--mode masked` keeps compositing confined to regions
+that actually show glare, leaving pristine reference pixels everywhere
+else:
+
+1. **Registration**: the same SIFT + ratio-test + RANSAC homography as
+   `--mode app`, then sub-pixel refinement with `cv2.findTransformECC`
+   (`MOTION_HOMOGRAPHY`, on grayscale copies downscaled to
+   `ECC_DOWNSCALE_LONG_SIDE` — full working-size ECC is slower and more
+   easily trapped in a local optimum by fine texture). ECC failures
+   (non-convergence, a singular Hessian) fall back to the SIFT+RANSAC
+   homography unchanged — refinement is a bonus, never a regression. On the
+   real dumps below, ECC dropped mean central-crop absdiff from ~40/255
+   (SIFT alone) to ~10-16/255.
+2. **Verification**: the same central-crop absdiff gate as
+   `--skip-unverified`, but always on — there's no toggle, since a
+   badly-registered frame poisoning a masked-blend region is exactly as bad
+   as poisoning a plain min-composite.
+3. **Photometric gain compensation**: per verified frame, a median
+   reference/warped gray ratio over covered, mid-tone (`GAIN_GRAY_LOW`-
+   `GAIN_GRAY_HIGH`) pixels corrects an exposure/white-balance mismatch
+   between that corner shot and the reference — otherwise darkest-pixel-wins
+   can be won by whichever frame is globally darker, not by which pixel
+   actually has less glare.
+4. **Min-composite**: gain-corrected, verified frames only, at pixels at
+   least one of them covers; pixels none of them cover fall back to the
+   reference (unlike `--mode app`, the reference itself is not seeded into
+   the running min here — its contribution happens entirely through the
+   blend in step 6).
+5. **Glare mask**: a **robust darkening estimate**, `compute_darkening_robust`
+   (see [Round 5](HANDOFF.md#round-5-median-based-robust-darkening-for-the-mask-2026-07-24)
+   and [Round 6](HANDOFF.md#round-6-a-stricter-vote-for-the-robust-darkening-estimate-2026-07-24)
+   in `HANDOFF.md` for why this replaced a plain
+   `max(0, gray(reference) - gray(min_composite))` signal, and then why the
+   median itself was replaced with a vote) — at each pixel covered by ≥2
+   gain-corrected verified frames, take a **vote** among the covered frames'
+   gray values: 2 or 3 covered, the brightest (an ALL-of-N vote — every
+   covered frame must read darker than the reference); exactly 4 covered,
+   the second-brightest (a 3-of-4 vote, tolerating one frame that happens to
+   share the reference's own glare position); pixels covered by <2 frames
+   get 0. `darkening_robust = max(0, gray(reference) - vote_gray)`. Blurred
+   (`MASK_DARKENING_BLUR_SIGMA`) and thresholded at `MASK_DARKENING_THRESHOLD`
+   **AND** `gray(reference) > MASK_BRIGHTNESS_FLOOR` — the brightness floor
+   excludes a moving hand shadow (dark in the reference already) from ever
+   reading as glare, since glare heals FROM a bright, washed-out reference
+   pixel. The raw mask is dilated (`MASK_DILATE_RADIUS_PX`) to comfortably
+   cover a glare patch's soft rim, then feathered with a Gaussian blur
+   (`MASK_FEATHER_SIGMA`) into a smooth `[0, 1]` alpha.
+6. **Output**: `reference * (1 - alpha) + min_composite * alpha` — the
+   min-composite (not a median/vote composite) is still what actually fills
+   the masked region, since it heals best; the vote in step 5 only decides
+   WHERE the mask applies. The alpha mask is also written as
+   `<out-stem>_mask.png` next to `--out`, as a diagnostic, and the CLI prints
+   the fraction of pixels with alpha > 0.5 ("mask coverage").
+
+`MASK_DARKENING_THRESHOLD` needed to be tuned well above the spec's naive
+starting point of 10/255: real captures show a systemic, glare-unrelated
+"darkening" floor from two sources — taking the min of several noisy photos
+reads lower than any one of them everywhere (an order-statistics effect),
+and `cv2.warpPerspective`'s resampling softens fine bright detail (diluting
+a star's peak into its darker neighbors, which shows up as "darkening"
+exactly where the star is, from the resample alone). At threshold 10, that
+floor was large enough to blanket 80-93% of the frame in alpha and erase the
+same fine detail the mask was meant to protect. See `stitch.py`'s
+`MASK_DARKENING_THRESHOLD` docstring and
+[Round 4 in `HANDOFF.md`](HANDOFF.md#round-4-glare-masked-compositing-2026-07-24) for the full tuning story and
+measured numbers on all three real dumps. **Round 5** replaced the mask's
+darkening signal itself (step 5 above) with the median-based
+`compute_darkening_robust`, which suppresses most (not all) of that same
+order-statistics floor directly on a highly-textured background (e.g.
+carpet) — see
+[Round 5 in `HANDOFF.md`](HANDOFF.md#round-5-median-based-robust-darkening-for-the-mask-2026-07-24)
+for the re-swept threshold numbers and the residual-leakage caveat. **Round
+6** found that Round 5's residual leakage was concentrated near frame
+borders, where registration error is largest (the verification gate only
+checks the central 50%) and a plain median let 2-of-3 or 2-of-4 covered
+frames' coincidental agreement through; replacing the median with an
+explicit all-of-N (2 or 3 covered) / 3-of-4 (4 covered) vote in
+`compute_darkening_robust` closed most of that gap — see
+[Round 6 in `HANDOFF.md`](HANDOFF.md#round-6-a-stricter-vote-for-the-robust-darkening-estimate-2026-07-24)
+for the before/after numbers.
+
 ## Real-dump validation (2026-07-24)
 
 Scored against the first two real DEBUG-build dumps
@@ -441,6 +537,33 @@ disk:
   `darkened_fraction`) and that the real `score_dump` pipeline's
   speck-excluding darkening map keeps `darkened_fraction` from increasing —
   the erased stars must not register as glare-healing benefit.
+- Three tests for `--mode masked`, reusing the same `SyntheticFixture` (plus
+  `_make_starfield_scene` for the third): `stitch_masked` run end to end
+  still heals the reference's own centered glare disc (none of the 4 corner
+  shots glares there); a patch far from every glare disc stays within a
+  couple of gray levels of the reference (the mask must not touch it); and
+  `compute_glare_alpha` leaves a modestly-dimmed (not erased) synthetic
+  star's pixels untouched, retention ~= 1.0 — modest dimming is what a
+  well-registered masked-mode composite actually produces at a star under
+  residual resampling softening, unlike the full-erasure fixture the
+  bright-detail-retention test above uses to force a strong signal for
+  `score_stitch`'s own detector.
+- A Round 5/6 fixture for the robust darkening estimate
+  (`test_masked_mode_median_darkening_ignores_textured_background_misalignment`,
+  name unchanged from Round 5, now exercising Round 6's vote):
+  a high-frequency, high-contrast textured background (mirroring a real
+  carpet) sampled by 4 frames each shifted ~1-2px from the reference (the
+  scale of residual misalignment SIFT+ECC leaves behind, not raw uncorrected
+  corner jitter) plus a moving glare disc that no covered frame shares with
+  the reference. Asserts the genuine glare still triggers the mask
+  (alpha > 0.5) while the textured background well away from every glare
+  disc stays essentially unmasked (mean alpha < 0.05, alpha > 0.5 fraction
+  < 5%) — then, as a sanity check that the fixture actually exercises the
+  fix, confirms a plain MIN-composite-based darkening signal (Round 4's
+  approach) over the SAME fixture WOULD have flagged much of that same
+  background region (> 30% at alpha > 0.5). See
+  [Round 6 in `HANDOFF.md`](HANDOFF.md#round-6-a-stricter-vote-for-the-robust-darkening-estimate-2026-07-24)
+  for why the median itself was later replaced with a stricter vote.
 
 ```bash
 cd network

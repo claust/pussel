@@ -12,12 +12,32 @@ import simd
 /// the artwork's own diffuse color stays put. So a patch that is washed out
 /// in one shot is clean in another taken a hand-width away. Each extra shot
 /// is registered onto the reference with a homography — exact for a flat
-/// puzzle — and the composite keeps the darkest value observed at each
-/// pixel, because glare only ever *adds* light on top of the surface.
+/// puzzle.
 ///
-/// Everything runs on-device: Vision computes the homographies
-/// (`VNHomographicImageRegistrationRequest`) and Core Image warps and
-/// min-composites the frames.
+/// A plain global min-composite (darkest pixel wins) has three failure
+/// modes validated against real device captures (`scripts/stitch_quality/`,
+/// exp29): it erases fine bright detail (stars) under 1-3px residual
+/// misalignment, smears background micro-parallax a homography can't fit
+/// (e.g. carpet), and lets an exposure-mismatched frame's global darkness
+/// win pixels that have nothing to do with glare. The masked-healing
+/// pipeline below (ported from `scripts/stitch_quality/stitch.py --mode
+/// masked` — "Round 5" in that directory's `HANDOFF.md`) fixes all three:
+/// per-frame photometric gain compensation before the min-composite, and
+/// confining the min-composite's effect to a feathered mask built from a
+/// *robust* (median-of-covering-frames) darkening estimate, so pristine
+/// reference pixels survive everywhere the mask doesn't fire.
+///
+/// Registration is unchanged and still runs on Core Image/Vision
+/// (`VNHomographicImageRegistrationRequest` for the homography,
+/// `CIPerspectiveTransform` for the warp). The gain/mask/blend math (see
+/// "Masked healing" below) instead runs as plain Swift array arithmetic
+/// over sRGB-encoded pixel buffers rather than through Core Image's own
+/// compositing filters, which blend in a *linear* working color space —
+/// the brightness thresholds this recipe is tuned around
+/// (`maskDarkeningThreshold`, `maskBrightnessFloor`, `gainGrayRange`) are
+/// measured directly off sRGB-encoded JPEG bytes in the Python reference,
+/// and would mean something subtly different if run through a filter that
+/// silently linearizes first.
 enum GlareFreeComposer {
   /// Long-side cap frames are downscaled to before compositing. Bounds
   /// Core Image work on ~12 MP captures while staying above
@@ -31,6 +51,65 @@ enum GlareFreeComposer {
   /// found warp is rescaled onto the working frames.
   static let proxyMaxDimension: CGFloat = 1024
 
+  // MARK: - Masked healing tunables (scripts/stitch_quality/stitch.py
+  // --mode masked; see that directory's HANDOFF.md, "Round 5")
+
+  /// Long-side size (pixels) the glare-mask math (gain compensation,
+  /// robust darkening, threshold/dilate/feather) runs at. This is plain
+  /// CPU array work, not GPU Core Image, so a coarser scale keeps it cheap
+  /// (roughly 1 MP across up to five buffers) without materially changing
+  /// the mask's shape — the mask only ever ends up as a blend WEIGHT,
+  /// upscaled back to `workingMaxDimension` before the final blend touches
+  /// any actual pixel color, which is where resolution genuinely matters.
+  /// (Verified this doesn't change the mask's *accuracy*, not just its
+  /// cost: running the same math at full `workingMaxDimension` resolution
+  /// on a real capture with a heavily-textured carpet background produced
+  /// statistically the same result, just ~5x slower — see
+  /// `GlareFreeMaskedHealing.swift`'s `healedComposite` docs.)
+  static let maskMaxDimension: CGFloat = 1024
+
+  /// Gray range (0-255) a pixel must fall in, on both the reference and a
+  /// warped corner frame, to contribute to that frame's photometric gain
+  /// estimate. Mirrors `stitch.py`'s `GAIN_GRAY_LOW`/`GAIN_GRAY_HIGH`:
+  /// excludes near-black (noisy ratio, possible shadow) and near-white
+  /// (glare/saturation, exactly what compositing is trying to fix) pixels
+  /// from the estimate.
+  static let gainGrayRange: ClosedRange<Float> = 30...220
+
+  /// The remaining masked-healing constants are tuned (and documented) at
+  /// `stitch.py`'s own `WORKING_LONG_SIDE` (2048), the same scale as
+  /// `workingMaxDimension` here, so `healedComposite` uses them unscaled
+  /// for anything it computes at working resolution, and scales them down
+  /// by `maskMaxDimension / workingMaxDimension` for the mask math that
+  /// runs at the coarser `maskMaxDimension` scale instead.
+  ///
+  /// Gaussian blur sigma applied to the robust darkening map before
+  /// thresholding, to suppress resample/JPEG noise. Mirrors `stitch.py`'s
+  /// `MASK_DARKENING_BLUR_SIGMA`.
+  static let maskDarkeningBlurSigma: Float = 3.0
+  /// Per-pixel (blurred) darkening above which a pixel is candidate glare,
+  /// measured on the median-of-covering-frames darkening estimate (see
+  /// `robustDarkening`) rather than a plain min-based signal, which
+  /// carries a large, glare-unrelated noise floor on high-variance
+  /// textures like carpet — see HANDOFF.md's Round 5 for the tuning story.
+  /// Mirrors `stitch.py`'s `MASK_DARKENING_THRESHOLD`.
+  static let maskDarkeningThreshold: Float = 30.0
+  /// Reference gray level below which a pixel is excluded from the glare
+  /// mask regardless of darkening — keeps moving hand shadows (dark in
+  /// the reference already) out: glare heals FROM a bright, washed-out
+  /// reference pixel, a shadow doesn't. Mirrors `stitch.py`'s
+  /// `MASK_BRIGHTNESS_FLOOR`.
+  static let maskBrightnessFloor: Float = 110.0
+  /// Structuring-element radius (pixels) the raw glare mask is dilated by,
+  /// so the blended region comfortably covers a glare patch's soft,
+  /// gradually-darkening rim, not just its thresholded core. Mirrors
+  /// `stitch.py`'s `MASK_DILATE_RADIUS_PX`.
+  static let maskDilateRadius: Float = 15.0
+  /// Gaussian blur sigma used to feather the dilated mask into a smooth
+  /// [0, 1] alpha, avoiding a hard seam at the blend boundary. Mirrors
+  /// `stitch.py`'s `MASK_FEATHER_SIGMA`.
+  static let maskFeatherSigma: Float = 8.0
+
   struct Composite {
     let image: UIImage
     /// How many of the extra frames actually registered and joined the
@@ -38,7 +117,10 @@ enum GlareFreeComposer {
     let alignedFrameCount: Int
   }
 
-  private static let context = CIContext()
+  // Not `private`: `GlareFreeMaskedHealing.swift`'s extension (a separate
+  // file, to keep this type's own body under SwiftLint's length ceiling)
+  // reuses the same `CIContext` for its own `createCGImage` calls.
+  static let context = CIContext()
 
   /// Builds the glare-free composite. Synchronous and heavy (a few seconds
   /// for five frames) — call it off the main actor.
@@ -62,12 +144,15 @@ enum GlareFreeComposer {
       let referenceProxies = registrationProxies(of: referenceCG)
     else { return nil }
     let extent = CGRect(x: 0, y: 0, width: referenceCG.width, height: referenceCG.height)
+    let referenceImage = CIImage(cgImage: referenceCG)
 
-    // Gaps a warped frame leaves at the edges become white, so the minimum
-    // there always keeps the reference pixel instead of an undefined black.
-    let white = CIImage(color: .white).cropped(to: extent)
-    var composite = CIImage(cgImage: referenceCG)
-    var alignedCount = 0
+    // Registration is unchanged from the plain min-composite pipeline: each
+    // frame that registers and passes `alignmentError`'s verification gate
+    // (inside `homography`/`refined`) contributes its warped image here,
+    // UNFILLED (transparent, not white, outside its own footprint) —
+    // filling gaps is now `healedComposite`'s job, which needs to tell
+    // "white because glare-free" apart from "white because unfilled".
+    var verifiedFrames: [CIImage] = []
     for (index, other) in others.enumerated() {
       let expectedShift = expectedShifts.flatMap { $0.indices.contains(index) ? $0[index] : nil }
       guard let otherCG = downscaledUpright(other),
@@ -76,17 +161,27 @@ enum GlareFreeComposer {
           expectedShift: expectedShift),
         let warped = warpedImage(otherCG, by: warp)
       else { continue }
-      let filled = warped.composited(over: white).cropped(to: extent)
-      let minimum = CIFilter.minimumCompositing()
-      minimum.inputImage = filled
-      minimum.backgroundImage = composite
-      guard let merged = minimum.outputImage else { continue }
-      composite = merged.cropped(to: extent)
-      alignedCount += 1
+      verifiedFrames.append(warped.cropped(to: extent))
     }
 
-    guard let outputCG = context.createCGImage(composite, from: extent) else { return nil }
-    return Composite(image: UIImage(cgImage: outputCG), alignedFrameCount: alignedCount)
+    guard !verifiedFrames.isEmpty else {
+      guard let outputCG = context.createCGImage(referenceImage, from: extent) else { return nil }
+      return Composite(image: UIImage(cgImage: outputCG), alignedFrameCount: 0)
+    }
+
+    guard
+      let healed = healedComposite(
+        reference: referenceImage, verifiedFrames: verifiedFrames, extent: extent)
+    else {
+      // The masked-healing math failed outright (an unexpected Core
+      // Graphics allocation failure, say) — fall back to the reference
+      // alone rather than losing the whole capture. `alignedFrameCount`
+      // still reports what registered, so the caller can tell this
+      // degraded case apart from a clean one.
+      guard let outputCG = context.createCGImage(referenceImage, from: extent) else { return nil }
+      return Composite(image: UIImage(cgImage: outputCG), alignedFrameCount: verifiedFrames.count)
+    }
+    return Composite(image: healed, alignedFrameCount: verifiedFrames.count)
   }
 
   // MARK: - Registration
