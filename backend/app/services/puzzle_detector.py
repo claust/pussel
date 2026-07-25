@@ -60,8 +60,12 @@ EDGE_DILATE_KERNEL = 5
 # when reducing an edge contour to a quadrilateral
 EDGE_APPROX_EPSILONS = (0.02, 0.04, 0.06)
 
-# Line thickness (working pixels) used when rasterizing a candidate quad's outline to
-# measure how much of it coincides with real detected edges (the edge-support term)
+# Widest across-border probe (working pixels, full width) the edge-support term may
+# look through when deciding whether a candidate side coincides with a detected edge.
+# `_probe_reach` narrows it further on busy edge maps — the wider the window, the more
+# likely a side "hits" an edge purely by chance — so this is the ceiling, not the
+# window: a side is sampled at points along its length, and each sample searches at
+# most this far across the border for a set pixel.
 EDGE_SUPPORT_THICKNESS = 2 * EDGE_DILATE_KERNEL + 1
 
 # --- Line-intersection candidates (see PuzzleFrameDetector._line_quads) ---

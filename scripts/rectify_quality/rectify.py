@@ -196,7 +196,7 @@ def rectangle_aspect(
 
     focal_source = "estimated"
     focal_squared = None
-    if known_focal_px:
+    if known_focal_px is not None:
         focal_squared = known_focal_px * known_focal_px
         focal_source = "known"
     elif abs(n23 * n33) > 1e-12:
