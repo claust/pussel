@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Synthetic Dataset Realism — Findings &amp; Test Plan</title>
+<style>
+  :root {
+    --bg: #f7f6f3;
+    --surface: #ffffff;
+    --ink: #1e2229;
+    --muted: #5c6470;
+    --line: #e3e0d8;
+    --accent: #b4551f;
+    --accent-soft: #f6e3d7;
+    --good: #2c6e49;
+    --good-soft: #e2efe7;
+    --warn: #8a5a00;
+    --warn-soft: #f7ecd4;
+    --risk: #9c2f2f;
+    --risk-soft: #f7e2e2;
+    --code-bg: #eeece6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16181d;
+      --surface: #1f232b;
+      --ink: #e8e6e1;
+      --muted: #9aa1ac;
+      --line: #32363f;
+      --accent: #e08a55;
+      --accent-soft: #3a2a1f;
+      --good: #6fbf8f;
+      --good-soft: #1f3328;
+      --warn: #d9a94a;
+      --warn-soft: #362c17;
+      --risk: #e07a7a;
+      --risk-soft: #3a2222;
+      --code-bg: #2a2e37;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 3rem 1.5rem 5rem; }
+  header h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 0.5rem; }
+  header .subtitle { color: var(--muted); font-size: 1.05rem; max-width: 46rem; }
+  .kicker {
+    display: inline-block; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--accent); margin-bottom: 0.75rem;
+  }
+  nav.toc {
+    margin: 2rem 0; padding: 1rem 1.25rem; background: var(--surface);
+    border: 1px solid var(--line); border-radius: 10px; font-size: 0.95rem;
+  }
+  nav.toc strong { display: block; margin-bottom: 0.35rem; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  nav.toc ol { margin: 0; padding-left: 1.3rem; columns: 2; column-gap: 2.5rem; }
+  @media (max-width: 640px) { nav.toc ol { columns: 1; } }
+  h2 {
+    font-size: 1.45rem; margin: 3rem 0 1rem; padding-top: 1rem;
+    border-top: 2px solid var(--line);
+  }
+  h3 { font-size: 1.1rem; margin: 1.75rem 0 0.5rem; }
+  h4 { font-size: 0.95rem; margin: 1.5rem 0 0.5rem; color: var(--muted); }
+  p { margin: 0.6rem 0 1rem; }
+  code {
+    font: 0.85em ui-monospace, "SF Mono", Menlo, monospace;
+    background: var(--code-bg); padding: 0.1em 0.35em; border-radius: 4px;
+  }
+  .callout {
+    margin: 1.25rem 0; padding: 1rem 1.25rem; border-radius: 10px;
+    border: 1px solid var(--line); background: var(--surface);
+  }
+  .callout.good { border-left: 4px solid var(--good); background: var(--good-soft); }
+  .callout.warn { border-left: 4px solid var(--warn); background: var(--warn-soft); }
+  .callout.risk { border-left: 4px solid var(--risk); background: var(--risk-soft); }
+  .callout.accent { border-left: 4px solid var(--accent); background: var(--accent-soft); }
+  .callout p:first-child { margin-top: 0; }
+  .callout p:last-child { margin-bottom: 0; }
+  .tablewrap { overflow-x: auto; margin: 1rem 0 1.5rem; }
+  table {
+    border-collapse: collapse; width: 100%; font-size: 0.92rem;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+    overflow: hidden;
+  }
+  th, td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: var(--code-bg); font-weight: 650; white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .tag {
+    display: inline-block; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em;
+    padding: 0.1em 0.55em; border-radius: 999px; white-space: nowrap;
+  }
+  .tag.good { color: var(--good); background: var(--good-soft); }
+  .tag.warn { color: var(--warn); background: var(--warn-soft); }
+  .tag.risk { color: var(--risk); background: var(--risk-soft); }
+  .tag.accent { color: var(--accent); background: var(--accent-soft); }
+  ul, ol { margin: 0.5rem 0 1rem; padding-left: 1.5rem; }
+  li { margin: 0.3rem 0; }
+  .muted { color: var(--muted); }
+  a { color: var(--accent); }
+  .src { font-size: 0.82rem; color: var(--muted); }
+  hr { border: none; border-top: 1px solid var(--line); margin: 2rem 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <span class="kicker">Investigation · July 2026</span>
+  <h1>Synthetic Dataset Realism — Findings &amp; Test Plan</h1>
+  <p class="subtitle">
+    Why every model trained on synthetic puzzle data collapses on real photos
+    (exp25–27), what the synthetic data actually gets wrong — measured, not
+    guessed — and a ranked list of experiments to fix it. Based on a code audit
+    of the generator, a quantitative real-vs-synthetic comparison on north_star
+    data, and a literature review of sim-to-real techniques.
+  </p>
+</header>
+
+<nav class="toc">
+  <strong>Contents</strong>
+  <ol>
+    <li><a href="#status">Where we stand</a></li>
+    <li><a href="#framing">The production framing: overview = box photo</a></li>
+    <li><a href="#verdict">The verdict: shortcuts, not realism</a></li>
+    <li><a href="#guns">The smoking guns</a></li>
+    <li><a href="#measured">Measured domain gaps</a></li>
+    <li><a href="#ruledout">What is ruled out</a></li>
+    <li><a href="#plan">Ranked test plan</a></li>
+    <li><a href="#metrics">Realism acceptance metrics</a></li>
+    <li><a href="#literature">Literature shortlist</a></li>
+    <li><a href="#beyond">Beyond synthetic realism</a></li>
+    <li><a href="#appendix">Appendix: evidence pointers</a></li>
+  </ol>
+</nav>
+
+<h2 id="status">1 · Where we stand</h2>
+<p>
+  Production uses the classical SIFT→NCC hybrid. The learned models tell a
+  consistent story across three experiments:
+</p>
+<div class="tablewrap">
+<table>
+  <tr><th>Experiment</th><th>Method</th><th class="num">Synthetic (both)</th><th class="num">north_star v1 (both)</th></tr>
+  <tr><td>exp23/25</td><td>SIFT→NCC hybrid (no training)</td><td class="num">82.2%</td><td class="num"><strong>76.7%</strong> — the bar</td></tr>
+  <tr><td>exp20 / exp25</td><td>CNN trained on synthetic</td><td class="num">72.2%</td><td class="num">14.8%</td></tr>
+  <tr><td>exp26</td><td>CNN + heavy domain randomization</td><td class="num">76.2%</td><td class="num">12.7%</td></tr>
+  <tr><td>exp27 stage 0</td><td>Frozen DINOv2 + <em>non-learned</em> cosine readout</td><td class="num">—</td><td class="num">49.2%</td></tr>
+  <tr><td>exp27 stage 1</td><td>Same frozen DINOv2 + 1.9M-param readout <em>trained on synthetic</em></td><td class="num">64.3%</td><td class="num">7.0%</td></tr>
+</table>
+</div>
+<p>
+  The exp27 pair is the key diagnostic: <strong>the features transfer; any
+  parameters trained on synthetic data become the contaminant.</strong>
+  Non-learned readouts survive the camera (SIFT 76.7%, cosine 49.2%); every
+  synthetic-trained readout collapses, and input-level domain randomization
+  (exp26) does not save it.
+</p>
+
+<h2 id="framing">2 · The production framing: overview = box photo</h2>
+<div class="callout accent">
+  <p>
+    <strong>In production the user photographs the puzzle box</strong> — the
+    printed motif on glossy cardboard — and every piece's position and rotation
+    is predicted against that box image. The overview is normally <em>not</em>
+    a photo of the assembled puzzle. (north_star mixes the two: its protocol
+    says “box poster <em>or</em> assembled puzzle”.)
+  </p>
+</div>
+<p>This has three consequences for realism work:</p>
+<ul>
+  <li>
+    <strong>Seam simulation is secondary.</strong> Rendering piece seams into
+    the synthetic overview only matters for the assembled-puzzle capture mode
+    and for part of north_star — it is not the production-critical gap.
+  </li>
+  <li>
+    <strong>The overview realism target is “print-and-photograph of box
+    art”</strong>: a glossy printed surface under real lighting (specular
+    glare), mildly perspective-corrected by the iOS pipeline, through a phone
+    ISP, at ~100–150&nbsp;px per puzzle cell.
+  </li>
+  <li>
+    <strong>Piece and overview are two different physical prints.</strong> The
+    box art and the puzzle print are separate print runs — potentially
+    different scale, tone curve, gamut, even slightly different crops of the
+    motif (the backend's Ravensburger client already distinguishes clean motif
+    vs box art). The synthetic pipeline models them as <em>the same digital
+    file</em>, which is the deepest structural error (§4.3).
+  </li>
+</ul>
+
+<h2 id="verdict">3 · The verdict: shortcuts, not realism</h2>
+<p>
+  The sim-to-real collapse is <strong>mostly not a rendering-fidelity
+  problem</strong>. The synthetic data contains cues that are near-perfectly
+  predictive of the labels and structurally impossible in real photos —
+  textbook shortcut learning (Geirhos et al., 2020). Any trainable parameter
+  finds these cues and rides them; frozen features plus a non-learned readout
+  cannot, which is exactly the exp27 split. Two of the cues are outright
+  label-leaking generator bugs; a third — piece↔overview pixel identity —
+  survives all of exp26's augmentations.
+</p>
+<p>
+  Consequence: “more realistic rendering” (Blender, gloss, embossed relief) is
+  the <em>last</em> lever to pull, not the first. The stereo-matching
+  literature hit this identical failure (synthetic pairs with pixel-identical
+  local statistics) and fixed it with cheap data-side changes — a 7×
+  error reduction from two augmentations (Chuah et al., 2021).
+</p>
+
+<h2 id="guns">4 · The smoking guns</h2>
+
+<h3>4.1 · A 100%-precision rotation shortcut <span class="tag risk">generator bug</span></h3>
+<p>
+  Synthetic pieces are cropped <em>tight</em> to the piece silhouette
+  (<code>cut_piece</code> crops to <code>getbbox()</code>,
+  <code>shared/puzzle_shapes/image_masking.py:259-263</code>) and rotated with
+  <code>expand=False</code> at generation and load time. Verified on a
+  128×188 canvas:
+</p>
+<div class="tablewrap">
+<table>
+  <tr><th>Base rotation</th><th>Content extent on canvas</th></tr>
+  <tr><td>0° / 180°</td><td>Fills the canvas — alpha touches all four borders</td></tr>
+  <tr><td>90° / 270°</td><td>Clipped (~60 px of tabs lost) with black bands top/bottom</td></tr>
+</table>
+</div>
+<p>
+  So <strong>“piece touches all four borders ⟹ rotation ∈ {0°, 180°}” is a
+  100%-precision rule</strong> in synthetic train <em>and</em> test data. Real
+  crops are <code>pad_to_square</code>'d with an 8% margin and <em>never</em>
+  touch the borders — at test time the model is forced down the odd-rotation
+  branch. This exactly reproduces exp26's diagnostic (“predicts 90°/270° for
+  everything”) and explains 99.0% synthetic rotation vs 33.5% real. As a side
+  effect the clipping destroys ~30–50% of the tab silhouette on half the
+  training pieces — the one honest rotation cue.
+</p>
+
+<h3>4.2 · A rotation-correlated blur cue <span class="tag risk">generator bug</span></h3>
+<p>
+  <code>rotate_rgba(expand=False, BILINEAR)</code> on non-square canvases
+  (116 of 120 pieces) puts 90°/270° rotations on half-pixel offsets. Measured
+  on the same piece at all four rotations: mean gradient 5.01 / 4.56 / 5.01 /
+  4.56; |Laplacian| 9.90 / 6.68 / 9.90 / 6.68 — <strong>90°/270° are 32%
+  blurrier while 0°/180° are pixel-exact</strong>. Sharpness alone leaks the
+  rotation label, only in synthetic data. Consistent with exp20's rotation
+  accuracy (94.6%) far exceeding its cell accuracy (72.9%).
+</p>
+
+<h3>4.3 · The pixel-identity shortcut survives exp26 <span class="tag warn">structural</span></h3>
+<p>
+  The synthetic “overview” is the <strong>byte-identical source JPEG the
+  pieces were cut from</strong> (<code>exp20_realistic_pieces/dataset.py:182</code>) —
+  shared demosaic, white balance, JPEG block grid, noise fingerprint,
+  sharpening. Measured masked zero-mean NCC of each piece against its
+  ground-truth overview location (identical 7-scale × 7-rotation search per
+  domain, decoy = same search on a random wrong cell):
+</p>
+<div class="tablewrap">
+<table>
+  <tr><th>Domain</th><th class="num">GT median NCC</th><th class="num">&gt; 0.8</th><th class="num">Decoy median</th></tr>
+  <tr><td>Synthetic raw (exp20)</td><td class="num"><strong>0.990</strong> (0°/180° exactly 1.000)</td><td class="num">56%</td><td class="num">0.471</td></tr>
+  <tr><td>Synthetic + full exp26 augmentation</td><td class="num"><strong>0.937</strong></td><td class="num">84%</td><td class="num">0.528</td></tr>
+  <tr><td>Real (north_star)</td><td class="num">0.730</td><td class="num">41%</td><td class="num">0.407</td></tr>
+</table>
+</div>
+<p>
+  exp26's photometric jitter is a near-affine intensity map that any
+  contrast-normalized matcher cancels; its geometric jitter is absorbed by any
+  scale/rotation search. <strong>The stated purpose of exp26 — breaking the
+  pixel-exact shortcut — was not achieved at the correlation level.</strong>
+  In production terms: the real box photo and the real piece photo are two
+  independent captures of two different physical prints, with zero pixel
+  identity. The synthetic pair is one file.
+</p>
+
+<h2 id="measured">5 · Measured domain gaps</h2>
+<p class="src">
+  64 real prepared piece crops (north_star eval cache, the exact
+  bbox→rembg→black-composite eval inputs, stratified over all 14 puzzles) vs
+  64 freshly generated exp26 pieces, compared raw (<abbr title="exp20 appearance">SYN</abbr>)
+  and after full exp26 augmentation (AUG), at the model's 128px/256px input
+  view. Median values.
+</p>
+<div class="tablewrap">
+<table>
+  <tr><th>Metric</th><th class="num">Real</th><th class="num">Synthetic</th><th class="num">Syn + exp26 aug</th><th>Reading</th></tr>
+  <tr>
+    <td>Colorfulness (Hasler-Süsstrunk)</td>
+    <td class="num"><strong>69.9</strong></td><td class="num">20.1</td><td class="num">18.3</td>
+    <td>Content gap: Unsplash nature photos vs saturated cartoon kids' art. Untouched by augmentation.</td>
+  </tr>
+  <tr>
+    <td>Fraction of pixels with saturation &gt; 0.6</td>
+    <td class="num"><strong>0.197</strong></td><td class="num">0.002</td><td class="num">0.015</td>
+    <td>The “printed colors are duller” hypothesis is <em>inverted</em> — real is far more saturated because the content is cartoon art.</td>
+  </tr>
+  <tr>
+    <td>SIFT keypoints / 1000 px</td>
+    <td class="num"><strong>9.5</strong></td><td class="num">4.7</td><td class="num">4.4</td>
+    <td>Real art is twice as feature-dense as the training imagery.</td>
+  </tr>
+  <tr>
+    <td>Nearly featureless pieces (grad&nbsp;mean&nbsp;&lt;&nbsp;3)</td>
+    <td class="num">2%</td><td class="num"><strong>23%</strong></td><td class="num">14%</td>
+    <td>A quarter of synthetic training pieces are close to untextured.</td>
+  </tr>
+  <tr>
+    <td>Native piece resolution</td>
+    <td class="num"><strong>382 px</strong> ↓ to 128</td><td class="num">91 px ↑ to 128</td><td class="num">—</td>
+    <td>Real inputs are downsampled (crisp); synthetic are upsampled (soft). 6.5× high-frequency energy gap at the model input.</td>
+  </tr>
+  <tr>
+    <td>Flat-region noise σ (0–255)</td>
+    <td class="num"><strong>0.77</strong></td><td class="num">0.09</td><td class="num">0.53</td>
+    <td>exp26 mostly closes this for pieces — but <code>augment_puzzle()</code> leaves the overview noise-free (0.84 real vs 0.07 syn).</td>
+  </tr>
+  <tr>
+    <td>Boundary rim ratio (edge luminance ÷ interior)</td>
+    <td class="num"><strong>1.08</strong></td><td class="num">0.98</td><td class="num">0.69</td>
+    <td>Real pieces have a bright cardboard rim; the exp26 halo augmentation pushes the <em>wrong way</em> (darkens the edge).</td>
+  </tr>
+  <tr>
+    <td>Mask area fraction of the input frame</td>
+    <td class="num">0.44</td><td class="num"><strong>0.67</strong></td><td class="num">0.42</td>
+    <td>Framing/scale mismatch in the raw data; exp26 accidentally fixes it.</td>
+  </tr>
+</table>
+</div>
+<p class="src">
+  Caveat: real mask-boundary metrics measure the deployed rembg segmentation
+  as much as the physical piece — which is fine, because that <em>is</em> the
+  deployment domain. Full numbers, plots and the ~20&nbsp;s reproduction
+  script were generated during the 2026-07-26 investigation session
+  (<code>domain_gap.py</code>).
+</p>
+
+<h2 id="ruledout">6 · What is ruled out</h2>
+<p>
+  exp26 already randomized these, measured per-condition, and they transferred
+  nothing — do not spend more effort here:
+</p>
+<ul>
+  <li><strong>Backgrounds</strong> — all four capture backgrounds score the same (10–14% both).</li>
+  <li><strong>Photometrics, piece-level sensor noise, JPEG</strong> — covered by exp26's ranges; zero transfer.</li>
+  <li><strong>Grid size / puzzle aspect</strong> — the 4×4-only north_star subset scores the same as the full set (11.5% vs 12.7%).</li>
+  <li><strong>Small geometric jitter</strong> (±8° rotation, mild perspective, ±15% scale) — present in exp26.</li>
+</ul>
+
+<h2 id="plan">7 · Ranked test plan</h2>
+
+<h3>Test 1 — Fix the two generator bugs <span class="tag good">~10 lines · highest certainty</span></h3>
+<ul>
+  <li>Square-pad synthetic pieces with the same 8% margin as the real path
+      (<code>pad_to_square</code>), so no rotation ever touches the canvas border.</li>
+  <li>Use <code>expand=True</code> everywhere, and lossless <code>np.rot90</code>
+      for the 90° family, killing the half-pixel blur cue.</li>
+  <li>Pad-to-square <em>before</em> the 128×128 resize — training currently
+      squashes aspect while deployment pads; they must agree.</li>
+</ul>
+<p>
+  Then retrain the exp26 model unchanged. <strong>Prediction:</strong>
+  north_star rotation jumps well above 33.5% and the 90°/270° bias disappears.
+  If it does, the shortcut theory is validated end-to-end.
+</p>
+
+<h3>Test 2 — Break piece↔overview pixel identity structurally <span class="tag good">1–2 days</span></h3>
+<p>
+  Model the production truth: <strong>two independent captures of two
+  different physical prints.</strong> Piece and overview must never share a
+  pipeline instance:
+</p>
+<ul>
+  <li><strong>Independent degradation chains per view</strong> — separate
+      resample, blur/sharpen, noise, tone curve, and JPEG (independent block
+      grid) for the piece and the overview. Never a shared pass.</li>
+  <li><strong>Asymmetric Random Patching</strong> (stereo literature): with
+      p=0.5, paste 2–4 random 50–100 px patches into <em>one view only</em> —
+      the proven anti-pixel-identity augmentation (28%→4% error in
+      synthetic→real stereo).</li>
+  <li><strong>Resolution asymmetry matching reality</strong>: render the
+      overview at the real per-cell pixel budget (~100–150 px/cell) and the
+      piece from a high-res source (≥350 px native), instead of today's
+      matched-MTF pair.</li>
+  <li><strong>Run rembg on synthetic piece renders too</strong>, so both
+      domains share the same segmentation artifacts (mask softness, tab-neck
+      rounding) — the cheapest way to align edge statistics.</li>
+  <li><strong>Box-photo overview realism</strong>: mild residual perspective
+      (the iOS pipeline rectifies, imperfectly), specular glare blobs,
+      lighting gradient, vignetting — Augraphy has ready-made transforms.</li>
+  <li class="muted">Optional, for the assembled-puzzle capture mode only:
+      composite the overview from piece renders with 0.5–2 px seams and
+      per-piece misalignment.</li>
+</ul>
+
+<h3>Test 3 — Swap the source corpus <span class="tag good">~1 day</span></h3>
+<p>
+  Train on cartoon/box-art-style motifs instead of (or mixed 50/50 with)
+  Unsplash photos. The backend already has the Ravensburger motif CDN client
+  (<code>ravensburger.org/produktseiten/1024/{article}_1.jpg</code>) — a few
+  thousand real puzzle motifs at 1024 px are one script away, which also fixes
+  the resolution gap. Keep north_star's 14 motifs <em>out</em> of training.
+</p>
+
+<h3>Test 4 — Fourier Domain Adaptation from a few real photos <span class="tag good">~0.5 day</span></h3>
+<p>
+  Swap the low-frequency amplitude spectrum of synthetic crops with spectra
+  from ~20 unlabeled real photos (FDA, β ≤ 0.15, applied before
+  normalization). Phase carries geometry, so cell/rotation labels are provably
+  preserved. Needs no new capture — any real photos not in north_star work.
+  Complements: histogram matching to real references, APR/FACT amplitude
+  mixing.
+</p>
+
+<h3>Test 5 — Print + ISP simulation <span class="tag warn">2–3 days · after 1–4</span></h3>
+<ul>
+  <li><strong>Augraphy</strong> (pip, MIT): ink bleed / dot-matrix / letterpress /
+      lighting-gradient / shadow-cast / reflected-light transforms.</li>
+  <li><strong>ICC round-trip</strong> sRGB→CMYK→sRGB via <code>PIL.ImageCms</code>
+      — reproduces gamut limiting in ~2 hours.</li>
+  <li><strong>Halftone screening</strong> (halftone-converter: per-channel screen
+      angles C15/M75/Y0/K45) with randomized frequency, angle, phase.</li>
+  <li><strong>StegaStamp corruption ranges</strong> as a validated
+      print-and-photograph starting config; ELD-style Poisson-Gaussian noise
+      for the camera.</li>
+</ul>
+<div class="callout warn">
+  <p>
+    Rule from the face-anti-spoofing literature: randomize per-sample and apply
+    <em>independently</em> to piece and overview — an identical simulated
+    artifact in both views becomes the next shortcut.
+  </p>
+</div>
+
+<h4>In depth (Test 5 continued) — build order for a print-and-photograph chain</h4>
+<p>
+  A dedicated deep-dive found <strong>no off-the-shelf “print then photograph”
+  library exists</strong> — but the pieces are all portable. Recommended build
+  order if/when Test 5 is warranted:
+</p>
+<div class="tablewrap">
+<table>
+  <tr><th>#</th><th>Step</th><th class="num">Days</th><th>Notes</th></tr>
+  <tr>
+    <td>0</td>
+    <td><strong>Measure first</strong>: px-per-cm of a piece in real photos; FFT a flat region of a real piece for the halftone and linen-emboss frequencies</td>
+    <td class="num">0.5</td>
+    <td>Decides whether real screening is needed or a blur + tone curve suffices. Don't skip.</td>
+  </tr>
+  <tr>
+    <td>1</td>
+    <td>Port <strong>StegaStamp's <code>transform_net</code></strong> (perspective, motion/defocus blur, hue, desaturation, brightness/contrast, noise, JPEG) with its ramp-in curriculum; use <a href="https://github.com/necla-ml/Diff-JPEG">Diff-JPEG</a> (BSD-3) for the JPEG stage</td>
+    <td class="num">1–2</td>
+    <td>Trained against real printed-and-photographed images; the curriculum (distortions ramp from zero) matters as much as the ranges.</td>
+  </tr>
+  <tr>
+    <td>2</td>
+    <td>Add <strong>PIMoG</strong>-style light gradient/radial falloff + moiré blend</td>
+    <td class="num">1</td>
+    <td>Repo is GPL-3.0 — reimplement from the published equations, don't vendor.</td>
+  </tr>
+  <tr>
+    <td>3</td>
+    <td><strong>ICC round-trip</strong> sRGB→CMYK→sRGB via Pillow's cached <code>buildProofTransform</code>; randomize rendering intent and black-point compensation</td>
+    <td class="num">0.5</td>
+    <td>Profile licensing trap: ECI/Adobe profiles are not freely redistributable — vendor <code>ISOcoated_v2_bas.ICC</code> from Debian's <code>icc-profiles-free</code> (zlib license), which matches coated-offset puzzle stock.</td>
+  </tr>
+  <tr>
+    <td>4</td>
+    <td><strong>Dot gain + substrate white</strong>: tone-curve gamma ≈ 1.5–1.8 per ink (≈ Yule-Nielsen n on coated stock; real presses gain 15–22 points at the 50% patch), paper white randomized around L*95, b* ∈ [−6, +3]</td>
+    <td class="num">0.5</td>
+    <td>The cheapest physically-grounded print model.</td>
+  </tr>
+  <tr>
+    <td>5</td>
+    <td><strong>Custom CMYK screening layer</strong> (no library does this): continuous rotated coordinates per ink (C15/M75/Y0/K45), Euclidean spot function, subtractive compositing, per-ink misregistration — with <strong>px-per-halftone-cell as the primary randomization axis</strong> (LogUniform 1–12), supersampled then downsampled</td>
+    <td class="num">2–3</td>
+    <td>Close-up piece photos fully resolve the ~0.33 mm rosette; the overview aliases it into color noise — both fall out of the physics if you render at high virtual resolution and downsample. Validate against GEGL's <code>newsprint</code>.</td>
+  </tr>
+  <tr>
+    <td>6</td>
+    <td><strong>Linen-emboss relight</strong>: sinusoidal height field at the measured frequency → normal map → Lambert + low-roughness specular with randomized light direction</td>
+    <td class="num">1–2</td>
+    <td>Puzzle-specific: Ravensburger laminates linen-structured paper for anti-glare. No published spatial spec exists — measure it from a macro shot (step 0).</td>
+  </tr>
+  <tr>
+    <td>7</td>
+    <td><strong>Sensor + ISP</strong>: port the Unprocessing shot/read-noise fit (log-linear read-vs-shot relation), Planckian white-balance jitter, and — underrated — <strong>ISP oversharpening</strong> (<code>RingingOvershoot</code>/<code>UnsharpMask</code>): the iPhone ISP sharpens aggressively</td>
+    <td class="num">1.5</td>
+    <td>Real sensor statistics beat Gaussian noise by ~3 dB in the denoising literature.</td>
+  </tr>
+</table>
+</div>
+<p>
+  Total ~7–11 days for the full chain — which is why Tests 1–4 come first.
+  Augraphy's <code>dev</code> branch covers several camera-side pieces
+  off-the-shelf (<code>ReflectedLight</code> glare, <code>LightingGradient</code>,
+  <code>LowLightNoise</code>, <code>Moire</code>) but is CPU-only and
+  document-oriented — pre-render offline and cherry-pick.
+</p>
+<div class="callout accent">
+  <p>
+    Two physical gaps the print literature does not cover, both flagged as
+    likely bigger than any of the above:
+  </p>
+  <p>
+    <strong>(a) The piece is a 3D object, not a flat page.</strong> ~2 mm
+    die-cut cardboard has an exposed grey core at the cut edge, a slightly
+    domed face, and a cast shadow; the synthetic crop has razor edges with the
+    <em>neighboring piece's pixels</em> immediately adjacent. This matches our
+    measured bright-rim gap (§5) — and only a 3D-render route models it fully,
+    though rembg-on-synthetic plus a rim/shadow band gets partway cheaply.
+  </p>
+  <p>
+    <strong>(b) Crop-mask jitter.</strong> Classical print-scan analysis
+    (Solanki et al.) found mild cropping is the distortion that hits all
+    frequency bands and destroys exactly the low-energy content. Synthetic
+    pieces are cropped on an exact lattice; real ones are segmented with pixel
+    slop and background bleed. Modeling segmentation slop explicitly is nearly
+    free and folds into Test 2.
+  </p>
+</div>
+
+<h3>Skip for now <span class="tag risk">low expected value</span></h3>
+<ul>
+  <li><strong>Full PBR rendering</strong> (Blender/BlenderProc): 8–13 days;
+      documented sim-to-real lifts are 10–35 points on tasks that were not at
+      ~0% transfer, and exp27 says the features are not the problem. Revisit
+      only if failure analysis specifically implicates the specular lobe or
+      the die-cut edge.</li>
+  <li><strong>CycleGAN-style translation</strong>: documented to hide
+      steganographic cues in its output — silent label corruption on a task
+      whose signal is fine texture.</li>
+  <li><strong>Adversarial feature alignment</strong> (DANN/ADDA): unselectable
+      without target labels; matched by plain ERM under fair tuning.</li>
+  <li><strong>Spectral ink models</strong> (Yule-Nielsen-spectral-Neugebauer,
+      Hersch ink spreading): no public code, needs a spectrophotometer and
+      printed calibration charts, and the 1–2 ΔE it buys is swamped by unknown
+      room lighting. The γ-per-ink tone curve captures the useful part.</li>
+  <li><strong>Deep halftoning</strong>: the literature targets blue-noise
+      dithering for display quality, not CMYK offset screening with rosettes —
+      wrong artifact class entirely.</li>
+</ul>
+
+<h2 id="metrics">8 · Realism acceptance metrics</h2>
+<p>
+  Every generator change should pass these <em>before</em> any retraining —
+  all run in minutes:
+</p>
+<div class="tablewrap">
+<table>
+  <tr><th>Metric</th><th>Pass condition</th><th>Why</th></tr>
+  <tr>
+    <td><strong>Classical parity</strong></td>
+    <td>SIFT→NCC hybrid scores ~77–82% on the new synthetic test set (it scores 82.2% synthetic / 76.7% real today)</td>
+    <td>If a “realism” change pushes classical accuracy <em>up</em>, the data got easier, not more real. Directional, not sufficient — pair with the probes below.</td>
+  </tr>
+  <tr>
+    <td><strong>Proxy 𝒜-distance</strong></td>
+    <td>A small synthetic-vs-real crop classifier drops well below ~100% accuracy (today it would be trivial)</td>
+    <td>Direct measurement of “is the domain still trivially distinguishable”.</td>
+  </tr>
+  <tr>
+    <td><strong>Border-touch probe</strong></td>
+    <td>P(content touches all 4 borders) is independent of rotation label, and ≈ 0 (matching real crops)</td>
+    <td>Detects shortcut 4.1 in one line.</td>
+  </tr>
+  <tr>
+    <td><strong>NCC-headroom probe</strong></td>
+    <td>Median masked NCC at the ground-truth location drops from 0.99 toward the real 0.73</td>
+    <td>Detects the pixel-identity shortcut 4.3 without training anything.</td>
+  </tr>
+  <tr>
+    <td><strong>RAPSD overlay</strong></td>
+    <td>Radially-averaged power spectra of synthetic and real crops overlap in the high-frequency band</td>
+    <td>Shows in one plot whether resolution/ISP simulation lands in the right frequency band.</td>
+  </tr>
+</table>
+</div>
+
+<h2 id="literature">9 · Literature shortlist</h2>
+<div class="tablewrap">
+<table>
+  <tr><th>Technique</th><th>Source</th><th>Headline evidence</th></tr>
+  <tr>
+    <td>Asymmetric augmentation kills matching shortcuts (ACA + ARP)</td>
+    <td>Chuah et al., <a href="https://arxiv.org/abs/2106.08486">arXiv 2106.08486</a>; ITSA (CVPR 2022, <a href="https://arxiv.org/abs/2201.02263">2201.02263</a>)</td>
+    <td>Synthetic→real stereo error 28.0% → 4.0% from two data-side augmentations</td>
+  </tr>
+  <tr>
+    <td>Shortcut learning framework</td>
+    <td>Geirhos et al., <a href="https://www.nature.com/articles/s42256-020-00257-z">Nat. Mach. Intell. 2020</a>; frequency shortcuts <a href="https://arxiv.org/abs/2307.09829">2307.09829</a></td>
+    <td>Shortcuts are not removed by more capacity or more augmentation — matches exp26 exactly</td>
+  </tr>
+  <tr>
+    <td>Fourier Domain Adaptation</td>
+    <td>Yang &amp; Soatto, CVPR 2020, <a href="https://github.com/YanchaoYang/FDA">code</a></td>
+    <td>+8–13 mIoU GTA→Cityscapes; phase preserved ⇒ labels safe; needs only unlabeled target amplitude spectra</td>
+  </tr>
+  <tr>
+    <td>Print/recapture augmentation suite</td>
+    <td>FAS-Aug, IJCV 2024, <a href="https://arxiv.org/abs/2409.03501">2409.03501</a>; Augraphy <a href="https://github.com/sparkfish/augraphy">repo</a>; StegaStamp <a href="https://arxiv.org/abs/1904.05343">1904.05343</a></td>
+    <td>Physically validated print-and-photograph corruption models, mostly off-the-shelf</td>
+  </tr>
+  <tr>
+    <td>Camera ISP simulation</td>
+    <td>Brooks et al. (Unprocessing, CVPR 2019); Jaroensri et al. <a href="https://arxiv.org/abs/1904.08825">1904.08825</a>; ELD noise (<a href="https://github.com/Vandermode/ELD">code</a>)</td>
+    <td>Realistic ISP noise beats Gaussian by 3 dB; demosaic + denoise simulation essential</td>
+  </tr>
+  <tr>
+    <td>Compositing-artifact shortcut + blend randomization</td>
+    <td>Dwibedi et al., Cut-Paste-Learn, <a href="https://arxiv.org/abs/1708.01642">1708.01642</a></td>
+    <td>Naive pasting artifacts alone tank transfer; randomizing blend mode fixes it</td>
+  </tr>
+  <tr>
+    <td>Linear-probe-then-fine-tune (LP-FT)</td>
+    <td>Kumar et al., ICLR 2022, <a href="https://arxiv.org/abs/2202.10054">2202.10054</a></td>
+    <td>Fine-tuning distorts good frozen features under large shift (~10% worse OOD) — directly explains the exp27 49% → 7% collapse</td>
+  </tr>
+  <tr>
+    <td>Classical-teacher distillation</td>
+    <td>SuperPoint (<a href="https://arxiv.org/abs/1712.07629">1712.07629</a>); monoResMatch (CVPR 2019); Noisy Student (CVPR 2020)</td>
+    <td>Hand-crafted teacher + warp-ensembled pseudo-labels on unlabeled real images is a proven bootstrap</td>
+  </tr>
+  <tr>
+    <td>PBR sim-to-real (the case against, here)</td>
+    <td>Hodaň et al. <a href="https://arxiv.org/abs/1902.03334">1902.03334</a>; BOP 2020/2023 (<a href="https://arxiv.org/abs/2009.07378">2009.07378</a>, <a href="https://arxiv.org/abs/2403.09799">2403.09799</a>)</td>
+    <td>Real lifts of 10–35 points exist — but no published case of PBR rescuing near-zero transfer</td>
+  </tr>
+</table>
+</div>
+
+<h2 id="beyond">10 · Beyond synthetic realism</h2>
+<p>
+  Realism fixes should remove the <em>penalty</em> of synthetic training. The
+  cheapest routes to actually <strong>beating 76.7%</strong> may not be
+  synthetic at all — worth holding in parallel:
+</p>
+<ul>
+  <li>
+    <strong>A small fresh real training set.</strong> Literature says 12–100
+    real instances per class often suffice for readout fitting. 50–200 newly
+    photographed pieces (a few hours' capture, never overlapping north_star)
+    used to fit only the small readout on frozen DINOv2 — with LP-FT so the
+    features stay undistorted — attacks exp27's finding head-on.
+  </li>
+  <li>
+    <strong>Distill from the classical matcher.</strong> The SIFT→NCC hybrid
+    is a 76.7%-accurate teacher over unlimited unlabeled real photos.
+    SuperPoint-style warp-ensembling (keep only cells where the ensemble
+    agrees) gives confidence-filtered pseudo-labels for free.
+  </li>
+  <li>
+    <strong>The two-capture trick.</strong> Photograph any printed poster or
+    the box itself twice — once wide (“overview”), once close (“piece” scale) —
+    register by homography, then cut synthetic Bezier pieces from the
+    close-up. Real print, real ISP, real resolution asymmetry, zero pixel
+    identity, labels free from the homography. ~2–3 days including the photo
+    session.
+  </li>
+  <li>
+    <strong>Test-time adaptation</strong> for whatever ships: recompute BN
+    statistics from ~32 unlabeled real images (CNN), or closed-form CORAL /
+    T3A prototypes on frozen DINOv2 features — no gradients, no synthetic
+    contamination.
+  </li>
+</ul>
+
+<h2 id="appendix">11 · Appendix: evidence pointers</h2>
+<ul class="src">
+  <li>Rotation border shortcut: <code>shared/puzzle_shapes/image_masking.py:239-266</code> (tight bbox crop), <code>exp20_realistic_pieces/generate_dataset.py:69-82</code> and <code>exp26_domain_randomization/generate_dataset.py:53-77</code> (<code>expand=False</code> rotation), <code>exp20_realistic_pieces/dataset.py:203</code>, <code>exp26_domain_randomization/aug_dataset.py:154-159</code> (load-time rotation).</li>
+  <li>Real prep path: <code>exp24_piece_classifier/data_prep.py:48-106</code> (<code>pad_to_square</code>, 8% margin), <code>exp25_north_star_eval/evaluate.py:227-243</code>; deployed: <code>backend/app/services/piece_detector.py:84-134</code> (<code>harden_alpha</code>, crop margin).</li>
+  <li>Byte-identical overview: <code>exp20_realistic_pieces/dataset.py:182-184</code>, <code>exp26_domain_randomization/aug_dataset.py:124-125</code>.</li>
+  <li>exp26 augmentation inventory and ranges: <code>exp26_domain_randomization/augment.py:42-129</code>.</li>
+  <li>Source imagery: <code>network/download_images.py</code> (Unsplash); real benchmark content: <code>network/experiments/north_star/README.md</code>.</li>
+  <li>Measurements: 64 real eval-cache crops (<code>network/datasets/north_star/v1_eval_cache</code>) vs 64 exp26-generated pieces; script <code>domain_gap.py</code> + plots produced in the 2026-07-26 investigation session (regenerable in ~20 s).</li>
+  <li>Experiment history: <code>network/experiments/EXPERIMENT_LOG.md</code> (exp20 re-eval, exp23, exp25, exp26, exp27).</li>
+</ul>
+
+<hr>
+<p class="src">
+  Compiled 2026-07-26 from a three-track investigation: generator/pipeline code
+  audit, quantitative real-vs-synthetic measurement, and sim-to-real literature
+  review.
+</p>
+
+</div>
+</body>
+</html>
