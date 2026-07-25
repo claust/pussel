@@ -128,12 +128,16 @@ RSD tunnel without root; without it the command demands
 <details>
 <summary>Equivalent raw <code>xcodebuild</code> / <code>simctl</code> commands</summary>
 
+`arch=` pins the host architecture; without it xcodebuild matches the same
+simulator once per arch and warns that it is "using the first of multiple
+matching destinations". Use `arch=x86_64` on an Intel Mac.
+
 ```bash
 xcodebuild build -project Pussel.xcodeproj -scheme Pussel \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -derivedDataPath .build
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro,arch=arm64' -derivedDataPath .build
 
 xcodebuild test -project Pussel.xcodeproj -scheme Pussel \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -derivedDataPath .build
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro,arch=arm64' -derivedDataPath .build
 
 xcrun simctl install booted .build/Build/Products/Debug-iphonesimulator/Pussel.app
 xcrun simctl launch booted dk.delectosoft.pussel
