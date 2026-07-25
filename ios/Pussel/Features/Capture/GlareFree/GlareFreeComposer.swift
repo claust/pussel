@@ -288,7 +288,7 @@ enum GlareFreeComposer {
     reference: RegistrationProxies, proxyExtent: CGRect
   ) -> matrix_float3x3? {
     var total = seed
-    for pass in 1...maxRegistrationPasses {
+    for _ in 1...maxRegistrationPasses {
       guard
         let current = rendered(floatingProxies.fine, warpedBy: total, extent: proxyExtent),
         let step = homographyOnce(mapping: current, ontoReference: reference.fine)
