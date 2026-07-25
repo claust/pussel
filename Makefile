@@ -129,6 +129,11 @@ IOS_BUNDLE_ID  = dk.delectosoft.pussel
 IOS_PROJECT    = ios/Pussel.xcodeproj
 IOS_SIMULATOR ?= iPhone 17 Pro
 IOS_DERIVED    = ios/.build
+# xcodebuild lists the same simulator once per supported arch, then warns that
+# it is "using the first of multiple matching destinations". Pinning the host
+# arch resolves it to exactly one — the one it picked anyway.
+IOS_SIM_ARCH  ?= $(shell uname -m)
+IOS_DESTINATION = platform=iOS Simulator,name=$(IOS_SIMULATOR),arch=$(IOS_SIM_ARCH)
 
 # Canonical (gitignored, machine-local) copy of the real secrets. It lives
 # outside every worktree so a fresh worktree or a `git clean` never loses it;
@@ -163,14 +168,14 @@ ios-run: ios-generate
 	xcrun simctl boot "$(IOS_SIMULATOR)" 2>/dev/null || true
 	open -a Simulator
 	xcodebuild build -project "$(IOS_PROJECT)" -scheme "$(IOS_SCHEME)" \
-		-destination 'platform=iOS Simulator,name=$(IOS_SIMULATOR)' -derivedDataPath "$(IOS_DERIVED)"
+		-destination '$(IOS_DESTINATION)' -derivedDataPath "$(IOS_DERIVED)"
 	xcrun simctl install booted "$(IOS_DERIVED)/Build/Products/Debug-iphonesimulator/$(IOS_APP_NAME).app"
 	xcrun simctl launch booted "$(IOS_BUNDLE_ID)"
 
 # Run the unit tests on the Simulator.
 ios-test: ios-generate
 	xcodebuild test -project "$(IOS_PROJECT)" -scheme "$(IOS_SCHEME)" \
-		-destination 'platform=iOS Simulator,name=$(IOS_SIMULATOR)' -derivedDataPath "$(IOS_DERIVED)"
+		-destination '$(IOS_DESTINATION)' -derivedDataPath "$(IOS_DERIVED)"
 
 # Build a Debug build, then install + launch on a connected device (iPhone/iPad).
 # Requires DEVELOPMENT_TEAM in ios/Config/Secrets.xcconfig (device signing).

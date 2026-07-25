@@ -36,7 +36,10 @@ jobs:
       SCHEME: Pussel
       # Concrete simulator so `xcodebuild test` has a bootable destination.
       # iPhone 17 Pro ships with the Xcode 26 iOS 26 runtime (matches ios/README).
-      DESTINATION: 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest'
+      # arch=arm64 disambiguates the arm64/x86_64 pair xcodebuild lists for the
+      # same simulator on Apple Silicon runners ("first of multiple matching
+      # destinations" warning); arm64 is what it picked anyway.
+      DESTINATION: 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest,arch=arm64'
 
     steps:
       - uses: actions/checkout@v7
