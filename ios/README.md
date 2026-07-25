@@ -130,7 +130,9 @@ RSD tunnel without root; without it the command demands
 
 `arch=` pins the host architecture; without it xcodebuild matches the same
 simulator once per arch and warns that it is "using the first of multiple
-matching destinations". Use `arch=x86_64` on an Intel Mac.
+matching destinations". The commands below spell out `arch=arm64` for Apple
+Silicon — on an Intel Mac substitute `arch=x86_64`. (`make ios-run` /
+`make ios-test` fill this in from `uname -m`, so they need no editing.)
 
 ```bash
 xcodebuild build -project Pussel.xcodeproj -scheme Pussel \
