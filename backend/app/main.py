@@ -58,7 +58,7 @@ from app.services.piece_geometry.service import (
 from app.services.piece_geometry.store import get_piece_geometry_store
 from app.services.piece_shape import PieceShapeGenerator, calculate_grid_dimensions
 from app.services.puzzle_cutter import get_puzzle_cutter
-from app.services.puzzle_detector import get_puzzle_detector
+from app.services.puzzle_detector import PuzzleFrameDetector, get_puzzle_detector
 from app.services.puzzle_store import PuzzleRecord, get_puzzle_store
 from app.services.ravensburger_client import get_ravensburger_client
 from app.services.ravensburger_lookup import RAVENSBURGER_ADULT_PREFIX, candidate_article_numbers, ean_checksum_valid
@@ -298,6 +298,7 @@ class _UndecodableImageError(Exception):
 
 
 def _detect_frame_blocking(
+    detector: PuzzleFrameDetector,
     contents: bytes,
     quad: Optional[QuadCorners],
     include_image: bool,
@@ -309,6 +310,9 @@ def _detect_frame_blocking(
     stall concurrent piece predictions.
 
     Args:
+        detector: The frame detector to run. Resolved by the caller on the
+            event loop — `get_puzzle_detector`'s lazy singleton isn't locked,
+            so it must not be raced from worker threads.
         contents: The raw uploaded photo bytes.
         quad: Manually supplied corners, or None to auto-detect.
         include_image: Whether to also warp and JPEG/base64-encode the crop.
@@ -326,7 +330,6 @@ def _detect_frame_blocking(
     except (UnidentifiedImageError, OSError, ValueError) as exc:
         raise _UndecodableImageError() from exc
 
-    detector = get_puzzle_detector()
     if quad is not None:
         used_corners = quad
         confidence = 1.0
@@ -411,7 +414,7 @@ async def detect_frame(
 
     try:
         used_corners, confidence, trimmed_image = await asyncio.to_thread(
-            _detect_frame_blocking, contents, quad, include_image
+            _detect_frame_blocking, get_puzzle_detector(), contents, quad, include_image
         )
     except _UndecodableImageError as exc:
         raise HTTPException(status_code=400, detail="Invalid image file") from exc
