@@ -14,7 +14,10 @@ struct PuzzleOverlayView: View {
   var onTap: () -> Void = {}
 
   var body: some View {
-    if let image = UIImage(data: session.trimmedJPEG) {
+    // The session's kept decode, not a fresh `UIImage(data:)`: this body runs
+    // again on every prediction that lands, and the first run of it is on the
+    // main thread while the solve screen is appearing (see `overviewImage`).
+    if let image = session.overviewImage {
       Image(uiImage: image)
         .resizable()
         .scaledToFit()

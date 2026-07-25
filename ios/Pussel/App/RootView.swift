@@ -35,7 +35,13 @@ struct AppFlowView: View {
       }
       .navigationTitle("Pussel")
       .navigationBarTitleDisplayMode(.inline)
+      // Every bar item the wizard has is declared here, in one toolbar that
+      // outlives the phase switch above — see `backButton` for why the phases
+      // must not bring their own.
       .toolbar {
+        ToolbarItem(placement: .topBarLeading) {
+          backButton
+        }
         ToolbarItem(placement: .topBarTrailing) {
           Menu {
             #if DEBUG
@@ -62,6 +68,40 @@ struct AppFlowView: View {
         }
       }
     }
+  }
+
+  /// The wizard's back chevron.
+  ///
+  /// Deliberately one button that is always in the bar, dimmed and disabled on
+  /// the phases it doesn't apply to, rather than a `.toolbar` inside each
+  /// phase's own view. A phase-owned toolbar item is inserted into the
+  /// navigation bar only once SwiftUI has committed the new phase's content,
+  /// and the bar crossfades it in from the previous phase's (empty) leading
+  /// slot. Taps that land in that window hit the bar itself and are dropped —
+  /// which is exactly what a tap right after opening a puzzle does, because
+  /// reading and decoding that puzzle's images blocks the main thread first
+  /// and pushes the item's arrival out past the tap. Reopening the same puzzle
+  /// hits warm file and image caches, so the window is short enough to miss.
+  ///
+  /// Keeping the item mounted for the whole flow means only its content
+  /// changes across a phase switch: the button is already installed and
+  /// hit-testable the instant `canGoBack` turns true, so there is no window
+  /// left to tap into.
+  @ViewBuilder
+  private var backButton: some View {
+    let canGoBack = model.flow.canGoBack
+    Button {
+      model.flow.goBack()
+    } label: {
+      Image(systemName: "chevron.left")
+    }
+    .accessibilityLabel("Back to puzzles")
+    // Hidden rather than omitted, so the item itself stays put. Disabled and
+    // hidden from VoiceOver with it, so an invisible chevron is never a live
+    // control on the home screen.
+    .opacity(canGoBack ? 1 : 0)
+    .disabled(!canGoBack)
+    .accessibilityHidden(!canGoBack)
   }
 }
 

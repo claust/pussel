@@ -34,7 +34,10 @@ open Pussel.xcodeproj
 ## Architecture
 
 - **App/** — `AppModel` (root object graph), `AppFlow` (phase state machine:
-  capture → confirm trim → solving), `AppActions` (shared wizard actions)
+  capture → confirm trim → solving), `AppActions` (shared wizard actions).
+  `RootView` owns the navigation bar for every phase, back chevron included —
+  a phase view must not add its own `.toolbar`, because a bar item that comes
+  and goes with the phase swap drops taps that land before it is installed
 - **Persistence/** — `PuzzleStore`, on-device storage of every puzzle under
   `Documents/Puzzles/<uuid>/` (a `manifest.json`, the `trimmed.jpg` picture,
   and a `pieces/` folder of per-piece image files). No server storage: a

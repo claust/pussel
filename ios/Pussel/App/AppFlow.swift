@@ -101,6 +101,30 @@ final class AppFlowStore {
     errorMessage = nil
     pendingRetake = nil
   }
+
+  /// Whether the navigation bar's leading chevron leads anywhere from here.
+  ///
+  /// The home screen is the wizard's root, so it has nothing to go back to.
+  /// Confirm-trim hides the chevron mid-upload: the solve session is already
+  /// being created by then, and leaving would strand it.
+  var canGoBack: Bool {
+    switch phase {
+    case .capturePuzzle:
+      return false
+    case .confirmTrim:
+      return !isBusy
+    case .solving:
+      return true
+    }
+  }
+
+  /// The leading chevron's action, from any phase that has one. Work is saved
+  /// locally, so leaving a solve session keeps it on the home screen — this is
+  /// a plain "back", not a discard.
+  func goBack() {
+    guard canGoBack else { return }
+    reset()
+  }
 }
 
 /// State for one solving session. The trimmed image is kept so the puzzle can
@@ -157,11 +181,21 @@ final class SolveSession {
   /// `trimmedJPEG` decoding is otherwise load-bearing enough that the session
   /// has bigger problems by then.
   @ObservationIgnored lazy var puzzleAspect: CGFloat = {
-    guard let size = UIImage(data: trimmedJPEG)?.size, size.width > 0, size.height > 0 else {
+    guard let size = overviewImage?.size, size.width > 0, size.height > 0 else {
       return 1
     }
     return size.width / size.height
   }()
+
+  /// `trimmedJPEG` decoded once, for the inline overlay to draw (and for
+  /// `puzzleAspect` to measure).
+  ///
+  /// Kept rather than decoded per read for the same reason as `puzzleAspect`,
+  /// and then some: `PuzzleOverlayView` decodes it from its `body`, which runs
+  /// again on every prediction that lands and every layout pass. The first of
+  /// those decodes happens while the solve screen is being put on screen, so
+  /// it is also main-thread time the navigation bar spends not yet updated.
+  @ObservationIgnored lazy var overviewImage: UIImage? = UIImage(data: trimmedJPEG)
 
   @ObservationIgnored private let store: PuzzleStore?
 
