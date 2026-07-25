@@ -42,6 +42,12 @@ struct AppFlowView: View {
         ToolbarItem(placement: .topBarLeading) {
           backButton
         }
+        // The bar draws each item's glass background itself, behind the item's
+        // content — so the hidden chevron below left an empty capsule sitting
+        // in the corner of the home screen. Dropping the shared background is
+        // what actually takes the button out of sight; it does not unmount the
+        // item, so `backButton`'s reason for staying put still holds.
+        .sharedBackgroundVisibility(model.flow.canGoBack ? .automatic : .hidden)
         ToolbarItem(placement: .topBarTrailing) {
           Menu {
             #if DEBUG
@@ -98,7 +104,8 @@ struct AppFlowView: View {
     .accessibilityLabel("Back to puzzles")
     // Hidden rather than omitted, so the item itself stays put. Disabled and
     // hidden from VoiceOver with it, so an invisible chevron is never a live
-    // control on the home screen.
+    // control on the home screen. The item's glass background is hidden
+    // alongside it, up where the toolbar item is declared.
     .opacity(canGoBack ? 1 : 0)
     .disabled(!canGoBack)
     .accessibilityHidden(!canGoBack)
