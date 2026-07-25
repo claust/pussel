@@ -24,20 +24,27 @@ import cv2
 import numpy as np
 from PIL import Image, ImageOps
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "backend"))
-
-from app.services.puzzle_detector import get_puzzle_detector  # noqa: E402
-from rectify import (  # noqa: E402  (same-directory module, run as a script)
-    REPORTING_LONG_SIDE,
-    corner_errors,
-    detect_with_path,
-    order_corners,
-    plane_tilt_degrees,
-    quad_iou,
-    rectangle_aspect,
-    residual_skew_degrees,
-    warp_to_aspect,
-)
+# Scoped, not permanent: `test_rectify_quality.py` imports this module, and a
+# `backend/` left on sys.path for the rest of the session would change how
+# whatever pytest collects next resolves `app.*`. Mirrors the same pattern in
+# that test file.
+_BACKEND = str(Path(__file__).resolve().parents[2] / "backend")
+sys.path.insert(0, _BACKEND)
+try:
+    from app.services.puzzle_detector import get_puzzle_detector  # noqa: E402
+    from rectify import (  # noqa: E402  (same-directory module, run as a script)
+        REPORTING_LONG_SIDE,
+        corner_errors,
+        detect_with_path,
+        order_corners,
+        plane_tilt_degrees,
+        quad_iou,
+        rectangle_aspect,
+        residual_skew_degrees,
+        warp_to_aspect,
+    )
+finally:
+    sys.path.remove(_BACKEND)
 
 Point = Tuple[float, float]
 
@@ -158,6 +165,7 @@ def score_image(
     truth_corners: Optional[Sequence[Point]],
     output_dir: Optional[Path],
     known_focal_px: Optional[float] = None,
+    geometry: Optional[Dict[str, object]] = None,
 ) -> Dict[str, object]:
     """Detect, warp and measure one image.
 
@@ -169,12 +177,17 @@ def score_image(
             known. Without it the aspect metrics solve for one from the quad,
             and fall back to an assumed field of view when the quad is
             degenerate (a tilt about a single axis).
+        geometry: This shot's dumped camera geometry, used to derive the focal
+            length when `known_focal_px` was not supplied. Read here rather
+            than by the caller so the image is only decoded once.
 
     Returns:
         The metrics dict for this image (also the JSON record written out).
     """
     rgb = load_rgb(path)
     height, width = rgb.shape[:2]
+    if known_focal_px is None:
+        known_focal_px = focal_px_for(geometry, width=width)
     detector = get_puzzle_detector()
     corners, confidence, detection_path, candidates = detect_with_path(detector, rgb)
 
@@ -423,12 +436,10 @@ def main() -> int:
             file=sys.stderr,
         )
 
-    records = []
-    for path in images:
-        focal = arguments.focal_px
-        if focal is None:
-            focal = focal_px_for(geometry.get(path.name), width=load_rgb(path).shape[1])
-        records.append(score_image(path, truth.get(path.name), output_dir, focal))
+    records = [
+        score_image(path, truth.get(path.name), output_dir, arguments.focal_px, geometry.get(path.name))
+        for path in images
+    ]
     print_table(records)
     if output_dir is not None:
         metrics_path = output_dir / "rectify_metrics.json"
