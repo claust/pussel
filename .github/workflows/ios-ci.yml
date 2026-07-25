@@ -59,6 +59,13 @@ jobs:
 
       # xcbeautify is used to prettify xcodebuild output in the Build/Test steps;
       # install it explicitly rather than relying on it being preinstalled.
+      #
+      # This step logs "The following taps are not trusted: aws/tap" — aws/tap
+      # is tapped by the runner image, not by us, and none of the formulae below
+      # come from it. The only ways to silence it are untapping someone else's
+      # tap or setting HOMEBREW_NO_REQUIRE_TAP_TRUST=1, which turns the trust
+      # check off for every tap; neither is worth it for a cosmetic line, so the
+      # warning stays.
       - name: Install tooling (XcodeGen + SwiftLint + xcbeautify)
         run: |
           brew install xcodegen swiftlint xcbeautify
