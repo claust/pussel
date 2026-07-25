@@ -27,20 +27,11 @@ struct SolvingView: View {
       }
       .padding()
     }
+    // No `.toolbar` here: the back chevron belongs to `AppFlowView`, which
+    // keeps it mounted across the phase switch so a tap right after this
+    // screen appears can't land before the item does (see its `backButton`).
     .fullScreenCover(item: $zoomFocus) { focus in
       PuzzleZoomView(session: session, focus: focus)
-    }
-    .toolbar {
-      // Work is saved locally, so leaving the session keeps it around on
-      // the home screen — this is a plain "back", not a discard.
-      ToolbarItem(placement: .topBarLeading) {
-        Button {
-          model.flow.reset()
-        } label: {
-          Image(systemName: "chevron.left")
-        }
-        .accessibilityLabel("Back to puzzles")
-      }
     }
   }
 

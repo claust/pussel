@@ -23,7 +23,7 @@ struct PuzzleSummary: Identifiable, Equatable {
 /// On-disk manifest for one puzzle. Image bytes live in sibling files, so the
 /// JSON stays small; the piece's `cleanedImage` base64 is never persisted here
 /// (the display image is stored as a `<id>-display.jpg` file instead).
-private struct PuzzleManifest: Codable {
+private struct PuzzleManifest: Codable, Sendable {
   let id: UUID
   var serverPuzzleId: String
   var name: String
@@ -36,7 +36,7 @@ private struct PuzzleManifest: Codable {
   var cols: Int
 }
 
-private struct StoredPiece: Codable {
+private struct StoredPiece: Codable, Sendable {
   let id: UUID
   /// nil while the piece is captured but not yet predicted.
   var result: StoredResult?
@@ -46,7 +46,7 @@ private struct StoredPiece: Codable {
   var scanPieceId: String?
 }
 
-private struct StoredResult: Codable {
+private struct StoredResult: Codable, Sendable {
   let position: NormalizedPoint
   let positionConfidence: Double
   let rotation: Int
@@ -57,6 +57,18 @@ private struct StoredResult: Codable {
   let gridRow: Int?
   let gridCol: Int?
   let snappedPosition: NormalizedPoint?
+}
+
+/// Everything `PuzzleStore.loadSession` needs from one puzzle's folder, read
+/// and decoded away from the main actor by `readSnapshot`. `CaptureEntry` and
+/// the manifest are plain value types, so the whole thing crosses back as data.
+private struct SessionSnapshot: Sendable {
+  let manifest: PuzzleManifest
+  let trimmed: Data
+  /// The zoom-quality overview, absent for puzzles stored without one.
+  let display: Data?
+  /// Pieces in manifest order, minus any whose upload image has gone.
+  let entries: [CaptureEntry]
 }
 
 /// Local, on-device persistence for solved/in-progress puzzles. Everything is
@@ -81,7 +93,6 @@ final class PuzzleStore {
   static let undoWindow: Duration = .seconds(5)
 
   @ObservationIgnored private var purgeTask: Task<Void, Never>?
-  @ObservationIgnored private let fileManager = FileManager.default
   @ObservationIgnored private let encoder: JSONEncoder
   @ObservationIgnored private let decoder: JSONDecoder
 
@@ -89,12 +100,19 @@ final class PuzzleStore {
     let encoder = JSONEncoder()
     encoder.dateEncodingStrategy = .iso8601
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+    self.encoder = encoder
+    self.decoder = Self.makeDecoder()
+    try? FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
+    refresh()
+  }
+
+  /// The manifest decoder's configuration in one place: `readSnapshot` runs
+  /// off the main actor, so it can't reach the store's own `decoder` and
+  /// builds its own from here instead.
+  private nonisolated static func makeDecoder() -> JSONDecoder {
     let decoder = JSONDecoder()
     decoder.dateDecodingStrategy = .iso8601
-    self.encoder = encoder
-    self.decoder = decoder
-    try? fileManager.createDirectory(at: rootURL, withIntermediateDirectories: true)
-    refresh()
+    return decoder
   }
 
   // MARK: Public API
@@ -106,17 +124,17 @@ final class PuzzleStore {
     let pieces = piecesDir(session.id)
     // Creating the pieces dir with intermediates also creates its parent
     // puzzle dir, so no separate puzzle-dir creation is needed.
-    try? fileManager.createDirectory(at: pieces, withIntermediateDirectories: true)
+    try? FileManager.default.createDirectory(at: pieces, withIntermediateDirectories: true)
 
     let trimmed = trimmedURL(session.id)
-    if !fileManager.fileExists(atPath: trimmed.path) {
+    if !exists(trimmed) {
       try? session.trimmedJPEG.write(to: trimmed, options: .atomic)
     }
     // The zoom copy is optional and immutable, so it's written once and its
     // absence is a valid state (puzzles from before it was kept, and captures
     // whose re-warp failed) — loadSession falls back to the trimmed image.
     let display = puzzleDisplayURL(session.id)
-    if let displayJPEG = session.displayJPEG, !fileManager.fileExists(atPath: display.path) {
+    if let displayJPEG = session.displayJPEG, !exists(display) {
       try? displayJPEG.write(to: display, options: .atomic)
     }
     // The trimmed image is immutable, so its downsampled thumbnail is
@@ -132,12 +150,12 @@ final class PuzzleStore {
     var persistedEntries: [CaptureEntry] = []
     for entry in session.entries {
       let upload = uploadURL(session.id, entry.id)
-      if !fileManager.fileExists(atPath: upload.path) {
+      if !exists(upload) {
         try? entry.uploadJPEG.write(to: upload, options: .atomic)
       }
       // Skip entries whose upload image didn't make it to disk; they'll be
       // retried on the next persist() rather than left dangling.
-      guard fileManager.fileExists(atPath: upload.path) else { continue }
+      guard exists(upload) else { continue }
       keep.insert(entry.id.uuidString)
 
       let display = displayURL(session.id, entry.id)
@@ -145,7 +163,7 @@ final class PuzzleStore {
       // differs from the raw capture, otherwise the bytes are duplicated.
       // The cleaned image is immutable once predicted, so skip the rewrite
       // if it already exists (avoids rewriting every piece on each persist).
-      if entry.displayImage != entry.uploadJPEG, !fileManager.fileExists(atPath: display.path) {
+      if entry.displayImage != entry.uploadJPEG, !exists(display) {
         try? entry.displayImage.write(to: display, options: .atomic)
       }
       persistedEntries.append(entry)
@@ -237,29 +255,47 @@ final class PuzzleStore {
   /// missing/corrupt. Pieces with a stored result come back `.done`; pieces
   /// captured but never predicted come back `.queued` so the solve view can
   /// resume them.
-  func loadSession(id: UUID) -> SolveSession? {
-    guard let data = try? Data(contentsOf: manifestURL(id)),
-      let manifest = try? decoder.decode(PuzzleManifest.self, from: data),
-      let trimmed = try? Data(contentsOf: trimmedURL(id))
-    else {
-      return nil
-    }
+  ///
+  /// Async because everything up to building the session runs off the main
+  /// actor (`readSnapshot`): a puzzle is megabytes of image files, and each
+  /// piece costs a decode, an alpha crop and a PNG re-encode in
+  /// `CaptureEntry.init`. Doing that inline froze the UI for as long as it
+  /// took to open a puzzle whose files weren't already in the page cache.
+  func loadSession(id: UUID) async -> SolveSession? {
+    let snapshot = await Task.detached(priority: .userInitiated) { [self] in
+      readSnapshot(id: id)
+    }.value
+    guard let snapshot else { return nil }
     // The folder name is the canonical identity — use it (not manifest.id)
     // so persist() always writes back to the directory we loaded from,
     // even if the manifest was copied or moved.
     let session = SolveSession(
       id: id,
-      name: manifest.name,
-      puzzleId: manifest.serverPuzzleId,
-      trimmedJPEG: trimmed,
-      displayJPEG: try? Data(contentsOf: puzzleDisplayURL(id)),
-      targetPieceCount: manifest.pieceCount,
-      rows: manifest.rows,
-      cols: manifest.cols,
-      createdAt: manifest.createdAt,
+      name: snapshot.manifest.name,
+      puzzleId: snapshot.manifest.serverPuzzleId,
+      trimmedJPEG: snapshot.trimmed,
+      displayJPEG: snapshot.display,
+      targetPieceCount: snapshot.manifest.pieceCount,
+      rows: snapshot.manifest.rows,
+      cols: snapshot.manifest.cols,
+      createdAt: snapshot.manifest.createdAt,
       store: self
     )
-    session.entries = manifest.pieces.compactMap { piece in
+    session.entries = snapshot.entries
+    return session
+  }
+
+  /// Reads and decodes one puzzle's folder. `nonisolated` so `loadSession`
+  /// can run it off the main actor; it touches no mutable store state, only
+  /// the file layout (which is `nonisolated` for the same reason).
+  private nonisolated func readSnapshot(id: UUID) -> SessionSnapshot? {
+    guard let data = try? Data(contentsOf: manifestURL(id)),
+      let manifest = try? Self.makeDecoder().decode(PuzzleManifest.self, from: data),
+      let trimmed = try? Data(contentsOf: trimmedURL(id))
+    else {
+      return nil
+    }
+    let entries: [CaptureEntry] = manifest.pieces.compactMap { piece in
       guard let upload = try? Data(contentsOf: uploadURL(id, piece.id)) else { return nil }
       let display = (try? Data(contentsOf: displayURL(id, piece.id))) ?? upload
       let result = piece.result.map {
@@ -284,12 +320,17 @@ final class PuzzleStore {
         scanPieceId: piece.scanPieceId
       )
     }
-    return session
+    return SessionSnapshot(
+      manifest: manifest,
+      trimmed: trimmed,
+      display: try? Data(contentsOf: puzzleDisplayURL(id)),
+      entries: entries
+    )
   }
 
   /// Permanently removes a puzzle and all of its images from disk.
   func delete(_ id: UUID) {
-    try? fileManager.removeItem(at: puzzleDir(id))
+    try? FileManager.default.removeItem(at: puzzleDir(id))
     refresh()
   }
 
@@ -335,7 +376,7 @@ final class PuzzleStore {
   /// is still on disk, so it has to be filtered back out or it reappears.
   func refresh() {
     let dirs =
-      (try? fileManager.contentsOfDirectory(
+      (try? FileManager.default.contentsOfDirectory(
         at: rootURL,
         includingPropertiesForKeys: [.isDirectoryKey]
       )) ?? []
@@ -376,54 +417,63 @@ final class PuzzleStore {
 
   // MARK: File layout
 
-  private var rootURL: URL {
-    let docs = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
+  // Pure path arithmetic over a fixed directory tree, so it is `nonisolated`
+  // throughout — `readSnapshot` needs these off the main actor.
+
+  private nonisolated var rootURL: URL {
+    let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
     return docs.appendingPathComponent("Puzzles", isDirectory: true)
   }
 
-  private func puzzleDir(_ id: UUID) -> URL {
+  /// Whether a stored file is already there. `save` asks this of every image
+  /// it might write, so it earns a name of its own.
+  private nonisolated func exists(_ url: URL) -> Bool {
+    FileManager.default.fileExists(atPath: url.path)
+  }
+
+  private nonisolated func puzzleDir(_ id: UUID) -> URL {
     rootURL.appendingPathComponent(id.uuidString, isDirectory: true)
   }
 
-  private func piecesDir(_ id: UUID) -> URL {
+  private nonisolated func piecesDir(_ id: UUID) -> URL {
     puzzleDir(id).appendingPathComponent("pieces", isDirectory: true)
   }
 
-  private func trimmedURL(_ id: UUID) -> URL {
+  private nonisolated func trimmedURL(_ id: UUID) -> URL {
     puzzleDir(id).appendingPathComponent("trimmed.jpg")
   }
 
   /// The puzzle's optional zoom-quality overview (`SolveSession.displayJPEG`),
   /// distinct from a piece's `<pieceId>-display.jpg` under `pieces/`.
-  private func puzzleDisplayURL(_ id: UUID) -> URL {
+  private nonisolated func puzzleDisplayURL(_ id: UUID) -> URL {
     puzzleDir(id).appendingPathComponent("display.jpg")
   }
 
-  private func thumbnailURL(_ id: UUID) -> URL {
+  private nonisolated func thumbnailURL(_ id: UUID) -> URL {
     puzzleDir(id).appendingPathComponent("thumb.jpg")
   }
 
-  private func manifestURL(_ id: UUID) -> URL {
+  private nonisolated func manifestURL(_ id: UUID) -> URL {
     puzzleDir(id).appendingPathComponent("manifest.json")
   }
 
-  private func uploadURL(_ puzzle: UUID, _ piece: UUID) -> URL {
+  private nonisolated func uploadURL(_ puzzle: UUID, _ piece: UUID) -> URL {
     piecesDir(puzzle).appendingPathComponent("\(piece.uuidString)-upload.jpg")
   }
 
-  private func displayURL(_ puzzle: UUID, _ piece: UUID) -> URL {
+  private nonisolated func displayURL(_ puzzle: UUID, _ piece: UUID) -> URL {
     piecesDir(puzzle).appendingPathComponent("\(piece.uuidString)-display.jpg")
   }
 
   /// Deletes piece image files whose id is no longer in the session.
   private func pruneOrphanPieceFiles(in dir: URL, keeping keep: Set<String>) {
     let files =
-      (try? fileManager.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? []
+      (try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? []
     for file in files {
       // Filenames are "<uuid>-upload.jpg" / "<uuid>-display.jpg".
       let id = String(file.lastPathComponent.prefix(36))
       if !keep.contains(id) {
-        try? fileManager.removeItem(at: file)
+        try? FileManager.default.removeItem(at: file)
       }
     }
   }

@@ -218,12 +218,22 @@ extension AppModel {
   /// Reopens a stored puzzle from disk and resumes solving it. Pieces that
   /// were never predicted are re-queued; if the server forgot this puzzle_id
   /// (in-memory store restarted) the solve view's expired banner recovers it.
-  func openPuzzle(_ id: UUID) {
-    guard let session = store.loadSession(id: id) else {
+  func openPuzzle(_ id: UUID) async {
+    // One open at a time. The read no longer blocks the main thread, so the
+    // list stays live while it runs and a second tap — on this row or another
+    // — would otherwise race a second session onto the same phase.
+    guard flow.openingPuzzle == nil else { return }
+    flow.errorMessage = nil
+    flow.openingPuzzle = id
+    let session = await store.loadSession(id: id)
+    // Whatever cleared the token while the files were being read (a reset, a
+    // delete) means this open is no longer the one the user is waiting for.
+    guard flow.openingPuzzle == id else { return }
+    flow.openingPuzzle = nil
+    guard let session else {
       flow.errorMessage = "Could not open that puzzle."
       return
     }
-    flow.errorMessage = nil
     flow.phase = .solving(session)
     session.resume(api: api)
   }
@@ -233,6 +243,11 @@ extension AppModel {
   func deletePuzzle(_ id: UUID) {
     if case .solving(let session) = flow.phase, session.id == id {
       flow.reset()
+    }
+    // A swipe-delete can land on a row whose open is still in flight; drop
+    // the token so that read doesn't arrive on top of the deletion.
+    if flow.openingPuzzle == id {
+      flow.openingPuzzle = nil
     }
     store.deleteWithUndo(id)
   }

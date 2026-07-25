@@ -69,7 +69,7 @@ final class PuzzleStoreTests: XCTestCase {
 
   // MARK: Zoom copy (display.jpg)
 
-  func testZoomCopyIsPersistedAndReloaded() throws {
+  func testZoomCopyIsPersistedAndReloaded() async throws {
     let store = PuzzleStore()
     // Real JPEG bytes, as the zoom viewer decodes these for display — and a
     // different colour from the trimmed image the session is built with, so
@@ -83,7 +83,8 @@ final class PuzzleStoreTests: XCTestCase {
     session.persist()
     XCTAssertTrue(FileManager.default.fileExists(atPath: displayFile(session.id).path))
 
-    let reloaded = try XCTUnwrap(store.loadSession(id: session.id))
+    let loaded = await store.loadSession(id: session.id)
+    let reloaded = try XCTUnwrap(loaded)
     // Byte-for-byte: the copy is stored as given, never re-encoded.
     XCTAssertEqual(reloaded.displayJPEG, displayJPEG)
     XCTAssertNotNil(UIImage(data: try XCTUnwrap(reloaded.displayJPEG)))
@@ -91,7 +92,7 @@ final class PuzzleStoreTests: XCTestCase {
     XCTAssertEqual(reloaded.zoomJPEG, displayJPEG)
   }
 
-  func testPuzzleWithoutZoomCopyReloadsAndFallsBackToTrimmed() throws {
+  func testPuzzleWithoutZoomCopyReloadsAndFallsBackToTrimmed() async throws {
     // The compatibility path for every puzzle saved before the zoom copy
     // existed, and for a capture whose re-warp failed: no display.jpg on disk,
     // and the viewer falls back to the trimmed image rather than showing
@@ -103,12 +104,13 @@ final class PuzzleStoreTests: XCTestCase {
     session.persist()
     XCTAssertFalse(FileManager.default.fileExists(atPath: displayFile(session.id).path))
 
-    let reloaded = try XCTUnwrap(store.loadSession(id: session.id))
+    let loaded = await store.loadSession(id: session.id)
+    let reloaded = try XCTUnwrap(loaded)
     XCTAssertNil(reloaded.displayJPEG)
     XCTAssertEqual(reloaded.zoomJPEG, reloaded.trimmedJPEG)
   }
 
-  func testSavePersistsSummaryAndSurvivesReload() throws {
+  func testSavePersistsSummaryAndSurvivesReload() async throws {
     let store = PuzzleStore()
     let session = makeSession(store: store, name: "Frosty field")
     addTeardownBlock { @MainActor in store.delete(session.id) }
@@ -145,7 +147,8 @@ final class PuzzleStoreTests: XCTestCase {
     XCTAssertNotNil(summary.thumbnail)
 
     // A brand-new store instance reads purely from disk.
-    let reloaded = try XCTUnwrap(PuzzleStore().loadSession(id: session.id))
+    let loaded = await PuzzleStore().loadSession(id: session.id)
+    let reloaded = try XCTUnwrap(loaded)
     XCTAssertEqual(reloaded.name, "Frosty field")
     XCTAssertEqual(reloaded.puzzleId, "server-123")
     XCTAssertEqual(reloaded.trimmedJPEG, session.trimmedJPEG)
@@ -167,7 +170,7 @@ final class PuzzleStoreTests: XCTestCase {
     XCTAssertEqual(entry.scanPieceId, "p001")
   }
 
-  func testUnpredictedPieceReloadsAsQueued() throws {
+  func testUnpredictedPieceReloadsAsQueued() async throws {
     let store = PuzzleStore()
     let session = makeSession(store: store)
     addTeardownBlock { @MainActor in store.delete(session.id) }
@@ -179,7 +182,8 @@ final class PuzzleStoreTests: XCTestCase {
     ]
     session.persist()
 
-    let reloaded = try XCTUnwrap(PuzzleStore().loadSession(id: session.id))
+    let loaded = await PuzzleStore().loadSession(id: session.id)
+    let reloaded = try XCTUnwrap(loaded)
     let entry = try XCTUnwrap(reloaded.entries.first)
     XCTAssertEqual(entry.status, .queued)
     XCTAssertNil(entry.result)
@@ -187,7 +191,7 @@ final class PuzzleStoreTests: XCTestCase {
     XCTAssertEqual(entry.displayImage, raw)
   }
 
-  func testRemovedPieceIsPrunedFromDisk() throws {
+  func testRemovedPieceIsPrunedFromDisk() async throws {
     let store = PuzzleStore()
     let session = makeSession(store: store)
     addTeardownBlock { @MainActor in store.delete(session.id) }
@@ -210,7 +214,8 @@ final class PuzzleStoreTests: XCTestCase {
     XCTAssertFalse(fileManager.fileExists(atPath: uploadFile(session.id, drop.id).path))
     XCTAssertTrue(fileManager.fileExists(atPath: uploadFile(session.id, keep.id).path))
 
-    let reloaded = try XCTUnwrap(PuzzleStore().loadSession(id: session.id))
+    let loaded = await PuzzleStore().loadSession(id: session.id)
+    let reloaded = try XCTUnwrap(loaded)
     XCTAssertEqual(reloaded.entries.map(\.id), [keep.id])
   }
 
@@ -276,7 +281,7 @@ final class PuzzleStoreTests: XCTestCase {
     XCTFail("No request for \(path) within the timeout")
   }
 
-  func testDeleteRemovesPuzzle() throws {
+  func testDeleteRemovesPuzzle() async throws {
     let store = PuzzleStore()
     let session = makeSession(store: store)
     // Clean up even if an assertion fails before the delete below.
@@ -287,7 +292,8 @@ final class PuzzleStoreTests: XCTestCase {
 
     store.delete(session.id)
     XCTAssertFalse(store.puzzles.contains { $0.id == session.id })
-    XCTAssertNil(store.loadSession(id: session.id))
+    let reloaded = await store.loadSession(id: session.id)
+    XCTAssertNil(reloaded)
     XCTAssertFalse(FileManager.default.fileExists(atPath: puzzleDir(session.id).path))
   }
 
@@ -309,7 +315,7 @@ final class PuzzleStoreTests: XCTestCase {
     XCTAssertFalse(store.puzzles.contains { $0.id == session.id })
   }
 
-  func testUndoDeleteRestoresPuzzle() throws {
+  func testUndoDeleteRestoresPuzzle() async throws {
     let store = PuzzleStore()
     let session = makeSession(store: store)
     addTeardownBlock { @MainActor in store.delete(session.id) }
@@ -320,7 +326,8 @@ final class PuzzleStoreTests: XCTestCase {
 
     XCTAssertNil(store.pendingDelete)
     XCTAssertTrue(store.puzzles.contains { $0.id == session.id })
-    XCTAssertNotNil(store.loadSession(id: session.id))
+    let reloaded = await store.loadSession(id: session.id)
+    XCTAssertNotNil(reloaded)
     XCTAssertTrue(FileManager.default.fileExists(atPath: puzzleDir(session.id).path))
   }
 
