@@ -83,7 +83,8 @@ final class PuzzleStoreTests: XCTestCase {
     session.persist()
     XCTAssertTrue(FileManager.default.fileExists(atPath: displayFile(session.id).path))
 
-    let reloaded = try XCTUnwrap(await store.loadSession(id: session.id))
+    let loaded = await store.loadSession(id: session.id)
+    let reloaded = try XCTUnwrap(loaded)
     // Byte-for-byte: the copy is stored as given, never re-encoded.
     XCTAssertEqual(reloaded.displayJPEG, displayJPEG)
     XCTAssertNotNil(UIImage(data: try XCTUnwrap(reloaded.displayJPEG)))
@@ -103,7 +104,8 @@ final class PuzzleStoreTests: XCTestCase {
     session.persist()
     XCTAssertFalse(FileManager.default.fileExists(atPath: displayFile(session.id).path))
 
-    let reloaded = try XCTUnwrap(await store.loadSession(id: session.id))
+    let loaded = await store.loadSession(id: session.id)
+    let reloaded = try XCTUnwrap(loaded)
     XCTAssertNil(reloaded.displayJPEG)
     XCTAssertEqual(reloaded.zoomJPEG, reloaded.trimmedJPEG)
   }
@@ -145,7 +147,8 @@ final class PuzzleStoreTests: XCTestCase {
     XCTAssertNotNil(summary.thumbnail)
 
     // A brand-new store instance reads purely from disk.
-    let reloaded = try XCTUnwrap(await PuzzleStore().loadSession(id: session.id))
+    let loaded = await PuzzleStore().loadSession(id: session.id)
+    let reloaded = try XCTUnwrap(loaded)
     XCTAssertEqual(reloaded.name, "Frosty field")
     XCTAssertEqual(reloaded.puzzleId, "server-123")
     XCTAssertEqual(reloaded.trimmedJPEG, session.trimmedJPEG)
@@ -179,7 +182,8 @@ final class PuzzleStoreTests: XCTestCase {
     ]
     session.persist()
 
-    let reloaded = try XCTUnwrap(await PuzzleStore().loadSession(id: session.id))
+    let loaded = await PuzzleStore().loadSession(id: session.id)
+    let reloaded = try XCTUnwrap(loaded)
     let entry = try XCTUnwrap(reloaded.entries.first)
     XCTAssertEqual(entry.status, .queued)
     XCTAssertNil(entry.result)
@@ -210,7 +214,8 @@ final class PuzzleStoreTests: XCTestCase {
     XCTAssertFalse(fileManager.fileExists(atPath: uploadFile(session.id, drop.id).path))
     XCTAssertTrue(fileManager.fileExists(atPath: uploadFile(session.id, keep.id).path))
 
-    let reloaded = try XCTUnwrap(await PuzzleStore().loadSession(id: session.id))
+    let loaded = await PuzzleStore().loadSession(id: session.id)
+    let reloaded = try XCTUnwrap(loaded)
     XCTAssertEqual(reloaded.entries.map(\.id), [keep.id])
   }
 
