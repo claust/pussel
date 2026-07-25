@@ -114,7 +114,10 @@ enum GlareFreeComposer {
   struct Composite {
     let image: UIImage
     /// How many of the extra frames actually registered and joined the
-    /// composite. 0 means the result is just the reference shot.
+    /// composite. 0 means no extra frame's pixels reached the output, so
+    /// there was no glare removal — not that the image is the reference shot
+    /// untouched, since the reference is still plane-rectified when the burst
+    /// carries geometry.
     let alignedFrameCount: Int
   }
 
@@ -197,9 +200,12 @@ enum GlareFreeComposer {
       // The masked-healing math failed outright (an unexpected Core
       // Graphics allocation failure, say) — fall back to the reference
       // alone rather than losing the whole capture. `alignedFrameCount`
-      // reports 0, not how many frames registered: no frame contributed
-      // to this output, and 0 is what the capture view keys its
-      // "used the center photo as-is" degradation message on.
+      // reports 0, not how many frames registered: it counts frames whose
+      // pixels reached the output, and none of the extra frames' did. It is
+      // not a claim that the output *is* the reference byte for byte — the
+      // reference's own pixels are here, and are still plane-rectified. 0 is
+      // what the capture view keys its "used the center photo as-is"
+      // degradation message on.
       guard let output = rectifier.render(referenceImage, extent: extent) else { return nil }
       return Composite(image: output, alignedFrameCount: 0)
     }

@@ -574,6 +574,17 @@ class PuzzleFrameDetector:
             from_mask = self._quad_from_mask(mask, work_w, work_h)
             if from_mask is not None:
                 quads.append((from_mask, "mask"))
+            # Runs even when the mask already yielded a quad, and deliberately:
+            # this is a fusion, not a chain, so "the cheaper generator answered"
+            # is not evidence that its answer is the better one. On 20 real
+            # captures GrabCut wins 5, and in 2 of those a mask quad existed
+            # too and lost — skipping it there would take the worse quad on 10%
+            # of captures.
+            #
+            # It is the expensive one: ~69% of detection time, up to 650ms on a
+            # 2048px image. Affordable because detection runs once per puzzle
+            # added, not per frame or per piece. If that ever stops being true,
+            # make GrabCut itself cheaper rather than conditional.
             from_grabcut = self._grabcut_quad(work, mask, work_w, work_h)
             if from_grabcut is not None:
                 quads.append((from_grabcut, "grabcut"))
