@@ -133,19 +133,30 @@ enum GlareFreeComposer {
   /// from center). Each becomes an extra registration seed hypothesis;
   /// nil entries and a nil array mean "no expectation".
   ///
+  /// `geometries` optionally carries the ARKit camera geometry of each shot
+  /// — the reference's first, then one per extra frame. When the reference's
+  /// is present and usable, the finished composite is warped onto the
+  /// puzzle's plane (`PlaneRectification`) so it comes out square-on instead
+  /// of inheriting the center shot's viewing angle. Only the reference's
+  /// entry is read today; see `Rectifier` for why the rectification happens
+  /// once at the end rather than per frame at the start, and why registration
+  /// is deliberately left to work on the frames as shot.
+  ///
   /// Frames that fail to register (Vision throws, or refinement never
   /// converges) are skipped rather than failing the whole composite: a
   /// glare-free result from three frames still beats the single reference
   /// shot. Returns nil only when the reference itself is unusable or the
   /// final render fails.
   static func compose(
-    reference: UIImage, others: [UIImage], expectedShifts: [CGSize?]? = nil
+    reference: UIImage, others: [UIImage], expectedShifts: [CGSize?]? = nil,
+    geometries: [PlaneCaptureGeometry?]? = nil
   ) -> Composite? {
     guard let referenceCG = downscaledUpright(reference),
       let referenceProxies = registrationProxies(of: referenceCG)
     else { return nil }
     let extent = CGRect(x: 0, y: 0, width: referenceCG.width, height: referenceCG.height)
     let referenceImage = CIImage(cgImage: referenceCG)
+    let rectifier = Rectifier(geometries: geometries, referenceWidth: referenceCG.width)
 
     // Registration is unchanged from the plain min-composite pipeline: each
     // frame that registers and passes `alignmentError`'s verification gate
@@ -154,20 +165,29 @@ enum GlareFreeComposer {
     // filling gaps is now `healedComposite`'s job, which needs to tell
     // "white because glare-free" apart from "white because unfilled".
     var verifiedFrames: [CIImage] = []
+    let referenceGeometry = geometries?.first.flatMap { $0 }
     for (index, other) in others.enumerated() {
       let expectedShift = expectedShifts.flatMap { $0.indices.contains(index) ? $0[index] : nil }
+      let floatingGeometry = geometries.flatMap {
+        $0.indices.contains(index + 1) ? $0[index + 1] : nil
+      }
+      // Both ends or neither: a seed needs the pose of the frame it starts
+      // from *and* the one it aims at.
+      let planePoses = floatingGeometry.flatMap { floating in
+        referenceGeometry.map { (floating: floating, reference: $0) }
+      }
       guard let otherCG = downscaledUpright(other),
         let warp = homography(
           mapping: otherCG, ontoReferenceProxies: referenceProxies,
-          expectedShift: expectedShift),
+          expectedShift: expectedShift, planePoses: planePoses),
         let warped = warpedImage(otherCG, by: warp)
       else { continue }
       verifiedFrames.append(warped.cropped(to: extent))
     }
 
     guard !verifiedFrames.isEmpty else {
-      guard let outputCG = context.createCGImage(referenceImage, from: extent) else { return nil }
-      return Composite(image: UIImage(cgImage: outputCG), alignedFrameCount: 0)
+      guard let output = rectifier.render(referenceImage, extent: extent) else { return nil }
+      return Composite(image: output, alignedFrameCount: 0)
     }
 
     guard
@@ -180,10 +200,93 @@ enum GlareFreeComposer {
       // reports 0, not how many frames registered: no frame contributed
       // to this output, and 0 is what the capture view keys its
       // "used the center photo as-is" degradation message on.
-      guard let outputCG = context.createCGImage(referenceImage, from: extent) else { return nil }
-      return Composite(image: UIImage(cgImage: outputCG), alignedFrameCount: 0)
+      guard let output = rectifier.render(referenceImage, extent: extent) else { return nil }
+      return Composite(image: output, alignedFrameCount: 0)
     }
-    return Composite(image: healed, alignedFrameCount: verifiedFrames.count)
+    let healedImage = healed.cgImage.map(CIImage.init(cgImage:)) ?? referenceImage
+    guard let output = rectifier.render(healedImage, extent: extent) else { return nil }
+    return Composite(image: output, alignedFrameCount: verifiedFrames.count)
+  }
+
+  // MARK: - Plane rectification
+
+  /// Squares up the finished composite using the reference shot's ARKit
+  /// geometry — a single warp of one image, applied *after* registration and
+  /// healing.
+  ///
+  /// Applying it per frame *before* registration is the obvious design and
+  /// it is wrong. ARKit hands us the plane of the **table**, but the puzzle
+  /// or its box sits centimetres above that, and the five shots are taken
+  /// from five different spots. Warping each frame by the table's homography
+  /// therefore leaves the box displaced by its own parallax, differently in
+  /// every frame; the burst then disagrees precisely on the subject, and the
+  /// composite comes out ghosted. (Measured on a real capture: the box's
+  /// lettering doubled and the carpet smeared, while the same geometry
+  /// applied to a single frame was pin sharp.) Vision's registration, left
+  /// alone, finds the plane the *content* lies on, which is the right one.
+  ///
+  /// Rectifying afterwards costs nothing in correctness. Two parallel
+  /// horizontal planes induce rectifying homographies that differ only by a
+  /// uniform scale and translation, so the table's warp squares up the box's
+  /// surface too — at a slightly different scale, which is then normalized
+  /// away by the output sizing.
+  private struct Rectifier {
+    private let space: PlaneRectification.OutputSpace?
+    /// Plane rectification for the reference, already rescaled from the
+    /// full-resolution still its intrinsics describe to the working copy.
+    private let warp: simd_float3x3?
+    /// The part of `space` the reference frame actually covers. Everything
+    /// outside it is a wedge the camera never saw, and is cropped away
+    /// rather than filled — see `PlaneRectification.coveredRect`.
+    private let covered: CGRect?
+
+    /// Builds the rectification for a burst, or an inert pass-through when
+    /// the reference shot carries no usable geometry — the Simulator path,
+    /// and any device burst that never found the surface. Only the
+    /// reference's geometry matters here: it is the frame everything else
+    /// was registered onto.
+    init(geometries: [PlaneCaptureGeometry?]?, referenceWidth: Int) {
+      guard let geometry = geometries?.first.flatMap({ $0 }),
+        geometry.imageSize.width > 0, referenceWidth > 0,
+        let space = PlaneRectification.outputSpace(
+          reference: geometry, maxDimension: GlareFreeComposer.workingMaxDimension),
+        let rectification = PlaneRectification.rectification(of: geometry, into: space)
+      else {
+        self.space = nil
+        self.warp = nil
+        self.covered = nil
+        return
+      }
+      self.space = space
+      self.warp = PlaneRectification.scalingSource(
+        rectification, by: CGFloat(referenceWidth) / geometry.imageSize.width)
+      self.covered = PlaneRectification.coveredRect(of: geometry, in: space)
+    }
+
+    /// Renders `image` (in the reference frame's space, `extent`) as the
+    /// finished composite, square-on where geometry allows.
+    ///
+    /// Every failure past the geometry check degrades to the unrectified
+    /// render rather than to nil: a composite that is slightly oblique is
+    /// worth far more to the user than no composite at all.
+    func render(_ image: CIImage, extent: CGRect) -> UIImage? {
+      guard let sourceCG = GlareFreeComposer.context.createCGImage(image, from: extent) else {
+        return nil
+      }
+      guard let space, let warp, let covered else { return UIImage(cgImage: sourceCG) }
+      let coreImageWarp = PlaneRectification.lowerLeftOrigin(
+        warp, sourceHeight: extent.height, destinationHeight: space.size.height)
+      // `covered` is top-left-origin like everything else here; Core Image
+      // reads its extents from the bottom, so flip the origin for the crop.
+      let output = CGRect(
+        x: covered.minX, y: space.size.height - covered.maxY,
+        width: covered.width, height: covered.height)
+      guard let warped = GlareFreeComposer.warpedImage(sourceCG, by: coreImageWarp),
+        let outputCG = GlareFreeComposer.context.createCGImage(
+          warped.cropped(to: output), from: output)
+      else { return UIImage(cgImage: sourceCG) }
+      return UIImage(cgImage: outputCG)
+    }
   }
 
   // MARK: - Registration
@@ -232,7 +335,11 @@ enum GlareFreeComposer {
   /// 2. **Translational bootstrap** — a translation-only registration on
   ///    the strongly blurred proxies seeds the warp. Its search is far
   ///    more constrained, so it lands within a few pixels even for
-  ///    displacements where the homographic aligner diverges.
+  ///    displacements where the homographic aligner diverges. When ARKit
+  ///    geometry is available a *plane* seed is tried ahead of it: the two
+  ///    shots' poses give the exact warp between them for anything lying on
+  ///    the table, which is close enough to converge from and — unlike the
+  ///    bootstrap — cannot be hijacked by a bright specular patch.
   /// 3. **Homographic refinement** — register, warp by the estimate,
   ///    re-register on the lightly blurred proxies; each pass corrects
   ///    what remains, including the perspective the bootstrap can't model.
@@ -246,7 +353,8 @@ enum GlareFreeComposer {
   /// frame into the composite.
   private static func homography(
     mapping floating: CGImage, ontoReferenceProxies reference: RegistrationProxies,
-    expectedShift: CGSize? = nil
+    expectedShift: CGSize? = nil,
+    planePoses: (floating: PlaneCaptureGeometry, reference: PlaneCaptureGeometry)? = nil
   ) -> matrix_float3x3? {
     guard let floatingProxies = registrationProxies(of: floating) else { return nil }
     let proxyExtent = CGRect(
@@ -266,6 +374,17 @@ enum GlareFreeComposer {
       mapping: floatingProxies.coarse, ontoReference: reference.coarse)
     {
       seeds.insert(bootstrap, at: 0)
+    }
+    // Ahead of all of them when the burst carries camera poses: this is the
+    // only hypothesis that models the perspective difference between the two
+    // shots rather than approximating it as a shift, and it is measured by
+    // world tracking rather than off the pixels, so the specular patch that
+    // can capture the bootstrap has no hold on it.
+    if let planePoses,
+      let seed = planeSeed(
+        floating: planePoses.floating, reference: planePoses.reference, proxyExtent: proxyExtent)
+    {
+      seeds.insert(seed, at: 0)
     }
     for seed in seeds {
       guard
@@ -333,6 +452,35 @@ enum GlareFreeComposer {
       Float(expectedShift.height * proxyExtent.height),
       1)
     return matrix
+  }
+
+  /// The registration seed implied by two shots' camera poses: the warp
+  /// that would align them exactly if everything in frame lay on the table
+  /// ARKit measured, restated in the proxies' lower-left pixel space.
+  ///
+  /// Content standing above that plane — the box's face, which is the
+  /// subject — is left displaced by its own parallax, so this is a starting
+  /// point and nothing more. Applying it as a warp instead of a seed is a
+  /// mistake that has already been made once here; see `Rectifier`.
+  ///
+  /// Internal, like `seedMatrix`, so tests can pin the scale and sign
+  /// conventions — a wrong-signed seed would fail silently, rescued by the
+  /// other hypotheses, and show up only as registration that quietly stopped
+  /// improving.
+  static func planeSeed(
+    floating: PlaneCaptureGeometry, reference: PlaneCaptureGeometry, proxyExtent: CGRect
+  ) -> matrix_float3x3? {
+    guard floating.imageSize.width > 0, reference.imageSize.width > 0,
+      let full = PlaneRectification.relative(from: floating, to: reference)
+    else { return nil }
+    // Both ends shrink to proxy resolution, and by their own ratios: the
+    // two shots share a camera today, but nothing here needs them to.
+    let scaled = PlaneRectification.scalingDestination(
+      PlaneRectification.scalingSource(
+        full, by: proxyExtent.width / floating.imageSize.width),
+      by: proxyExtent.width / reference.imageSize.width)
+    return PlaneRectification.lowerLeftOrigin(
+      scaled, sourceHeight: proxyExtent.height, destinationHeight: proxyExtent.height)
   }
 
   /// Vision translation-only registration of `floating` onto `reference`,

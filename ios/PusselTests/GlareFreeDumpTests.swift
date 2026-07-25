@@ -1,5 +1,6 @@
 import UIKit
 import XCTest
+import simd
 
 @testable import Pussel
 
@@ -15,10 +16,19 @@ final class GlareFreeDumpTests: XCTestCase {
     let height: Int
   }
 
+  private struct DecodedGeometry: Decodable {
+    let cameraTransform: [Float]
+    let intrinsics: [Float]
+    let imageWidth: Double
+    let imageHeight: Double
+    let planeHeight: Float
+  }
+
   private struct DecodedMetadata: Decodable {
     let timestamp: String
     let images: [DecodedImage]
     let expectedShifts: [CGSize?]?
+    let geometries: [DecodedGeometry?]?
     let alignedFrameCount: Int
     let appVersion: String
     let appBuild: String
@@ -122,6 +132,45 @@ final class GlareFreeDumpTests: XCTestCase {
     XCTAssertNil(shifts[1])
     XCTAssertEqual(shifts[2], CGSize(width: -0.25, height: -0.18))
     XCTAssertNil(shifts[3])
+    XCTAssertNil(metadata.geometries, "a burst captured without geometry writes none")
+  }
+
+  func testRecordWritesCameraGeometryRowMajor() async throws {
+    let image = solidImage(width: 12, height: 8, color: .systemRed)
+    // Distinct entries throughout, so a column-major dump could not pass:
+    // reading these back by rows has to reproduce them in order.
+    var transform = matrix_identity_float4x4
+    transform.columns.3 = SIMD4<Float>(1, 2, 3, 1)
+    let intrinsics = simd_float3x3(rows: [
+      SIMD3<Float>(1500, 0, 1512),
+      SIMD3<Float>(0, 1500, 2016),
+      SIMD3<Float>(0, 0, 1),
+    ])
+    let geometry = PlaneCaptureGeometry(
+      cameraTransform: transform, intrinsics: intrinsics,
+      imageSize: CGSize(width: 3024, height: 4032), planeHeight: -0.75)
+
+    let directory = await GlareFreeDump.record(
+      reference: image, others: [image], expectedShifts: nil,
+      geometries: [geometry, nil], composite: image, alignedFrameCount: 1,
+      baseDirectory: tempBaseDirectory)
+    let dumpDirectory = try XCTUnwrap(directory)
+    let metadata = try JSONDecoder().decode(
+      DecodedMetadata.self,
+      from: Data(contentsOf: dumpDirectory.appendingPathComponent("metadata.json")))
+
+    let geometries = try XCTUnwrap(metadata.geometries)
+    XCTAssertEqual(geometries.count, 2)
+    // The hole is load-bearing: a corner shot without geometry is dropped
+    // from the rectification, not shifted onto the next shot's pose.
+    XCTAssertNil(geometries[1])
+    let decoded = try XCTUnwrap(geometries[0])
+    XCTAssertEqual(
+      decoded.cameraTransform, [1, 0, 0, 1, 0, 1, 0, 2, 0, 0, 1, 3, 0, 0, 0, 1])
+    XCTAssertEqual(decoded.intrinsics, [1500, 0, 1512, 0, 1500, 2016, 0, 0, 1])
+    XCTAssertEqual(decoded.imageWidth, 3024)
+    XCTAssertEqual(decoded.imageHeight, 4032)
+    XCTAssertEqual(decoded.planeHeight, -0.75)
   }
 
   func testRecordCreatesATimestampedSubdirectoryUnderBaseDirectory() async throws {
