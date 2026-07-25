@@ -587,7 +587,13 @@ private struct TargetRing: View {
           // turns in one step.
           .rotationEffect(.radians(Double(targetAngle) + .pi / 2))
           .animation(.easeOut(duration: 0.15), value: targetAngle)
+          // The ring outlives the arrow — it stays put while the arrow comes
+          // and goes with each step's aim — so `nudging` has to be wound
+          // back down, or the next appearance sets it to the value it
+          // already holds, starts no animation, and leaves the arrow parked
+          // at `arrowFar`.
           .onAppear { nudging = true }
+          .onDisappear { nudging = false }
       }
     }
     .frame(width: Self.diameter, height: Self.diameter)
