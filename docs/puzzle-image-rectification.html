@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Puzzle Overview Rectification — Current Approach &amp; Where the Skew Comes From</title>
+<style>
+  :root {
+    --bg: #f7f6f3;
+    --surface: #ffffff;
+    --ink: #1e2229;
+    --muted: #5c6470;
+    --line: #e3e0d8;
+    --accent: #b4551f;
+    --accent-soft: #f6e3d7;
+    --good: #2c6e49;
+    --good-soft: #e2efe7;
+    --warn: #8a5a00;
+    --warn-soft: #f7ecd4;
+    --risk: #9c2f2f;
+    --risk-soft: #f7e2e2;
+    --code-bg: #eeece6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16181d;
+      --surface: #1f232b;
+      --ink: #e8e6e1;
+      --muted: #9aa1ac;
+      --line: #32363f;
+      --accent: #e08a55;
+      --accent-soft: #3a2a1f;
+      --good: #6fbf8f;
+      --good-soft: #1f3328;
+      --warn: #d9a94a;
+      --warn-soft: #362c17;
+      --risk: #e07a7a;
+      --risk-soft: #3a2222;
+      --code-bg: #2a2e37;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 3rem 1.5rem 5rem; }
+  header h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 0.5rem; }
+  header .subtitle { color: var(--muted); font-size: 1.05rem; max-width: 46rem; }
+  .kicker {
+    display: inline-block; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--accent); margin-bottom: 0.75rem;
+  }
+  nav.toc {
+    margin: 2rem 0; padding: 1rem 1.25rem; background: var(--surface);
+    border: 1px solid var(--line); border-radius: 10px; font-size: 0.95rem;
+  }
+  nav.toc strong { display: block; margin-bottom: 0.35rem; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  nav.toc ol { margin: 0; padding-left: 1.3rem; columns: 2; column-gap: 2.5rem; }
+  @media (max-width: 640px) { nav.toc ol { columns: 1; } }
+  h2 { font-size: 1.45rem; margin: 3rem 0 1rem; padding-top: 1rem; border-top: 2px solid var(--line); }
+  h3 { font-size: 1.1rem; margin: 1.75rem 0 0.5rem; }
+  p { margin: 0.6rem 0 1rem; }
+  code {
+    font: 0.85em ui-monospace, "SF Mono", Menlo, monospace;
+    background: var(--code-bg); padding: 0.1em 0.35em; border-radius: 4px;
+  }
+  a { color: var(--accent); }
+  table {
+    width: 100%; border-collapse: collapse; margin: 1rem 0 1.5rem;
+    font-size: 0.92rem; background: var(--surface); border: 1px solid var(--line);
+    border-radius: 8px; overflow: hidden;
+  }
+  .tablewrap { overflow-x: auto; }
+  th, td { text-align: left; padding: 0.55rem 0.8rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: var(--code-bg); font-weight: 650; }
+  tr:last-child td { border-bottom: none; }
+  .pill {
+    display: inline-block; padding: 0.05rem 0.55rem; border-radius: 999px;
+    font-size: 0.75rem; font-weight: 650; white-space: nowrap;
+  }
+  .pill.have { background: var(--good-soft); color: var(--good); }
+  .pill.partial { background: var(--warn-soft); color: var(--warn); }
+  .pill.missing { background: var(--risk-soft); color: var(--risk); }
+  .callout {
+    margin: 1.25rem 0; padding: 0.9rem 1.1rem; border-radius: 8px;
+    border-left: 4px solid var(--accent); background: var(--accent-soft);
+  }
+  .callout.insight { border-left-color: var(--good); background: var(--good-soft); }
+  .callout.risk { border-left-color: var(--risk); background: var(--risk-soft); }
+  .callout strong:first-child { display: block; margin-bottom: 0.2rem; }
+  .pipeline { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1.25rem 0; }
+  .stage {
+    flex: 1 1 150px; min-width: 140px; background: var(--surface);
+    border: 1px solid var(--line); border-radius: 8px; padding: 0.6rem 0.7rem;
+  }
+  .stage .num {
+    font-size: 0.7rem; font-weight: 700; color: var(--accent);
+    letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  .stage .what { font-weight: 640; font-size: 0.95rem; margin: 0.15rem 0 0.2rem; }
+  .stage .where { font-size: 0.78rem; color: var(--muted); font-family: ui-monospace, Menlo, monospace; word-break: break-word; }
+  figure { margin: 1.5rem 0; }
+  figure svg { max-width: 100%; height: auto; display: block; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+  figcaption { font-size: 0.85rem; color: var(--muted); margin-top: 0.5rem; }
+  ul, ol { margin: 0.6rem 0 1rem; padding-left: 1.4rem; }
+  li { margin: 0.3rem 0; }
+  .footnote { font-size: 0.85rem; color: var(--muted); }
+  .svgink { fill: var(--ink); }
+  .svgmuted { fill: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <span class="kicker">Pussel · overview capture</span>
+  <h1>Puzzle overview rectification</h1>
+  <p class="subtitle">
+    How the five-shot burst becomes the single overview image the solver matches
+    against — and why that image still comes out visibly skewed, with a
+    single-digit detection confidence, on real captures.
+  </p>
+</header>
+
+<nav class="toc">
+  <strong>Contents</strong>
+  <ol>
+    <li><a href="#pipeline">The pipeline today</a></li>
+    <li><a href="#capture">Stage 1 — guided five-shot capture</a></li>
+    <li><a href="#compose">Stage 2 — registration &amp; masked healing</a></li>
+    <li><a href="#detect">Stage 3 — frame detection &amp; warp</a></li>
+    <li><a href="#geometry">Why the result is still skewed</a></li>
+    <li><a href="#assets">What we already have to fix it</a></li>
+    <li><a href="#options">Improvement options</a></li>
+  </ol>
+</nav>
+
+<h2 id="pipeline">1. The pipeline today</h2>
+
+<p>
+  Adding a puzzle runs through three independent stages in two processes. Only
+  the last one does anything about perspective, and it does so with the least
+  information of the three.
+</p>
+
+<div class="pipeline">
+  <div class="stage">
+    <div class="num">Stage 1 · iOS</div>
+    <div class="what">Guided 5-shot capture</div>
+    <div class="where">Features/Capture/GlareFree/GlareFreeCaptureController.swift</div>
+  </div>
+  <div class="stage">
+    <div class="num">Stage 2 · iOS</div>
+    <div class="what">Register + masked healing → one composite</div>
+    <div class="where">GlareFreeComposer.swift, GlareFreeMaskedHealing.swift</div>
+  </div>
+  <div class="stage">
+    <div class="num">Stage 3 · backend</div>
+    <div class="what">Detect quad + perspective warp</div>
+    <div class="where">backend/app/services/puzzle_detector.py</div>
+  </div>
+  <div class="stage">
+    <div class="num">Stage 4 · iOS</div>
+    <div class="what">“Does this look right?” + rotate</div>
+    <div class="where">Features/Capture/ConfirmTrimView.swift</div>
+  </div>
+</div>
+
+<div class="callout">
+  <strong>The one-line summary</strong>
+  All five shots are collapsed onto the <em>center shot’s viewpoint</em>, which is
+  itself an oblique handheld view. Rectification is attempted exactly once, at
+  the very end, on the backend, from pixels alone — after every bit of camera
+  geometry the phone knew has been thrown away.
+</div>
+
+<h2 id="capture">2. Stage 1 — guided five-shot capture</h2>
+
+<p>
+  <code>GlareFreeCaptureController.steps</code> defines five shots: a manual
+  <strong>Center</strong> shot, then four automatic corner shots whose anchors sit at
+  unit positions <code>(0.25, 0.32)</code>, <code>(0.75, 0.32)</code>,
+  <code>(0.75, 0.68)</code>, <code>(0.25, 0.68)</code> of the center shot. The user
+  steers a guide dot pinned to that spot on the puzzle into a center ring; a dwell
+  timer (<code>GlareAimStabilityTracker</code>) fires the shutter.
+</p>
+
+<p>
+  The guide dot comes from one of two sources behind the
+  <code>GlareGuideSource</code> protocol:
+</p>
+
+<ul>
+  <li>
+    <strong>Device — <code>ARGlareGuideSource</code>.</strong> An ARKit world-tracking
+    session raycasts the four screen corners onto the detected horizontal plane. When
+    all four hit, <code>beginGuiding</code> <em>freezes that world-space quad</em> as the
+    puzzle outline and interpolates the step anchors into world targets on the plane.
+    Every frame it projects outline and targets back into view points.
+  </li>
+  <li>
+    <strong>Simulator / E2E — <code>GlareGuideTracker</code>.</strong> Vision image
+    registration against the reference shot. Translational results are unreliable on
+    the Simulator and are never trusted for anything but keeping the E2E path alive.
+  </li>
+</ul>
+
+<div class="callout insight">
+  <strong>Note what ARKit already knows and then discards</strong>
+  A world-space quad on the table plane, the plane’s normal, and the full camera
+  pose (<code>simd_float4x4</code>) at each of the five shutter moments. None of it is
+  attached to the captured <code>UIImage</code>s. <code>captureShot()</code> appends a bare
+  image; the composer and the backend never see any of it.
+</div>
+
+<h2 id="compose">3. Stage 2 — registration and masked healing</h2>
+
+<p>
+  <code>GlareFreeComposer.compose(reference:others:expectedShifts:)</code> fuses the
+  burst. In outline:
+</p>
+
+<ol>
+  <li>Every frame is EXIF-uprighted and downscaled to a 2048 px long side
+      (<code>workingMaxDimension</code>); registration runs on 1024 px proxies.</li>
+  <li>Proxies are brightness-capped to flat gray so glare carries no gradient for the
+      intensity-based aligner to chase, then blurred coarse and fine.</li>
+  <li>Each corner frame is registered onto the <strong>center frame</strong> with
+      <code>VNHomographicImageRegistrationRequest</code>, seeded (best first) by a
+      translational bootstrap, the flow’s geometric <code>expectedShift</code>, and identity.
+      Refinement iterates up to six passes; a converged warp must additionally pass a
+      direct image comparison (<code>alignmentError &lt; 0.04</code>) or the frame is dropped.</li>
+  <li>Verified frames are warped with <code>CIPerspectiveTransform</code> and cropped to
+      the reference’s extent — <em>unfilled</em> outside their own footprint.</li>
+  <li><code>healedComposite</code> applies per-frame photometric gain compensation, builds a
+      robust vote-of-covering-frames darkening map, thresholds/dilates/feathers it into a
+      glare mask, and blends the min-composite in only where the mask fires.</li>
+</ol>
+
+<div class="callout risk">
+  <strong>The geometric consequence</strong>
+  Registration is <em>relative</em>. Each homography maps a corner shot onto the center
+  shot; the composite therefore inherits the center shot’s perspective exactly. Whatever
+  tilt the phone had when the user pressed the shutter is baked into the output, and the
+  four corner shots — taken from four different, known-ish viewpoints — contribute
+  nothing toward removing it. The composite is the correct output for a glare-removal
+  algorithm and the wrong starting point for a fidelity-first overview.
+</div>
+
+<h2 id="detect">4. Stage 3 — frame detection and warp</h2>
+
+<p>
+  The composite is JPEG-normalized and POSTed to <code>/api/v1/puzzle/detect-frame</code>
+  (<code>backend/app/main.py</code>), which calls
+  <code>PuzzleFrameDetector.detect_corners</code> and then <code>warp</code>.
+</p>
+
+<h3>Detection — three layers, first hit wins</h3>
+
+<div class="tablewrap">
+<table>
+  <thead>
+    <tr><th>Layer</th><th>How it works</th><th>Designed for</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Color residual mask</strong><br><code>_foreground_mask</code> + <code>_quad_from_mask</code></td>
+      <td>Samples a 5 % border ring for a background chroma, measures
+          <code>‖pixel − bg_chroma × luminance‖</code> (shadow-invariant), adds a
+          brighter-than-background rule, morphologically cleans, fits a quad to the convex
+          hull of the largest region. Bails when the border ring’s 99th-percentile residual
+          exceeds 30 — i.e. when there is no uniform background.</td>
+      <td>Puzzle on a plain floor/table with margin around it.</td>
+    </tr>
+    <tr>
+      <td><strong>GrabCut recovery</strong><br><code>_grabcut_quad</code></td>
+      <td>When the mask has real evidence but no single region ≥ 15 % of the frame,
+          seeds GrabCut with the surviving components as probable foreground and the border
+          ring as definite background, then quad-fits the convex hull of what grows.</td>
+      <td>Washed-out puzzles that fragment under warm light.</td>
+    </tr>
+    <tr>
+      <td><strong>Edge quad</strong><br><code>_edge_quad</code></td>
+      <td>Auto-Canny → dilate → contours → first convex 4-gon from
+          <code>approxPolyDP</code> (raw contour, then convex hull). Scored by
+          <code>rectangularity × edge-support-above-chance × area-ratio</code>.</td>
+      <td>Handheld shots where the puzzle nearly fills the frame — <em>this is the path our
+          five-shot composites usually land on.</em></td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+  No layer produces a quad → full-image corners with confidence <code>0.0</code>.
+</p>
+
+<h3>The warp</h3>
+
+<p>
+  <code>warp</code> orders the corners TL/TR/BR/BL by the sum/diff heuristic and maps them
+  onto a plain axis-aligned rectangle whose size comes from the quad’s own edge lengths:
+</p>
+
+<ul>
+  <li><code>dst_w = max(‖TL→TR‖, ‖BL→BR‖)</code></li>
+  <li><code>dst_h = max(‖TL→BL‖, ‖TR→BR‖)</code></li>
+</ul>
+
+<p>
+  Then <code>cv2.getPerspectiveTransform</code> + <code>cv2.warpPerspective</code> at full
+  resolution. Confidence and corners come back to the app;
+  <code>ConfirmTrimView</code> shows the crop, flags anything under <code>0.4</code> as
+  “Detection looks uncertain”, and offers rotation in 90° steps (the only geometric control
+  the user has — there is no manual corner-drag on iOS, though the endpoint accepts a
+  <code>corners</code> override that the web client uses).
+</p>
+
+<h2 id="geometry">5. Why the result is still skewed</h2>
+
+<p>
+  The device screenshot that prompted this document shows the Ravensburger box crop
+  leaning noticeably, with <strong>detection confidence 9 %</strong>. Three separate
+  defects stack up.
+</p>
+
+<figure>
+<svg viewBox="0 0 720 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagram: an oblique quad warped to a rectangle sized by its own edge lengths">
+  <g font-family="-apple-system, sans-serif" font-size="12">
+    <text class="svgink" x="20" y="26" font-weight="700">A · true rectangle, seen obliquely</text>
+    <polygon points="40,60 220,45 245,175 30,195" fill="none" stroke="#b4551f" stroke-width="2"/>
+    <text class="svgmuted" x="35" y="222">near edge long, far edge short</text>
+
+    <text class="svgink" x="300" y="26" font-weight="700">B · what warp() produces</text>
+    <rect x="310" y="50" width="185" height="140" fill="none" stroke="#b4551f" stroke-width="2"/>
+    <text class="svgmuted" x="305" y="222">w = max(top, bottom), h = max(left, right)</text>
+
+    <text class="svgink" x="545" y="26" font-weight="700">C · truth</text>
+    <rect x="555" y="50" width="140" height="140" fill="none" stroke="#2c6e49" stroke-width="2" stroke-dasharray="5 4"/>
+    <text class="svgmuted" x="548" y="222">needs a camera model,</text>
+    <text class="svgmuted" x="548" y="238">not edge lengths</text>
+  </g>
+</svg>
+<figcaption>
+  Even with a <em>perfect</em> quad, mapping it to a max-edge-length rectangle does not
+  recover the original aspect ratio. Under perspective the two horizontal edges differ, and
+  the correct output ratio is a function of the camera’s focal length and the plane’s tilt.
+  It <em>is</em> recoverable — the quad’s two vanishing points must be orthogonal in space,
+  which solves for the focal length and then the aspect (this is what
+  <code>scripts/rectify_quality/</code> measures with) — just not from edge lengths.
+</figcaption>
+</figure>
+
+<h3>Defect 1 — the quad is wrong <span class="pill have">fixed, see §7B</span></h3>
+
+<p>
+  A five-shot composite of a box lying on carpet is exactly the case the color-residual
+  path bails on (textured, non-uniform border) and the case the edge path is weakest at:
+  a carpet has a high baseline edge density, so <code>support_above_chance</code> collapses
+  and every candidate scores near zero. The winner is then whichever near-zero candidate
+  happened to score highest — often a quad that includes carpet, or clips the box corner.
+  A 9 % confidence is the detector correctly telling us it did not find the box; the crop
+  we then show is a warp of the wrong four points, which is why it still looks tilted.
+</p>
+
+<div class="callout insight">
+  <strong>What it actually was, once measured</strong>
+  The detected quad's top edge, right edge and top-left corner were <em>correct</em>. Its
+  bottom-left corner sat ~90 px out into the box's own cast shadow — the contour trace had
+  wrapped box and shadow into one region. Directional light gives that shadow a boundary as
+  long and as straight as the box's real edge, so no amount of edge evidence separates
+  them; only the direction of the colour step across the side does.
+</div>
+
+<h3>Defect 2 — the aspect ratio is invented</h3>
+
+<p>
+  Described in the figure above. Even a correct quad yields a crop that is systematically
+  squashed along the tilt axis. For a solver that matches pieces by grid cell, a wrong
+  aspect ratio is a silent, uniform error in every cell coordinate.
+</p>
+
+<h3>Defect 3 — resolution is spent on the wrong thing</h3>
+
+<p>
+  Detection is the last stage, so all five shots are resampled twice before it happens:
+  once to 2048 px in the composer, once again by <code>warpPerspective</code>. The corner
+  shots that are most foreshortened contribute their <em>stretched</em> pixels to the
+  reference’s viewpoint rather than their sharp ones to a common rectified plane. Any
+  super-resolution the five-view burst could offer is lost.
+</p>
+
+<h2 id="assets">6. What we already have to fix it</h2>
+
+<div class="tablewrap">
+<table>
+  <thead>
+    <tr><th>Asset</th><th>Where</th><th>Status</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>World-space quad of the puzzle on the table plane</td>
+      <td><code>ARGlareGuideSource.beginGuiding</code></td>
+      <td><span class="pill partial">computed, discarded</span></td>
+    </tr>
+    <tr>
+      <td>Camera pose per shot + plane normal</td>
+      <td><code>ARSession</code> current frame at shutter</td>
+      <td><span class="pill partial">available, not captured</span></td>
+    </tr>
+    <tr>
+      <td>Camera intrinsics (focal length, principal point)</td>
+      <td><code>ARFrame.camera.intrinsics</code> / AVFoundation</td>
+      <td><span class="pill partial">available, not captured</span></td>
+    </tr>
+    <tr>
+      <td>Per-frame homographies onto the reference</td>
+      <td><code>GlareFreeComposer.homography</code></td>
+      <td><span class="pill have">computed and verified</span></td>
+    </tr>
+    <tr>
+      <td>Manual corner override on the API</td>
+      <td><code>POST /detect-frame?corners=</code></td>
+      <td><span class="pill have">exists</span> <span class="pill missing">no iOS UI</span></td>
+    </tr>
+    <tr>
+      <td>Known puzzle aspect ratio from the barcode lookup</td>
+      <td><code>ravensburger_client</code> motif image</td>
+      <td><span class="pill partial">fetched, unused for geometry</span></td>
+    </tr>
+    <tr>
+      <td>Stitch-quality benchmark harness</td>
+      <td><code>scripts/stitch_quality/</code>, GlareFreeDumps</td>
+      <td><span class="pill have">exists</span></td>
+    </tr>
+    <tr>
+      <td>Rectification benchmark: true aspect, tilt, residual skew, quad IoU</td>
+      <td><code>scripts/rectify_quality/</code></td>
+      <td><span class="pill have">built — step 1 below</span></td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="options">7. Improvement options</h2>
+
+<p>
+  The user’s framing — “rectify each frame before stitching, or rectify the final
+  image” — maps onto options A and C. They are not mutually exclusive; A is the
+  structural fix, C is the cheap one, and B is the safety net that makes either
+  trustworthy.
+</p>
+
+<h3>A · Rectify into a common plane <span class="pill have">done, device-measured</span></h3>
+
+<p>
+  <code>ARGlareGuideSource.captureStill()</code> now returns a <code>GlareFreeShot</code> —
+  the photo plus a <code>PlaneCaptureGeometry</code> (camera transform, intrinsics restated
+  for the upright still, and the surface height frozen by the reference shot’s raycast).
+  ARKit computed all of this already and the flow used to discard it.
+  <code>PlaneRectification</code> turns it into geometry the composer can use, and the
+  geometry is dumped with each burst so an offline re-run can tell a rectified capture
+  from an unrectified one.
+</p>
+
+<p>It is used in two places, and <em>where</em> turned out to matter more than the math:</p>
+
+<ul>
+  <li><strong>Squaring up the composite</strong> — one warp of the finished image, after
+      registration and healing.</li>
+  <li><strong>Seeding registration</strong> — the two shots’ poses give the exact warp
+      between them for anything on the table, offered as the first seed hypothesis.</li>
+</ul>
+
+<div class="callout">
+  <p>
+    <strong>The obvious design is wrong.</strong> Warping every frame onto the plane
+    <em>before</em> registration is the natural reading of “rectify each frame, then
+    stitch”, and it was tried first. ARKit reports the plane of the <em>table</em>, but
+    the box stands centimetres above it and the five shots are taken from five different
+    spots — so each frame’s subject is left displaced by its own parallax, the burst
+    disagrees precisely on the thing being photographed, and healing fuses the
+    disagreement. Measured on a real capture: lettering doubled, carpet smeared, while
+    the same geometry applied to a single frame was pin sharp.
+  </p>
+  <p>
+    Vision’s registration, left alone, finds the plane the <em>content</em> lies on, which
+    is the right one. Rectifying afterwards costs nothing: two parallel horizontal planes
+    induce rectifying homographies that differ only by a uniform scale and translation, so
+    squaring up the table squares up the box’s face too.
+  </p>
+</div>
+
+<div class="callout">
+  <p>
+    <strong>Do not fill what the camera did not see.</strong> Rectifying an oblique frame
+    turns its rectangular footprint into a keystone, leaving wedges along the output
+    edges. Filling them white — on the reasoning that a white edge is weaker evidence
+    than a black one — put a long, straight, frame-spanning, high-contrast boundary into
+    the composite, which is exactly what the <code>lines</code> generator hunts for. The
+    detector preferred the fill boundary to the puzzle. The composite is now cropped to
+    the largest axis-aligned rectangle the camera genuinely covered
+    (<code>PlaneRectification.coveredRect</code>), so every pixel is real and the
+    strongest rectangle left is the puzzle’s. On the capture that exposed this,
+    confidence went 0.40 → 0.76 and residual skew 6.87° → 0.00°.
+  </p>
+</div>
+
+<p>Measured on device captures (Ravensburger and Educa boxes, a poster, on carpet):</p>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Metric</th><th>Before</th><th>After</th></tr></thead>
+  <tbody>
+    <tr><td>Residual skew in the crop</td><td>0.25–4.87°</td><td><strong>0.00°</strong> on every box capture</td></tr>
+    <tr><td>Shot tilt carried into the output</td><td>3.0–8.2°</td><td><strong>1.2–2.0°</strong></td></tr>
+    <tr><td>Aspect error vs. the true rectangle</td><td>up to 5.5%</td><td><strong>under 1%</strong></td></tr>
+    <tr><td>Corner frames registering</td><td>23/56 (41%)</td><td><strong>15/16 (94%)</strong></td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+  That last row was a side effect, not the goal. The plane seed beat both existing
+  hypotheses on <strong>28 of 28</strong> corner frames across seven bursts, cutting the
+  starting residual from ~0.30 to 0.05–0.24. Two things it revealed: the guided flow’s
+  <em>expected shift</em> seed scores no better than identity — it models a hand-held
+  reposition as a flat translation, which is not what that movement is — and the burst had
+  been silently degrading to a single shot (no glare removal at all) more than half the
+  time. It stays a <em>seed</em>: the box’s face is off-plane, so refinement still corrects
+  it and the verification gate still decides. A bad seed costs passes, never a bad frame.
+</p>
+
+<p>Still open:</p>
+
+<ul>
+  <li><strong>Higher resolution is unlocked, not built.</strong> The frames are now genuine
+      multi-view samples of one plane, which is the precondition for rendering above
+      single-shot resolution; the composite is still rendered at the reference’s scale.
+      Defect 3 stands.</li>
+  <li><strong>Confidence is miscalibrated on soft-edged subjects.</strong> Poster captures
+      score 0.34–0.44 with visibly correct quads, tripping the app’s “Detection looks
+      uncertain” warning at 0.4. A false alarm, on a threshold tuned before any of this.</li>
+  <li><strong>Not on the Simulator.</strong> No world tracking, so <code>geometry</code> is
+      nil, and the composer registers and composites the frames as shot. The E2E path is
+      unchanged, as is any device burst that never found the surface.</li>
+  <li><strong>A little resolution at high tilt.</strong> The covered-region crop discards
+      the keystone’s wedges, so an oblique shot yields a smaller output. Negligible at the
+      1–2° tilts now measured.</li>
+</ul>
+
+<h3>B · Detector fusion <span class="pill have">done</span></h3>
+
+<p>
+  Detection was a fallback chain: the first layer that answered, won. It had no way to
+  tell a confident wrong answer from a tentative right one. It is now a fusion — four
+  generators always run, and their candidates compete on one score.
+</p>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Piece</th><th>What it does</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>lines</code> generator <span class="pill have">new</span></td>
+      <td>Groups long Hough segments into two roughly-orthogonal families, merges
+          duplicates, and intersects pairs into quads. Needs no unbroken contour, so it
+          survives the textured backgrounds that defeat contour tracing — and it wins on
+          most real captures.</td>
+    </tr>
+    <tr>
+      <td>Unified scoring</td>
+      <td>Rectangularity (squared), coverage, per-side edge support above chance, and
+          border contrast, on one scale for every generator.</td>
+    </tr>
+    <tr>
+      <td>Border contrast <span class="pill have">new</span></td>
+      <td>The term that fixed the screenshot. A real object differs from its surroundings
+          in <em>one</em> colour direction on all four sides; a quad that has swallowed
+          a cast shadow steps toward shadow on one side and toward bright cardboard on
+          the others. Measured per sample as the <em>fraction</em> of a side behaving
+          like a boundary, which also catches quads that clip a corner.</td>
+    </tr>
+    <tr>
+      <td>Confidence</td>
+      <td>Now the boundary evidence only. Coverage still ranks candidates but is no
+          longer reported: a pixel-perfect detection of a puzzle filling a fifth of the
+          frame was reading as “uncertain”, which is a statement about framing, not
+          about the detection.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p><strong>Measured on nine real captures</strong> (six hand-labelled), before → after:</p>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Capture</th><th>IoU</th><th>Corner RMS (px @2048)</th><th>Winner</th></tr></thead>
+  <tbody>
+    <tr><td>121211 — the screenshot</td><td>0.91 → <strong>0.99</strong></td><td>69.2 → <strong>8.6</strong></td><td>edge → lines</td></tr>
+    <tr><td>115323</td><td>0.89 → <strong>0.94</strong></td><td>57.3 → <strong>20.1</strong></td><td>mask → grabcut</td></tr>
+    <tr><td>212628</td><td>0.77 → <strong>0.85</strong></td><td>141.2 → <strong>73.5</strong></td><td>edge → lines</td></tr>
+    <tr><td>123532</td><td>0.98 → <strong>0.99</strong></td><td>8.5 → <strong>6.7</strong></td><td>mask → lines</td></tr>
+    <tr><td>121439</td><td>0.85 → <strong>0.87</strong></td><td>60.2 → <strong>56.5</strong></td><td>edge → lines</td></tr>
+    <tr><td>115252</td><td>0.94 → 0.94</td><td>43.4 → 43.4</td><td>grabcut (unchanged)</td></tr>
+    <tr><td><strong>Mean</strong></td><td><strong>0.89 → 0.93</strong></td><td><strong>63.3 → 34.8</strong></td><td>—</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>Still open under B:</p>
+
+<ul>
+  <li>Detect on each of the five raw shots and fuse across them: the same box seen from
+      five viewpoints gives five quads that must agree once mapped through the known
+      homographies. Agreement would be a far better confidence signal than any
+      single-image heuristic — and disagreement a reliable “ask the user” trigger. Needs
+      the app to send more than the composite.</li>
+  <li>Run <code>VNDetectRectanglesRequest</code> on device as an additional candidate.</li>
+  <li>The manual corner-drag UI the API already supports (deferred by choice).</li>
+</ul>
+
+<h3>C · Rectify the final composite properly <span class="pill partial">cheap, partial</span></h3>
+
+<ul>
+  <li>Keep the current architecture; replace the max-edge-length destination rectangle
+      with an aspect ratio estimated from the homography and the camera’s known focal
+      length (the standard two-vanishing-point / IAC constraint), or snapped to the
+      barcode motif’s aspect ratio when a lookup succeeded.</li>
+  <li>Straightforward, testable against <code>scripts/stitch_quality/</code>, and it fixes
+      defect 2 for the Simulator path too — but it cannot fix defect 1 or 3, so a bad
+      quad still yields a bad crop.</li>
+</ul>
+
+<h3>Suggested order</h3>
+
+<ol>
+  <li>
+    <strong>Measure first.</strong> <span class="pill have">done</span>
+    <code>scripts/rectify_quality/</code> runs the shipped detection and warp over a
+    capture dump and reports, per image: which detector layer answered, the confidence,
+    the quad’s IoU and corner error against a hand-labelled truth, the rectangle’s
+    <em>true</em> aspect ratio recovered from the image quad, the aspect the crop
+    actually got, the shot’s tilt, and the residual skew still left inside the crop.
+    Its own self-tests validate each metric against a rectangle of known aspect
+    rendered through a known camera. See that directory’s <code>README.md</code>.
+  </li>
+  <li>
+    <strong>B, detector fusion.</strong> <span class="pill have">done</span> Mean corner
+    error more than halved (63.3 → 34.8 px); the capture behind the screenshot went from
+    69 px to 9 px and now crops square-on. Manual corners deferred by choice — getting the
+    rectangle right mattered more than a recovery path for getting it wrong.
+  </li>
+  <li>
+    <strong>A, plane rectification.</strong> <span class="pill have">done</span> The
+    structural fix, and measured on device: residual skew 0.00° on every box capture,
+    aspect error under 1%, and — unplanned — corner-frame registration up from 41% to
+    94%, so the burst finally removes glare instead of quietly falling back to one shot.
+    The higher-than-single-shot resolution it unlocks is still unbuilt.
+  </li>
+  <li><strong>C</strong> as the fallback aspect-ratio rule wherever A’s metric geometry
+      is unavailable.</li>
+</ol>
+
+<p class="footnote">
+  Sources: <code>ios/Pussel/Features/Capture/GlareFree/</code>,
+  <code>ios/Pussel/Features/Capture/ConfirmTrimView.swift</code>,
+  <code>backend/app/services/puzzle_detector.py</code>,
+  <code>backend/app/main.py</code> (<code>/api/v1/puzzle/detect-frame</code>),
+  <code>scripts/stitch_quality/README.md</code>. Device observation: iPhone15,4 on
+  iOS 27.0, 1000-piece Ravensburger box on carpet, detection confidence 9 %.
+</p>
+
+</div>
+</body>
+</html>
