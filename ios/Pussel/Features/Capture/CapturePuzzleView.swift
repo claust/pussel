@@ -9,7 +9,11 @@ private struct ScrollSnapshot: Equatable {
   /// How far the list has been scrolled from its resting top, which is what
   /// `ScrollPosition.scrollTo(y:)` takes — `contentOffset` is measured from
   /// under the navigation bar instead, so it sits one top inset lower.
-  var scrolledY: CGFloat { offset + insetTop }
+  ///
+  /// Clamped at 0: a rubber-band overscroll at the top reads as negative, and
+  /// leaving the screen mid-bounce would otherwise store a position that only
+  /// exists while a finger is on the glass.
+  var scrolledY: CGFloat { max(0, offset + insetTop) }
 }
 
 struct CapturePuzzleView: View {
