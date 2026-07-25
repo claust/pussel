@@ -121,10 +121,12 @@ final class AppFlowStore {
   /// picker on appear; cleared once consumed.
   var pendingRetake: CaptureSource?
 
-  /// Where the home screen's list was scrolled to, in points, or nil if it has
-  /// never been scrolled. Lives here rather than in `CapturePuzzleView` because
-  /// the phase switch tears that view down: opening a puzzle destroys its
-  /// `ScrollView`, and going back builds a new one, which starts at the top.
+  /// Where the home screen's list was scrolled to, in points, or nil until
+  /// that screen has reported its geometry at least once (a fresh launch, or
+  /// after a sign-out) — a list sitting at the top reports 0, not nil. Lives
+  /// here rather than in `CapturePuzzleView` because the phase switch tears
+  /// that view down: opening a puzzle destroys its `ScrollView`, and going
+  /// back builds a new one, which starts at the top.
   ///
   /// Deliberately *not* cleared by `reset()` — going back is a reset, and
   /// coming back to where you left off is the whole point. Sign-out clears it
