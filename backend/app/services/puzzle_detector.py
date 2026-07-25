@@ -514,9 +514,17 @@ class PuzzleFrameDetector:
     wins. The layered "first path that answers, wins" arrangement this
     replaced had no way to tell a confident wrong answer from a tentative
     right one: on a box photographed on carpet, the contour trace wrapped the
-    box *and its cast shadow* into one region and returned it, while the line
-    generator — which cannot build that quad at all, a soft shadow boundary
-    producing no long straight line — never got to run.
+    box *and its cast shadow* into one region and returned it, and nothing
+    downstream ever got to disagree.
+
+    What rejects that quad is `_score_quad`'s border-contrast term, not the
+    choice of generator. Under directional light a cast shadow's boundary is
+    every bit as long and as straight as the box's own edge — the line
+    generator can and does build quads from it — so edge evidence cannot
+    separate the two. The direction of the colour step across each side can:
+    a real object differs from its surroundings the same way along its whole
+    outline, while the shadow quad steps toward shadow on one side and toward
+    bright cardboard on the others.
 
     The puzzle picture is a strong quadrilateral with straight edges, so every
     generator looks for that rectangle explicitly rather than asking a

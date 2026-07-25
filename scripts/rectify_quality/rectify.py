@@ -167,7 +167,7 @@ def rectangle_aspect(
     u0, v0 = width / 2.0, height / 2.0
     fallback = (
         assumed_focal_px
-        if assumed_focal_px
+        if assumed_focal_px is not None
         else (width / 2.0) / math.tan(math.radians(DEFAULT_HORIZONTAL_FOV_DEG) / 2.0)
     )
 
@@ -485,7 +485,7 @@ def corner_errors(
     truth: Sequence[Point],
     image_size: Optional[Tuple[int, int]] = None,
     long_side: int = REPORTING_LONG_SIDE,
-) -> Dict:
+) -> Dict[str, object]:
     """Per-corner distance between a detected quad and a hand-labelled one.
 
     Both quads are ordered TL/TR/BR/BL first, so the comparison is corner to
