@@ -168,8 +168,10 @@ struct GlareFreeCaptureView: View {
   private func startRegistrationSession() async {
     let controller =
       self.controller
+      // No world tracking here, so no camera geometry and no plane
+      // rectification — the composer registers the frames as shot.
       ?? GlareFreeCaptureController(capture: { [camera] in
-        await camera.capturePhoto()
+        await camera.capturePhoto().map { GlareFreeShot(image: $0) }
       })
     self.controller = controller
     #if DEBUG

@@ -13,6 +13,22 @@ struct GlareFreeStep: Equatable {
   let anchor: CGPoint
 }
 
+/// One photo of a glare-free burst, with whatever the capture backend knew
+/// about the camera at the moment it fired.
+///
+/// `geometry` is nil on the Simulator/E2E path, where there is no world
+/// tracking to read a camera pose from; the composer then falls back to
+/// registering the frames as shot.
+struct GlareFreeShot {
+  let image: UIImage
+  let geometry: PlaneCaptureGeometry?
+
+  init(image: UIImage, geometry: PlaneCaptureGeometry? = nil) {
+    self.image = image
+    self.geometry = geometry
+  }
+}
+
 /// State machine for the glare-free capture flow: a manual center shot,
 /// then four corner shots that fire automatically — the guide dot is
 /// anchored to a fixed spot on the puzzle (`ingestGuide`), and once the
@@ -61,9 +77,11 @@ final class GlareFreeCaptureController {
   /// a nil offset means tracking is currently lost.
   private(set) var guide: GlareGuideUpdate?
 
-  private let capture: () async -> UIImage?
-  private let compose: (UIImage, [UIImage], [CGSize?]) async -> GlareFreeComposer.Composite?
-  private var captured: [UIImage] = []
+  private let capture: () async -> GlareFreeShot?
+  private let compose:
+    (UIImage, [UIImage], [CGSize?], [PlaneCaptureGeometry?]) async ->
+      GlareFreeComposer.Composite?
+  private var captured: [GlareFreeShot] = []
   private var aim = GlareAimStabilityTracker()
 
   #if DEBUG
@@ -75,12 +93,14 @@ final class GlareFreeCaptureController {
   #endif
 
   init(
-    capture: @escaping () async -> UIImage?,
-    compose: @escaping (UIImage, [UIImage], [CGSize?]) async -> GlareFreeComposer.Composite? =
-      { reference, others, expectedShifts in
+    capture: @escaping () async -> GlareFreeShot?,
+    compose:
+      @escaping (UIImage, [UIImage], [CGSize?], [PlaneCaptureGeometry?]) async ->
+      GlareFreeComposer.Composite? = { reference, others, expectedShifts, geometries in
         await Task.detached(priority: .userInitiated) {
           GlareFreeComposer.compose(
-            reference: reference, others: others, expectedShifts: expectedShifts)
+            reference: reference, others: others, expectedShifts: expectedShifts,
+            geometries: geometries)
         }.value
       }
   ) {
@@ -143,13 +163,13 @@ final class GlareFreeCaptureController {
     guard case .capturing(let index) = phase, !isCapturing else { return }
     isCapturing = true
     defer { isCapturing = false }
-    guard let image = await capture() else {
+    guard let shot = await capture() else {
       phase = .failed("Could not take that photo.")
       return
     }
-    captured.append(image)
+    captured.append(shot)
     if index == 0 {
-      referenceShot = image
+      referenceShot = shot.image
     }
     guard index + 1 < Self.steps.count else {
       await composeCaptured()
@@ -164,14 +184,15 @@ final class GlareFreeCaptureController {
 
   private func composeCaptured() async {
     phase = .composing
-    let reference = captured[0]
-    let others = Array(captured.dropFirst())
+    let reference = captured[0].image
+    let others = captured.dropFirst().map(\.image)
+    let geometries = captured.map(\.geometry)
     let shifts = (1..<Self.steps.count).map(Self.expectedShift(step:))
     // A composer failure still leaves the reference shot — degrade to a
     // normal single-photo capture rather than dead-ending the flow. The
     // view surfaces the degradation via `alignedFrameCount == 0`.
     let result =
-      await compose(reference, others, shifts)
+      await compose(reference, others, shifts, geometries)
       ?? GlareFreeComposer.Composite(image: reference, alignedFrameCount: 0)
     composite = result
     phase = .done
@@ -186,7 +207,8 @@ final class GlareFreeCaptureController {
       Task.detached(priority: .utility) {
         await GlareFreeDump.record(
           reference: reference, others: others, expectedShifts: shifts,
-          composite: result.image, alignedFrameCount: result.alignedFrameCount)
+          geometries: geometries, composite: result.image,
+          alignedFrameCount: result.alignedFrameCount)
       }
     #endif
   }

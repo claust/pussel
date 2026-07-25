@@ -1,5 +1,6 @@
 import UIKit
 import XCTest
+import simd
 
 @testable import Pussel
 
@@ -38,8 +39,8 @@ final class GlareFreeCaptureControllerTests: XCTestCase {
 
   func testAdvancesThroughAllStepsThenComposes() async {
     let controller = GlareFreeCaptureController(
-      capture: { self.solidImage() },
-      compose: { reference, others, _ in
+      capture: { GlareFreeShot(image: self.solidImage()) },
+      compose: { reference, others, _, _ in
         GlareFreeComposer.Composite(image: reference, alignedFrameCount: others.count)
       })
     for step in 0..<GlareFreeCaptureController.steps.count {
@@ -57,7 +58,7 @@ final class GlareFreeCaptureControllerTests: XCTestCase {
   func testCenterShotBecomesTrackingReference() async {
     let reference = solidImage()
     let controller = GlareFreeCaptureController(
-      capture: { reference }, compose: { _, _, _ in nil })
+      capture: { GlareFreeShot(image: reference) }, compose: { _, _, _, _ in nil })
     XCTAssertNil(controller.referenceShot)
     await controller.captureShot()
     XCTAssertIdentical(controller.referenceShot, reference)
@@ -65,7 +66,7 @@ final class GlareFreeCaptureControllerTests: XCTestCase {
 
   func testAimDwellAutoCapturesCornerStep() async {
     let controller = GlareFreeCaptureController(
-      capture: { self.solidImage() }, compose: { _, _, _ in nil })
+      capture: { GlareFreeShot(image: self.solidImage()) }, compose: { _, _, _, _ in nil })
     await controller.captureShot()
     XCTAssertEqual(controller.phase, .capturing(step: 1))
 
@@ -88,7 +89,7 @@ final class GlareFreeCaptureControllerTests: XCTestCase {
 
   func testOffTargetDwellDoesNotCapture() async {
     let controller = GlareFreeCaptureController(
-      capture: { self.solidImage() }, compose: { _, _, _ in nil })
+      capture: { GlareFreeShot(image: self.solidImage()) }, compose: { _, _, _, _ in nil })
     await controller.captureShot()
 
     // The dot sits at its resting anchor position (offset zero) — well
@@ -104,7 +105,7 @@ final class GlareFreeCaptureControllerTests: XCTestCase {
 
   func testGuideIsIgnoredWhileAimingTheReferenceShot() {
     let controller = GlareFreeCaptureController(
-      capture: { self.solidImage() }, compose: { _, _, _ in nil })
+      capture: { GlareFreeShot(image: self.solidImage()) }, compose: { _, _, _, _ in nil })
     controller.ingestGuide(onTargetUpdate(step: 1))
     XCTAssertNil(controller.guide)
     XCTAssertEqual(controller.phase, .capturing(step: 0))
@@ -112,7 +113,7 @@ final class GlareFreeCaptureControllerTests: XCTestCase {
 
   func testDotPositionTracksAnchorPlusOffset() async throws {
     let controller = GlareFreeCaptureController(
-      capture: { self.solidImage() }, compose: { _, _, _ in nil })
+      capture: { GlareFreeShot(image: self.solidImage()) }, compose: { _, _, _, _ in nil })
     // While aiming the reference shot the dot marks the screen center.
     XCTAssertEqual(controller.dotUnitPosition, CGPoint(x: 0.5, y: 0.5))
     await controller.captureShot()
@@ -129,8 +130,8 @@ final class GlareFreeCaptureControllerTests: XCTestCase {
   func testComposeReceivesTheExpectedShifts() async throws {
     var receivedShifts: [CGSize?] = []
     let controller = GlareFreeCaptureController(
-      capture: { self.solidImage() },
-      compose: { reference, _, shifts in
+      capture: { GlareFreeShot(image: self.solidImage()) },
+      compose: { reference, _, shifts, _ in
         receivedShifts = shifts
         return GlareFreeComposer.Composite(image: reference, alignedFrameCount: 4)
       })
@@ -146,10 +147,45 @@ final class GlareFreeCaptureControllerTests: XCTestCase {
     XCTAssertEqual(first.height, 0.18, accuracy: 1e-9)
   }
 
+  func testComposeReceivesEachShotsGeometry() async throws {
+    var received: [PlaneCaptureGeometry?] = []
+    var shotIndex = 0
+    let controller = GlareFreeCaptureController(
+      capture: {
+        defer { shotIndex += 1 }
+        // Geometry on the reference and the second corner only: the array
+        // the composer gets must keep its holes where they are, since it
+        // reads position 0 as the reference's and the rest by offset.
+        let carries = shotIndex == 0 || shotIndex == 2
+        return GlareFreeShot(
+          image: self.solidImage(),
+          geometry: carries ? self.geometry(planeHeight: Float(shotIndex) - 1) : nil)
+      },
+      compose: { reference, _, _, geometries in
+        received = geometries
+        return GlareFreeComposer.Composite(image: reference, alignedFrameCount: 4)
+      })
+    for _ in GlareFreeCaptureController.steps.indices {
+      await controller.captureShot()
+    }
+    XCTAssertEqual(received.count, GlareFreeCaptureController.steps.count)
+    XCTAssertEqual(try XCTUnwrap(received[0]).planeHeight, -1)
+    XCTAssertNil(received[1])
+    XCTAssertEqual(try XCTUnwrap(received[2]).planeHeight, 1)
+    XCTAssertNil(received[3])
+    XCTAssertNil(received[4])
+  }
+
+  private func geometry(planeHeight: Float) -> PlaneCaptureGeometry {
+    PlaneCaptureGeometry(
+      cameraTransform: matrix_identity_float4x4, intrinsics: matrix_identity_float3x3,
+      imageSize: CGSize(width: 4, height: 4), planeHeight: planeHeight)
+  }
+
   func testNilCaptureFailsTheStep() async {
     let controller = GlareFreeCaptureController(
       capture: { nil },
-      compose: { _, _, _ in
+      compose: { _, _, _, _ in
         XCTFail("compose should not run after a failed capture")
         return nil
       })
@@ -160,7 +196,7 @@ final class GlareFreeCaptureControllerTests: XCTestCase {
   }
 
   func testRestartAfterFailureBeginsANewSequence() async {
-    let controller = GlareFreeCaptureController(capture: { nil }, compose: { _, _, _ in nil })
+    let controller = GlareFreeCaptureController(capture: { nil }, compose: { _, _, _, _ in nil })
     await controller.captureShot()
     controller.restart()
     XCTAssertEqual(controller.phase, .capturing(step: 0))
@@ -171,7 +207,7 @@ final class GlareFreeCaptureControllerTests: XCTestCase {
 
   func testNilComposeFallsBackToReferenceShot() async {
     let controller = GlareFreeCaptureController(
-      capture: { self.solidImage() }, compose: { _, _, _ in nil })
+      capture: { GlareFreeShot(image: self.solidImage()) }, compose: { _, _, _, _ in nil })
     for _ in GlareFreeCaptureController.steps.indices {
       await controller.captureShot()
     }

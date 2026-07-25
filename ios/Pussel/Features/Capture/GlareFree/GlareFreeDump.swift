@@ -29,6 +29,41 @@ enum GlareFreeDump {
     let height: Int
   }
 
+  /// One shot's camera geometry, flattened for JSON. Matrices are written
+  /// **row-major** — simd stores them by column, and a row-major dump is
+  /// what reads naturally next to the pinhole algebra in
+  /// `PlaneRectification` and in the offline tools that re-run it.
+  private struct GeometryInfo: Codable {
+    /// Camera → world, 16 entries.
+    let cameraTransform: [Float]
+    /// Intrinsics for the **upright** still (not the sensor's landscape
+    /// buffer), 9 entries.
+    let intrinsics: [Float]
+    /// The upright still's pixel size, which is the space `intrinsics`
+    /// describes.
+    let imageWidth: Double
+    let imageHeight: Double
+    /// World y of the puzzle's surface, shared by every shot in the burst.
+    let planeHeight: Float
+
+    init(_ geometry: PlaneCaptureGeometry) {
+      let transform = geometry.cameraTransform
+      cameraTransform = (0..<4).flatMap { row in
+        [
+          transform.columns.0[row], transform.columns.1[row],
+          transform.columns.2[row], transform.columns.3[row],
+        ]
+      }
+      let matrix = geometry.intrinsics
+      intrinsics = (0..<3).flatMap { row in
+        [matrix.columns.0[row], matrix.columns.1[row], matrix.columns.2[row]]
+      }
+      imageWidth = Double(geometry.imageSize.width)
+      imageHeight = Double(geometry.imageSize.height)
+      planeHeight = geometry.planeHeight
+    }
+  }
+
   private struct Metadata: Codable {
     let timestamp: String
     let images: [ImageInfo]
@@ -36,6 +71,12 @@ enum GlareFreeDump {
     /// null entries preserved, so a missing seed hypothesis for a given
     /// corner is visible rather than silently collapsed to zero.
     let expectedShifts: [CGSize?]?
+    /// The burst's camera geometry, reference first then one per corner
+    /// shot, in `images` order. Null entries (and a null array) mean the
+    /// composite was *not* plane-rectified — the Simulator path, or a
+    /// device burst that never found the surface — which is exactly what an
+    /// offline re-run needs to know before blaming the geometry.
+    let geometries: [GeometryInfo?]?
     let alignedFrameCount: Int
     let appVersion: String
     let appBuild: String
@@ -71,6 +112,7 @@ enum GlareFreeDump {
     reference: UIImage,
     others: [UIImage],
     expectedShifts: [CGSize?]?,
+    geometries: [PlaneCaptureGeometry?]? = nil,
     composite: UIImage,
     alignedFrameCount: Int,
     baseDirectory: URL = defaultBaseDirectory
@@ -113,6 +155,7 @@ enum GlareFreeDump {
         timestamp: ISO8601DateFormatter().string(from: now),
         images: images,
         expectedShifts: expectedShifts,
+        geometries: geometries?.map { $0.map(GeometryInfo.init) },
         alignedFrameCount: alignedFrameCount,
         appVersion: bundleString("CFBundleShortVersionString"),
         appBuild: bundleString("CFBundleVersion"))

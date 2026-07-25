@@ -149,9 +149,11 @@ final class ARGlareGuideSource: NSObject, GlareGuideSource, ARSessionDelegate {
     session.pause()
   }
 
-  /// The current frame at full still resolution, rotated upright. Nil on
-  /// capture failure — the controller fails the step and offers a restart.
-  func captureStill() async -> UIImage? {
+  /// The current frame at full still resolution, rotated upright, together
+  /// with the camera geometry that produced it — the composer rectifies the
+  /// burst onto the puzzle's plane with it. Nil on capture failure; the
+  /// controller fails the step and offers a restart.
+  func captureStill() async -> GlareFreeShot? {
     let size = sceneView.bounds.size
     do {
       let frame = try await session.captureHighResolutionFrame()
@@ -166,11 +168,37 @@ final class ARGlareGuideSource: NSObject, GlareGuideSource, ARSessionDelegate {
             onPlaneAtHeight: surfaceHeight, camera: frame.camera, viewportSize: size)
           ?? pendingQuad
       }
-      return Self.stillImage(from: frame.capturedImage)
+      guard let image = Self.stillImage(from: frame.capturedImage) else { return nil }
+      return GlareFreeShot(image: image, geometry: captureGeometry(from: frame))
     } catch {
       Self.log.error("high-resolution capture failed: \(error.localizedDescription)")
       return nil
     }
+  }
+
+  /// This shot's pose, optics and surface, as the composer's plane
+  /// rectifier wants them.
+  ///
+  /// The surface height is the one frozen by the reference shot's raycast
+  /// and left untouched for the rest of the burst, so all five shots are
+  /// rectified onto the *same* plane — re-measuring per shot would let
+  /// estimate jitter shear the frames apart. Nil before a surface has been
+  /// found, or when the still's resolution is unreadable; the composer then
+  /// falls back to registering the frames as shot.
+  private func captureGeometry(from frame: ARFrame) -> PlaneCaptureGeometry? {
+    guard let planeHeight = surfaceHeight else { return nil }
+    let capture = CGSize(
+      width: CVPixelBufferGetWidth(frame.capturedImage),
+      height: CVPixelBufferGetHeight(frame.capturedImage))
+    guard
+      let intrinsics = PlaneRectification.uprightIntrinsics(
+        sensor: frame.camera.intrinsics, sensorResolution: frame.camera.imageResolution,
+        captureResolution: capture)
+    else { return nil }
+    return PlaneCaptureGeometry(
+      cameraTransform: frame.camera.transform, intrinsics: intrinsics,
+      imageSize: PlaneRectification.uprightSize(captureResolution: capture),
+      planeHeight: planeHeight)
   }
 
   /// The screen-corner quad as seen by `camera`, unprojected onto the

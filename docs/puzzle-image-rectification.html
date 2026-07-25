@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Puzzle Overview Capture — How It Works</title>
+<style>
+  :root {
+    --bg: #f7f6f3;
+    --surface: #ffffff;
+    --ink: #1e2229;
+    --muted: #5c6470;
+    --line: #e3e0d8;
+    --accent: #b4551f;
+    --accent-soft: #f6e3d7;
+    --good: #2c6e49;
+    --good-soft: #e2efe7;
+    --warn: #8a5a00;
+    --warn-soft: #f7ecd4;
+    --risk: #9c2f2f;
+    --risk-soft: #f7e2e2;
+    --code-bg: #eeece6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16181d;
+      --surface: #1f232b;
+      --ink: #e8e6e1;
+      --muted: #9aa1ac;
+      --line: #32363f;
+      --accent: #e08a55;
+      --accent-soft: #3a2a1f;
+      --good: #6fbf8f;
+      --good-soft: #1f3328;
+      --warn: #d9a94a;
+      --warn-soft: #362c17;
+      --risk: #e07a7a;
+      --risk-soft: #3a2222;
+      --code-bg: #2a2e37;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 3rem 1.5rem 5rem; }
+  header h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 0.5rem; }
+  header .subtitle { color: var(--muted); font-size: 1.05rem; max-width: 46rem; }
+  .kicker {
+    display: inline-block; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--accent); margin-bottom: 0.75rem;
+  }
+  nav.toc {
+    margin: 2rem 0; padding: 1rem 1.25rem; background: var(--surface);
+    border: 1px solid var(--line); border-radius: 10px; font-size: 0.95rem;
+  }
+  nav.toc strong { display: block; margin-bottom: 0.35rem; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  nav.toc ol { margin: 0; padding-left: 1.3rem; columns: 2; column-gap: 2.5rem; }
+  @media (max-width: 640px) { nav.toc ol { columns: 1; } }
+  h2 { font-size: 1.45rem; margin: 3rem 0 1rem; padding-top: 1rem; border-top: 2px solid var(--line); }
+  h3 { font-size: 1.1rem; margin: 1.75rem 0 0.5rem; }
+  p { margin: 0.6rem 0 1rem; }
+  code {
+    font: 0.85em ui-monospace, "SF Mono", Menlo, monospace;
+    background: var(--code-bg); padding: 0.1em 0.35em; border-radius: 4px;
+  }
+  a { color: var(--accent); }
+  table {
+    width: 100%; border-collapse: collapse; margin: 1rem 0 1.5rem;
+    font-size: 0.92rem; background: var(--surface); border: 1px solid var(--line);
+    border-radius: 8px; overflow: hidden;
+  }
+  .tablewrap { overflow-x: auto; }
+  th, td { text-align: left; padding: 0.55rem 0.8rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: var(--code-bg); font-weight: 650; }
+  tr:last-child td { border-bottom: none; }
+  .pill {
+    display: inline-block; padding: 0.05rem 0.55rem; border-radius: 999px;
+    font-size: 0.75rem; font-weight: 650; white-space: nowrap;
+  }
+  .pill.have { background: var(--good-soft); color: var(--good); }
+  .pill.partial { background: var(--warn-soft); color: var(--warn); }
+  .pill.missing { background: var(--risk-soft); color: var(--risk); }
+  .callout {
+    margin: 1.25rem 0; padding: 0.9rem 1.1rem; border-radius: 8px;
+    border-left: 4px solid var(--accent); background: var(--accent-soft);
+  }
+  .callout.insight { border-left-color: var(--good); background: var(--good-soft); }
+  .callout.risk { border-left-color: var(--risk); background: var(--risk-soft); }
+  .callout strong:first-child { display: block; margin-bottom: 0.2rem; }
+  .pipeline { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1.25rem 0; }
+  .stage {
+    flex: 1 1 150px; min-width: 140px; background: var(--surface);
+    border: 1px solid var(--line); border-radius: 8px; padding: 0.6rem 0.7rem;
+  }
+  .stage .num {
+    font-size: 0.7rem; font-weight: 700; color: var(--accent);
+    letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  .stage .what { font-weight: 640; font-size: 0.95rem; margin: 0.15rem 0 0.2rem; }
+  .stage .where { font-size: 0.78rem; color: var(--muted); font-family: ui-monospace, Menlo, monospace; word-break: break-word; }
+  figure { margin: 1.5rem 0; }
+  figure svg { max-width: 100%; height: auto; display: block; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+  figcaption { font-size: 0.85rem; color: var(--muted); margin-top: 0.5rem; }
+  ul, ol { margin: 0.6rem 0 1rem; padding-left: 1.4rem; }
+  li { margin: 0.3rem 0; }
+  .footnote { font-size: 0.85rem; color: var(--muted); }
+  .svgink { fill: var(--ink); }
+  .svgmuted { fill: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <span class="kicker">Pussel · overview capture</span>
+  <h1>Puzzle overview capture</h1>
+  <p class="subtitle">
+    How a five-shot burst of a puzzle box becomes the flat, glare-free,
+    square-on overview image the solver matches loose pieces against.
+  </p>
+</header>
+
+<nav class="toc">
+  <strong>Contents</strong>
+  <ol>
+    <li><a href="#what">What this produces</a></li>
+    <li><a href="#pipeline">The pipeline</a></li>
+    <li><a href="#capture">Stage 1 — guided capture</a></li>
+    <li><a href="#compose">Stage 2 — composition</a></li>
+    <li><a href="#detect">Stage 3 — detection &amp; crop</a></li>
+    <li><a href="#geometry">The plane geometry</a></li>
+    <li><a href="#degrade">When something fails</a></li>
+    <li><a href="#measure">Measuring it</a></li>
+    <li><a href="#limits">Known limits</a></li>
+  </ol>
+</nav>
+
+<h2 id="what">1. What this produces</h2>
+
+<p>
+  Adding a puzzle starts by photographing the <strong>picture</strong> — the box front,
+  or a poster of the motif — before a single piece is laid. That image becomes the
+  reference the solver matches against: photograph a loose piece later, and the backend
+  reports where in this overview it belongs.
+</p>
+
+<p>
+  Everything below serves one requirement. The overview must be a <em>flat, square-on
+  view of the picture and nothing else</em>. A crop that is skewed, that carries a
+  slice of carpet, or that is stretched by perspective silently degrades every piece
+  match made against it for the life of that puzzle.
+</p>
+
+<p>Three things stand in the way, and each stage addresses one:</p>
+
+<ul>
+  <li><strong>Glare.</strong> A print under a ceiling light has specular patches that
+      obliterate the artwork underneath. Solved by taking five shots from slightly
+      different positions and healing between them.</li>
+  <li><strong>Perspective.</strong> A handheld shot of a table is oblique, so the
+      rectangular picture arrives as a trapezoid. Solved with the camera geometry ARKit
+      supplies alongside each shot.</li>
+  <li><strong>Framing.</strong> The picture has to be found in the photo and cropped
+      out. Solved by a backend detector that scores four independent quad proposals.</li>
+</ul>
+
+<h2 id="pipeline">2. The pipeline</h2>
+
+<div class="pipeline">
+  <div class="stage">
+    <div class="num">Stage 1 · iOS</div>
+    <div class="what">Guided 5-shot capture</div>
+    <div class="where">Features/Capture/GlareFree/GlareFreeCaptureController.swift</div>
+  </div>
+  <div class="stage">
+    <div class="num">Stage 2 · iOS</div>
+    <div class="what">Register → heal → rectify → crop</div>
+    <div class="where">GlareFreeComposer.swift, GlareFreeMaskedHealing.swift, PlaneRectification.swift</div>
+  </div>
+  <div class="stage">
+    <div class="num">Stage 3 · backend</div>
+    <div class="what">Detect quad + perspective warp</div>
+    <div class="where">backend/app/services/puzzle_detector.py</div>
+  </div>
+  <div class="stage">
+    <div class="num">Stage 4 · iOS</div>
+    <div class="what">“Does this look right?” + rotate</div>
+    <div class="where">Features/Capture/ConfirmTrimView.swift</div>
+  </div>
+</div>
+
+<div class="callout">
+  <strong>The one-line summary</strong>
+  Five shots are fused onto the centre shot’s viewpoint to remove glare, then the
+  finished composite is warped square-on using the camera pose ARKit recorded at the
+  shutter, and cropped to the region the camera actually saw. The backend then finds
+  the picture’s rectangle within that and warps it out.
+</div>
+
+<h2 id="capture">3. Stage 1 — guided capture</h2>
+
+<p>
+  <code>GlareFreeCaptureController.steps</code> defines five shots: a manual
+  <strong>Centre</strong> shot, then four automatic corner shots whose anchors sit at
+  unit positions <code>(0.25, 0.32)</code>, <code>(0.75, 0.32)</code>,
+  <code>(0.75, 0.68)</code> and <code>(0.25, 0.68)</code> of the centre shot. A guide dot
+  is pinned to that spot on the puzzle; the user steers it into a centre ring, and a
+  dwell timer (<code>GlareAimStabilityTracker</code>, tolerance <code>0.06</code> unit)
+  fires the shutter.
+</p>
+
+<p>
+  The offsets are about a quarter of the frame — enough to move a specular highlight
+  a long way across the print, while keeping the whole picture in view.
+</p>
+
+<h3>Where guidance comes from</h3>
+
+<ul>
+  <li>
+    <strong>Device — <code>ARGlareGuideSource</code>.</strong> An ARKit world-tracking
+    session finds the table. Only the screen <em>centre</em> is raycast — that is where
+    the puzzle is, and the extreme corners of the field of view often have no scene
+    coverage at all — and the hit fixes the surface’s height. The world is
+    gravity-aligned, so the surface is the horizontal plane at that height, and each
+    screen corner is its ray intersected with that plane analytically. A detected plane
+    is preferred; ARKit’s estimated plane is the fallback and is load-bearing, since
+    plane <em>detection</em> over a glossy print can take 30 s or never converge. An
+    estimated hit is accepted only if its normal is near-vertical
+    (<code>minSurfaceNormalY 0.85</code>), so a wall cannot masquerade as the table.
+    Hits beyond <code>maxSurfaceDistance</code> (3 m) are grazing hits on the infinite
+    plane, not a tabletop.
+  </li>
+  <li>
+    <strong>Simulator / E2E — <code>GlareGuideTracker</code>.</strong> Vision image
+    registration against the reference shot, driven by
+    <code>pusseldebug://previewloop</code>. Its translational results are unreliable on
+    the Simulator and are never trusted for anything but keeping the E2E path alive.
+  </li>
+</ul>
+
+<h3>What each shutter press records</h3>
+
+<p>
+  <code>captureStill()</code> returns a <code>GlareFreeShot</code>: the full-resolution
+  upright photo, plus a <code>PlaneCaptureGeometry</code> holding the camera transform,
+  the intrinsics restated for that upright image, its pixel size, and the surface height.
+</p>
+
+<div class="callout insight">
+  <strong>Invariant — the surface height is frozen at the reference shot</strong>
+  All five shots carry the <em>same</em> plane height, snapshotted from the centre shot’s
+  raycast and never re-measured. Estimated-plane raycasts over a glossy print come and go
+  frame to frame; re-measuring per shot would let that jitter shear the frames apart.
+  For the same reason the world quad is frozen from the pose of the frame the photo
+  actually fired on, not from whatever the live scan reads once the async capture returns.
+</div>
+
+<h2 id="compose">4. Stage 2 — composition</h2>
+
+<p>
+  <code>GlareFreeComposer.compose(reference:others:expectedShifts:geometries:)</code>
+  runs off the main actor and takes a few seconds. In order:
+</p>
+
+<ol>
+  <li>Every frame is EXIF-uprighted and downscaled to a 2048 px long side
+      (<code>workingMaxDimension</code>). Registration runs on 1024 px proxies
+      (<code>proxyMaxDimension</code>), brightness-capped to flat grey so glare carries
+      no gradient for the intensity-based aligner to chase, then blurred coarse and fine.</li>
+  <li>Each corner frame is registered onto the <strong>centre frame</strong> with
+      <code>VNHomographicImageRegistrationRequest</code>, from the seed hypotheses below.
+      Refinement iterates up to six passes; a converged warp must additionally pass a
+      direct image comparison (<code>alignmentError &lt; 0.04</code>) or the frame is
+      dropped rather than smeared into the result.</li>
+  <li>Verified frames are warped with <code>CIPerspectiveTransform</code> and cropped to
+      the reference’s extent — <em>unfilled</em> outside their own footprint, so healing
+      can tell “white because glare-free” from “white because not covered”.</li>
+  <li><code>healedComposite</code> applies per-frame photometric gain compensation, builds
+      a robust vote-of-covering-frames darkening map, thresholds / dilates / feathers it
+      into a glare mask, and blends the min-composite in only where the mask fires.
+      Pristine reference pixels survive everywhere else.</li>
+  <li><code>Rectifier</code> warps the finished composite square-on and crops it to the
+      region the camera covered.</li>
+</ol>
+
+<h3>Registration seeds, best first</h3>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Seed</th><th>What it is</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>Plane</strong></td>
+      <td>The warp the two shots’ ARKit poses imply for anything lying on the table
+          (<code>PlaneRectification.relative</code>). The only hypothesis that models the
+          perspective change rather than approximating it as a shift, and the only one
+          measured by world tracking rather than off the pixels — so the specular patch
+          that can capture the bootstrap has no hold on it. Present only when the burst
+          carries geometry.</td>
+    </tr>
+    <tr>
+      <td><strong>Translational bootstrap</strong></td>
+      <td>A translation-only Vision registration on the heavily blurred proxies. Far more
+          constrained than the homographic search, so it lands within a few pixels even
+          where the homographic aligner diverges — but a dominant specular patch can
+          hijack its correlation.</td>
+    </tr>
+    <tr>
+      <td><strong>Expected shift</strong></td>
+      <td>The guided flow’s geometric expectation: the shot fired with a known anchor
+          steered to frame centre, so the content moved by that steering distance.</td>
+    </tr>
+    <tr>
+      <td><strong>Identity</strong></td>
+      <td>Right whenever the user barely moved between shots.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+  The verification gate decides between them; a bad seed costs a few wasted refinement
+  passes, never a bad warp.
+</p>
+
+<h3>Rectification and cropping</h3>
+
+<p>
+  <code>Rectifier</code> builds the output space from the reference shot’s geometry: the
+  plane region that shot sees, viewed square-on, at a 2048 px long side. The output’s
+  “up” is the reference photo’s own up projected onto the plane, so the result is
+  oriented the way the user framed it.
+</p>
+
+<div class="callout insight">
+  <strong>Invariant — rectify once, after fusion; never per frame before it</strong>
+  ARKit reports the plane of the <em>table</em>, but the box stands centimetres above it
+  and the five shots come from five different positions. Warping each frame by the
+  table’s homography therefore leaves each frame’s subject displaced by its own parallax:
+  the burst disagrees precisely on the thing being photographed, and healing fuses the
+  disagreement into doubled lettering and smeared background. Vision’s registration,
+  left alone, finds the plane the <em>content</em> lies on, which is the right one.
+  Rectifying afterwards costs nothing, because two parallel horizontal planes induce
+  rectifying homographies that differ only by a uniform scale and translation — squaring
+  up the table squares up the box’s face too.
+</div>
+
+<div class="callout insight">
+  <strong>Invariant — never fill what the camera did not see</strong>
+  Rectifying an oblique frame turns its rectangular footprint into a keystone, leaving
+  wedges along the output edges. Filling them — with white, or anything else — puts a
+  long, straight, frame-spanning, high-contrast boundary into the composite, which is
+  exactly what the <code>lines</code> generator in stage 3 looks for; it will prefer that
+  boundary to the puzzle. <code>PlaneRectification.coveredRect</code> crops to the
+  largest axis-aligned rectangle the camera genuinely covered, so every pixel of the
+  composite is real and the strongest rectangle left in it is the picture’s.
+</div>
+
+<h2 id="detect">5. Stage 3 — detection and crop</h2>
+
+<p>
+  The composite is JPEG-normalized (long side capped at 1920 by
+  <code>ImageUtilities.normalizedJPEG</code>) and POSTed to
+  <code>/api/v1/puzzle/detect-frame</code>, which calls
+  <code>PuzzleFrameDetector.detect_corners</code> and then <code>warp</code>.
+</p>
+
+<h3>Four generators, one score</h3>
+
+<p>
+  <code>detect_candidates</code> runs every generator on every photo and scores their
+  proposals on one scale. This is a fusion, not a chain: which generator answered says
+  nothing about whether its answer is right.
+</p>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Generator</th><th>How it proposes a quad</th></tr></thead>
+  <tbody>
+    <tr><td><code>mask</code></td>
+        <td>Colour residual against the background’s chroma — shadow-invariant, since a
+            shadow scales luminance without changing hue — plus a brighter-than-background
+            luminance rule.</td></tr>
+    <tr><td><code>grabcut</code></td>
+        <td>When that mask has real evidence but fragments (a washed-out print under warm
+            light), grows the fragments to the subject’s true colour boundary.</td></tr>
+    <tr><td><code>edge</code></td>
+        <td>Traces closed contours in the Canny map and reduces each to a convex quad.</td></tr>
+    <tr><td><code>lines</code></td>
+        <td>Groups long Hough segments into two roughly orthogonal families, merges
+            duplicates, and intersects pairs. Needs no unbroken contour, so it survives
+            textured backgrounds — and it wins on most real captures.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Scoring</h3>
+
+<p>
+  <code>evidence = rectangularity<sup>2</sup> × edge_support × border_contrast</code>,
+  and candidates rank on <code>evidence × coverage</code>. Anything scoring below
+  <code>MIN_CANDIDATE_SCORE</code> (0.02) is discarded; if nothing survives, detection
+  returns the full frame at zero confidence.
+</p>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Term</th><th>What it measures</th></tr></thead>
+  <tbody>
+    <tr><td><code>rectangularity</code></td>
+        <td>How close the quad’s corners are to right angles. Squared, so a sprawling
+            quad cannot buy its way back with coverage.</td></tr>
+    <tr><td><code>edge_support</code></td>
+        <td>Fraction of the quad’s outline backed by detected edges, <em>in excess of
+            chance</em> — on carpet the dilated Canny map is dense enough that any outline
+            hits edges by luck. The probe window narrows adaptively with edge density
+            (<code>CHANCE_TARGET</code>), and above <code>MAX_INFORMATIVE_CHANCE</code>
+            the term abstains rather than vetoing every candidate.</td></tr>
+    <tr><td><code>border_contrast</code></td>
+        <td>The fraction of each side across which the colour steps the same way, scored
+            as the weakest side. A real object differs from its surroundings in one
+            direction along its whole outline. Taking the fraction rather than the mean
+            also catches a quad that clips a corner.</td></tr>
+    <tr><td><code>coverage</code></td>
+        <td>How much of the frame the quad fills. Ranks candidates only — it is
+            deliberately excluded from the reported confidence, since how much of the
+            frame the puzzle occupies says nothing about whether the quad is right.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="callout insight">
+  <strong>Why border contrast is the load-bearing term</strong>
+  On a box photographed on carpet under directional light, the cast shadow’s boundary is
+  every bit as long and as straight as the box’s own edge. Both the contour tracer and
+  the line generator will happily build a quad that includes the shadow, and no amount of
+  <em>edge</em> evidence separates the two. What does: the shadow quad steps toward
+  shadow on one side and toward bright cardboard on the others, while the box steps the
+  same way all round.
+</div>
+
+<h3>The warp</h3>
+
+<p>
+  <code>warp</code> maps the quad onto an axis-aligned rectangle sized from the quad’s
+  own edge lengths — <code>max(|TL−TR|, |BL−BR|)</code> by
+  <code>max(|TL−BL|, |TR−BR|)</code>. This is only correct because stage 2 has already
+  made the composite square-on; on a genuinely oblique input the two horizontal edges are
+  foreshortened by different amounts and this sizing mis-shapes the crop.
+</p>
+
+<h2 id="geometry">6. The plane geometry</h2>
+
+<p>
+  <code>PlaneRectification</code> is pure geometry with no ARKit dependency, so it is
+  testable against closed-form answers. Plane coordinates are world <code>(x, z)</code>
+  in metres — the world is gravity-aligned and the surface horizontal, so the plane’s
+  height enters only through <code>planeHeight</code>.
+</p>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Function</th><th>What it gives</th></tr></thead>
+  <tbody>
+    <tr><td><code>uprightIntrinsics</code></td>
+        <td>The sensor’s intrinsics restated for the upright portrait still: scaled from
+            <code>camera.imageResolution</code> to the high-resolution capture, then
+            rotated 90° clockwise, which sends landscape pixel <code>(x, y)</code> of a
+            W×H buffer to portrait <code>(H − y, x)</code>.</td></tr>
+    <tr><td><code>planeToImage</code></td>
+        <td>The 3×3 taking a plane point to a pixel of that shot. A plane is
+            two-dimensional, so the full projection collapses to one matrix per shot.</td></tr>
+    <tr><td><code>outputSpace</code></td>
+        <td>The shared square-on space, sized from the reference frame’s footprint on the
+            plane. Returns nil when a frame corner misses the plane — the horizon is in
+            shot — which is the caller’s signal to skip rectification.</td></tr>
+    <tr><td><code>coveredRect</code></td>
+        <td>The largest axis-aligned rectangle of that space the frame actually covers.</td></tr>
+    <tr><td><code>relative</code></td>
+        <td>The warp carrying one shot’s pixels onto another’s via the plane. Exact only
+            for content <em>on</em> the plane, which is why it seeds registration rather
+            than replacing it.</td></tr>
+    <tr><td><code>lowerLeftOrigin</code>, <code>scalingSource</code>,
+            <code>scalingDestination</code></td>
+        <td>Coordinate plumbing: top-left ↔ Core Image’s lower-left origin, and rescaling
+            a full-resolution warp for downscaled working copies.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="degrade">7. When something fails</h2>
+
+<p>Every stage degrades rather than dead-ends. What the user gets:</p>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Failure</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>A corner frame will not register</td>
+        <td>Dropped from the composite. Four frames still beat one.</td></tr>
+    <tr><td>No corner frame registers</td>
+        <td>The reference shot alone, still rectified. <code>alignedFrameCount == 0</code>,
+            which the capture view surfaces as “used the centre photo as-is”. There has
+            been no glare removal.</td></tr>
+    <tr><td>Masked healing fails outright</td>
+        <td>Same as above.</td></tr>
+    <tr><td>No ARKit geometry (Simulator, or the surface was never found)</td>
+        <td>No rectification. The composite keeps the centre shot’s perspective and the
+            backend crops the trapezoid.</td></tr>
+    <tr><td>The reference frame’s corners miss the plane</td>
+        <td>Rectification is skipped for the whole burst.</td></tr>
+    <tr><td>No detector candidate scores above the floor</td>
+        <td>The full frame at zero confidence — the user trims by retaking.</td></tr>
+    <tr><td>Confidence below 0.4</td>
+        <td>The confirm screen warns “Detection looks uncertain”.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="measure">8. Measuring it</h2>
+
+<p>
+  <code>scripts/rectify_quality/</code> runs the shipped detection and warp over a
+  DEBUG-build capture dump and reports, per image: which generator won, the confidence,
+  IoU and corner error against a hand-labelled quad, the rectangle’s <em>true</em> aspect
+  ratio recovered from the image quad (Zhang &amp; He), the aspect the crop actually got,
+  the shot’s tilt, and the residual skew left inside the crop. Its self-tests validate
+  the <em>metrics</em> against closed-form answers rather than testing the detector.
+</p>
+
+<p>
+  DEBUG builds dump each burst — the five raw frames, the composite, and the camera
+  geometry — to <code>Documents/GlareFreeDumps/</code>. The scorer reads the geometry to
+  say whether a dump was rectified on device, and takes the real focal length from it
+  instead of assuming a field of view.
+</p>
+
+<p>Current state on real device captures (boxes and a poster, on carpet):</p>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+  <tbody>
+    <tr><td>Residual skew in the crop</td><td>0.00° on every box capture</td></tr>
+    <tr><td>Shot tilt carried into the output</td><td>1.2–2.0°</td></tr>
+    <tr><td>Aspect error vs. the true rectangle</td><td>under 1%</td></tr>
+    <tr><td>Corner frames registering</td><td>15/16</td></tr>
+    <tr><td>Detector IoU vs. hand-labelled quads</td><td>mean 0.93</td></tr>
+    <tr><td>Detector corner RMS</td><td>mean 30.2 px at a 2048 px long side</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="limits">9. Known limits</h2>
+
+<ul>
+  <li>
+    <strong>Resolution is capped well below what the burst contains.</strong> Each shot
+    arrives at 12 MP and is downscaled to 2048 px before anything else happens; the upload
+    is capped at 1920. The five frames are now genuine multi-view samples of one plane —
+    the precondition for rendering above single-shot resolution — but fusion still
+    <em>picks</em> pixels (a min-composite inside the glare mask) rather than combining
+    them, so outside glare the extra four frames contribute nothing. Whether that costs
+    piece-matching accuracy is untested; the cheap experiment is to run the north-star
+    eval with the overview downsampled and see whether accuracy is resolution-limited
+    at all.
+  </li>
+  <li>
+    <strong>Confidence is miscalibrated on soft-edged subjects.</strong> Poster captures
+    score 0.34–0.44 with visibly correct quads, tripping the “uncertain” warning at 0.4.
+  </li>
+  <li>
+    <strong>Low-contrast subjects on wooden surfaces can defeat every generator.</strong>
+    One capture in the benchmark set produces candidates scoring exactly zero on every
+    evidence term.
+  </li>
+  <li>
+    <strong>No manual corner adjustment.</strong> A wrong crop is fixed by retaking, not
+    by dragging.
+  </li>
+</ul>
+
+<p class="footnote">
+  Sources: <code>ios/Pussel/Features/Capture/GlareFree/</code>,
+  <code>ios/Pussel/Features/Capture/ConfirmTrimView.swift</code>,
+  <code>backend/app/services/puzzle_detector.py</code>,
+  <code>backend/app/main.py</code> (<code>/api/v1/puzzle/detect-frame</code>),
+  <code>scripts/rectify_quality/README.md</code>,
+  <code>scripts/stitch_quality/README.md</code>.
+</p>
+
+</div>
+</body>
+</html>
