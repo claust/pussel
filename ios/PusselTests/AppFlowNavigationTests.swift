@@ -83,6 +83,19 @@ final class AppFlowNavigationTests: XCTestCase {
     XCTAssertTrue(flow.canGoBack)
   }
 
+  /// Opening a puzzle reads its files off the main actor, so the user can go
+  /// back before that read lands. Clearing the token is what tells the read it
+  /// is stale — without it the finished session would arrive on top of the
+  /// home screen the user had just returned to.
+  func testGoBackCancelsAnInFlightOpen() {
+    let flow = AppFlowStore()
+    flow.phase = .solving(session())
+    flow.openingPuzzle = UUID()
+
+    flow.goBack()
+    XCTAssertNil(flow.openingPuzzle)
+  }
+
   func testGoBackClearsWizardState() {
     let flow = AppFlowStore()
     flow.phase = .solving(session())

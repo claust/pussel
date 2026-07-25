@@ -42,7 +42,9 @@ open Pussel.xcodeproj
   `Documents/Puzzles/<uuid>/` (a `manifest.json`, the `trimmed.jpg` picture,
   and a `pieces/` folder of per-piece image files). No server storage: a
   session is saved on every change (create, prediction done, remove, reupload)
-  and rehydrated purely from disk when reopened
+  and rehydrated purely from disk when reopened — the reopen reads and decodes
+  off the main actor (`loadSession` is async), so a puzzle whose files aren't
+  in the page cache doesn't freeze the UI while it opens
 - **Networking/** — `APIClient` (async URLSession, Bearer auth, central
   401 → silent re-auth → retry), `MultipartFormData`
 - **Features/Auth/** — Google Sign-In via the GoogleSignIn SDK; the backend

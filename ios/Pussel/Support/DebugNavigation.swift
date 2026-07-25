@@ -91,7 +91,7 @@
       case "reupload":
         await debugReupload()
       case "open":
-        debugOpen(index: value("index"))
+        await debugOpen(index: value("index"))
       case "delete":
         debugDelete(index: value("index"))
       case "camera":
@@ -138,11 +138,11 @@
       }
     }
 
-    private func debugOpen(index: String?) {
+    private func debugOpen(index: String?) async {
       guard let index = index.flatMap(Int.init), store.puzzles.indices.contains(index) else {
         return
       }
-      openPuzzle(store.puzzles[index].id)
+      await openPuzzle(store.puzzles[index].id)
     }
 
     private func debugDelete(index: String?) {

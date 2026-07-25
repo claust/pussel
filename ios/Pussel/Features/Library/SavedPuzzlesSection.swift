@@ -44,9 +44,11 @@ struct SavedPuzzlesSection: View {
               }
             }
           ),
-          onOpen: { model.openPuzzle(puzzle.id) },
+          onOpen: { Task { await model.openPuzzle(puzzle.id) } },
           onDelete: { delete(puzzle) },
-          content: { SavedPuzzleRow(puzzle: puzzle) }
+          content: {
+            SavedPuzzleRow(puzzle: puzzle, isOpening: model.flow.openingPuzzle == puzzle.id)
+          }
         )
         .contextMenu {
           Button(role: .destructive) {
@@ -299,6 +301,11 @@ private struct HorizontalPanGesture: UIGestureRecognizerRepresentable {
 
 private struct SavedPuzzleRow: View {
   let puzzle: PuzzleSummary
+  /// True while this puzzle's files are being read (see
+  /// `AppModel.openPuzzle`). That read is off the main actor now, so the tap
+  /// leaves the list responsive — and with nothing else moving, the row has
+  /// to say for itself that it was heard.
+  var isOpening = false
 
   var body: some View {
     HStack(spacing: 12) {
@@ -313,9 +320,16 @@ private struct SavedPuzzleRow: View {
           .foregroundStyle(.secondary)
       }
       Spacer(minLength: 0)
-      Image(systemName: "chevron.right")
-        .font(.footnote.weight(.semibold))
-        .foregroundStyle(.tertiary)
+      // In the chevron's place rather than beside it, so the row's layout
+      // doesn't shift under the finger that just tapped it.
+      if isOpening {
+        ProgressView()
+          .controlSize(.small)
+      } else {
+        Image(systemName: "chevron.right")
+          .font(.footnote.weight(.semibold))
+          .foregroundStyle(.tertiary)
+      }
     }
     .padding(10)
     .background(

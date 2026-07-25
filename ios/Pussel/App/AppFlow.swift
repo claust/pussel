@@ -86,6 +86,14 @@ final class AppFlowStore {
   /// picker on appear; cleared once consumed.
   var pendingRetake: CaptureSource?
 
+  /// The stored puzzle whose files are being read for a solve session, if any
+  /// (see `AppModel.openPuzzle`). Doubles as the home-screen row's spinner and
+  /// as the token that tells a finished read whether it is still wanted:
+  /// anything that resets the wizard — going back, signing out — clears it,
+  /// so a read that lands afterwards drops its session instead of pushing the
+  /// user into a screen they already left.
+  var openingPuzzle: UUID?
+
   #if DEBUG
     /// Forces CapturePuzzleView's capture cover open even when
     /// `BoxCameraSession.isCameraAvailable` is false (the Simulator), so
@@ -100,6 +108,7 @@ final class AppFlowStore {
     isBusy = false
     errorMessage = nil
     pendingRetake = nil
+    openingPuzzle = nil
   }
 
   /// Whether the navigation bar's leading chevron leads anywhere from here.
