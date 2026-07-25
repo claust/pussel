@@ -127,16 +127,14 @@ final class PuzzleStore {
     try? FileManager.default.createDirectory(at: pieces, withIntermediateDirectories: true)
 
     let trimmed = trimmedURL(session.id)
-    if !FileManager.default.fileExists(atPath: trimmed.path) {
+    if !exists(trimmed) {
       try? session.trimmedJPEG.write(to: trimmed, options: .atomic)
     }
     // The zoom copy is optional and immutable, so it's written once and its
     // absence is a valid state (puzzles from before it was kept, and captures
     // whose re-warp failed) — loadSession falls back to the trimmed image.
     let display = puzzleDisplayURL(session.id)
-    if let displayJPEG = session.displayJPEG,
-      !FileManager.default.fileExists(atPath: display.path)
-    {
+    if let displayJPEG = session.displayJPEG, !exists(display) {
       try? displayJPEG.write(to: display, options: .atomic)
     }
     // The trimmed image is immutable, so its downsampled thumbnail is
@@ -152,12 +150,12 @@ final class PuzzleStore {
     var persistedEntries: [CaptureEntry] = []
     for entry in session.entries {
       let upload = uploadURL(session.id, entry.id)
-      if !FileManager.default.fileExists(atPath: upload.path) {
+      if !exists(upload) {
         try? entry.uploadJPEG.write(to: upload, options: .atomic)
       }
       // Skip entries whose upload image didn't make it to disk; they'll be
       // retried on the next persist() rather than left dangling.
-      guard FileManager.default.fileExists(atPath: upload.path) else { continue }
+      guard exists(upload) else { continue }
       keep.insert(entry.id.uuidString)
 
       let display = displayURL(session.id, entry.id)
@@ -165,9 +163,7 @@ final class PuzzleStore {
       // differs from the raw capture, otherwise the bytes are duplicated.
       // The cleaned image is immutable once predicted, so skip the rewrite
       // if it already exists (avoids rewriting every piece on each persist).
-      if entry.displayImage != entry.uploadJPEG,
-        !FileManager.default.fileExists(atPath: display.path)
-      {
+      if entry.displayImage != entry.uploadJPEG, !exists(display) {
         try? entry.displayImage.write(to: display, options: .atomic)
       }
       persistedEntries.append(entry)
@@ -427,6 +423,12 @@ final class PuzzleStore {
   private nonisolated var rootURL: URL {
     let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
     return docs.appendingPathComponent("Puzzles", isDirectory: true)
+  }
+
+  /// Whether a stored file is already there. `save` asks this of every image
+  /// it might write, so it earns a name of its own.
+  private nonisolated func exists(_ url: URL) -> Bool {
+    FileManager.default.fileExists(atPath: url.path)
   }
 
   private nonisolated func puzzleDir(_ id: UUID) -> URL {
