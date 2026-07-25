@@ -218,16 +218,15 @@ struct GlareFreeCaptureView: View {
           GuideDot(onTarget: false)
             .position(center)
         } else {
-          TargetRing(onTarget: dotIsOnTarget)
-            .position(center)
-          if let dot = controller.dotUnitPosition,
-            let aspect = controller.guide?.frameAspect
-          {
+          let target = trackedTargetPoint(in: proxy.size)
+          TargetRing(
+            onTarget: dotIsOnTarget,
+            targetAngle: angle(from: center, to: target)
+          )
+          .position(center)
+          if let target {
             GuideDot(onTarget: dotIsOnTarget)
-              .position(
-                clamped(
-                  mapped(dot, frameAspect: aspect, into: proxy.size),
-                  within: proxy.size))
+              .position(clamped(target, within: proxy.size))
           }
         }
       }
@@ -253,8 +252,12 @@ struct GlareFreeCaptureView: View {
       if overlay.outline.count == 4 {
         PuzzleOutline(points: overlay.outline)
       }
-      TargetRing(onTarget: dotIsOnTarget)
-        .position(center)
+      TargetRing(
+        onTarget: dotIsOnTarget,
+        targetAngle: angle(
+          from: center, to: overlay.targets.element(at: step - 1).flatMap { $0 })
+      )
+      .position(center)
       ForEach(Array(overlay.targets.enumerated()), id: \.offset) { index, point in
         if let point {
           if index == step - 1 {
@@ -291,6 +294,26 @@ struct GlareFreeCaptureView: View {
     return CGPoint(
       x: (size.width - filled.width) / 2 + unit.x * filled.width,
       y: (size.height - filled.height) / 2 + unit.y * filled.height)
+  }
+
+  /// The registration backend's tracked target in view coordinates,
+  /// unclamped — nil until a measurement has landed.
+  private func trackedTargetPoint(in size: CGSize) -> CGPoint? {
+    guard let dot = controller?.dotUnitPosition,
+      let aspect = controller?.guide?.frameAspect
+    else { return nil }
+    return mapped(dot, frameAspect: aspect, into: size)
+  }
+
+  /// Direction from the center ring toward the current target, in radians of
+  /// screen space (0 = right, +½π = down) — what the ring's rim arrow points
+  /// along. Nil once the target is close enough that the arrow would just
+  /// spin around the rim while the dot itself says everything.
+  private func angle(from center: CGPoint, to target: CGPoint?) -> CGFloat? {
+    guard let target else { return nil }
+    let delta = CGPoint(x: target.x - center.x, y: target.y - center.y)
+    guard hypot(delta.x, delta.y) > TargetRing.diameter / 2 else { return nil }
+    return atan2(delta.y, delta.x)
   }
 
   /// Keeps the dot visible even when its anchor is outside the view — a
@@ -521,16 +544,62 @@ private struct SurfaceReadyFrame: View {
 }
 
 /// The fixed screen-center ring the tracked dot must be steered into.
+///
+/// `targetAngle` adds a small arrow riding just inside the rim, pointing the
+/// way to the current target and nudging back and forth along that heading
+/// until the target is reached. It earns its keep when the target sits at
+/// the edge of the preview — or off it entirely, where the dot is pinned to
+/// a border and no longer says which direction it came from.
 private struct TargetRing: View {
+  static let diameter: CGFloat = 84
+  /// The arrow's travel, as distances from the ring's center.
+  private static let arrowNear: CGFloat = 24
+  private static let arrowFar: CGFloat = 33
+
   let onTarget: Bool
+  var targetAngle: CGFloat?
+
+  @State private var nudging = false
 
   var body: some View {
-    Circle()
-      .stroke(
-        onTarget ? Color.green : Color.white.opacity(0.85),
-        style: StrokeStyle(lineWidth: 3, dash: [7, 6])
-      )
-      .frame(width: 84, height: 84)
-      .shadow(radius: 4)
+    ZStack {
+      Circle()
+        .stroke(
+          onTarget ? Color.green : Color.white.opacity(0.85),
+          style: StrokeStyle(lineWidth: 3, dash: [7, 6])
+        )
+        .frame(width: Self.diameter, height: Self.diameter)
+      if let targetAngle, !onTarget {
+        Image(systemName: "arrowtriangle.up.fill")
+          .font(.system(size: 15))
+          .foregroundStyle(.green)
+          // Broader than tall, so it reads as a direction marker rather
+          // than a stray dash of the ring.
+          .scaleEffect(x: 1.5, y: 1)
+          // Ride out along the heading and back — the offset runs before
+          // the rotation, so "out" is always toward the target.
+          .offset(y: -(nudging ? Self.arrowFar : Self.arrowNear))
+          .animation(
+            .easeInOut(duration: 0.75).repeatForever(autoreverses: true), value: nudging
+          )
+          // Swing the whole thing around the ring's center: SwiftUI rotates
+          // the offset view about that center, so the arrow both moves and
+          // turns in one step.
+          .rotationEffect(.radians(Double(targetAngle) + .pi / 2))
+          .animation(.easeOut(duration: 0.15), value: targetAngle)
+          .onAppear { nudging = true }
+      }
+    }
+    .frame(width: Self.diameter, height: Self.diameter)
+    .shadow(radius: 4)
+  }
+}
+
+extension Array {
+  /// Bounds-checked lookup — the corner-target list is short and the step
+  /// index comes from the controller, so a mismatch should draw nothing
+  /// rather than trap.
+  fileprivate func element(at index: Int) -> Element? {
+    indices.contains(index) ? self[index] : nil
   }
 }
