@@ -247,7 +247,7 @@ def score_image(
     }
 
     if truth_corners is not None:
-        errors = corner_errors(corners, truth_corners)
+        errors = corner_errors(corners, truth_corners, image_size=(width, height))
         record["truth"] = {
             "corners": [[round(x, 5), round(y, 5)] for x, y in truth_corners],
             "iou": round(quad_iou(corners, truth_corners), 4),

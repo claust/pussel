@@ -480,22 +480,43 @@ def quad_iou(first: Sequence[Point], second: Sequence[Point], size: Tuple[int, i
     return float(np.count_nonzero(masks[0] & masks[1])) / union
 
 
-def corner_errors(detected: Sequence[Point], truth: Sequence[Point], long_side: int = REPORTING_LONG_SIDE) -> Dict:
+def corner_errors(
+    detected: Sequence[Point],
+    truth: Sequence[Point],
+    image_size: Optional[Tuple[int, int]] = None,
+    long_side: int = REPORTING_LONG_SIDE,
+) -> Dict:
     """Per-corner distance between a detected quad and a hand-labelled one.
 
     Both quads are ordered TL/TR/BR/BL first, so the comparison is corner to
     corner rather than order-dependent.
 
+    Errors are reported as pixels of the same image rescaled to `long_side`, so
+    dumps at different resolutions compare directly. That needs `image_size`:
+    the corners are normalized per axis (x by width, y by height), so scaling
+    both by `long_side` would measure the short axis in units of the long one —
+    on a 3:4 portrait frame that inflates the short-axis error by 4/3.
+
+    Without `image_size` the image is assumed square, which is what the caller
+    wants only when it genuinely is.
+
     Args:
         detected: Four (x, y) points normalized to [0, 1].
         truth: Four (x, y) points normalized to [0, 1].
+        image_size: The image's (width, height) in pixels.
         long_side: Pixel scale the errors are reported at.
 
     Returns:
         A dict with "rms_px", "max_px" and "per_corner_px".
     """
-    detected_ordered = np.array(order_corners(detected)) * long_side
-    truth_ordered = np.array(order_corners(truth)) * long_side
+    scale = np.array([long_side, long_side], dtype=float)
+    if image_size is not None:
+        width, height = image_size
+        longest = max(width, height)
+        if longest > 0:
+            scale = np.array([long_side * width / longest, long_side * height / longest])
+    detected_ordered = np.array(order_corners(detected)) * scale
+    truth_ordered = np.array(order_corners(truth)) * scale
     distances = np.linalg.norm(detected_ordered - truth_ordered, axis=1)
     return {
         "rms_px": float(np.sqrt(np.mean(distances**2))),

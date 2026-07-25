@@ -96,8 +96,11 @@ puzzle at all scoring 0.24. Treat it as separating "found a rectangle" from
 
 Needs `truth.json`. IoU is rasterized rather than analytic, so degenerate
 self-intersecting quads can't break it. Corner errors compare TL-to-TL after
-both quads are ordered, reported in pixels at a normalized 2048 px long side
-so dumps at different resolutions are comparable.
+both quads are ordered, reported in pixels of the same image rescaled to a
+2048 px long side, so dumps at different resolutions are comparable. Each axis
+is scaled by its own dimension: the corners are normalized per axis, so
+scaling both by the long side would measure the short axis in units of the
+long one and inflate it (by 4/3 on a 3:4 frame).
 
 ### `true_ar` — the aspect ratio the puzzle actually has
 

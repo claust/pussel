@@ -210,6 +210,31 @@ def test_quad_iou_is_one_for_identical_quads_and_zero_for_disjoint() -> None:
     assert quad_iou(quad, far) == pytest.approx(0.0, abs=0.01)
 
 
+def test_corner_errors_scale_each_axis_by_its_own_dimension() -> None:
+    """A normalized offset means different pixel counts on each axis.
+
+    The corners are normalized per axis, so on a 3:4 portrait frame one
+    normalized unit of x is three-quarters as many pixels as one unit of y.
+    Scaling both by the long side — which this did originally — reports the
+    short axis in units of the long one and inflates it by 4/3.
+    """
+    truth = [(0.2, 0.2), (0.8, 0.2), (0.8, 0.8), (0.2, 0.8)]
+    shifted_x = [(x + 0.1, y) for x, y in truth]
+    shifted_y = [(x, y + 0.1) for x, y in truth]
+    portrait = (1536, 2048)
+
+    across = corner_errors(shifted_x, truth, image_size=portrait)["rms_px"]
+    down = corner_errors(shifted_y, truth, image_size=portrait)["rms_px"]
+    # 0.1 of a 1536-wide frame rescaled to a 2048 long side is 0.1 * 1536 = 153.6.
+    assert across == pytest.approx(153.6, abs=0.1)
+    assert down == pytest.approx(204.8, abs=0.1)
+    assert across / down == pytest.approx(1536 / 2048, rel=1e-6)
+
+    # Square images are the one case where the old behaviour was right.
+    square = corner_errors(shifted_x, truth, image_size=(1000, 1000))["rms_px"]
+    assert square == pytest.approx(corner_errors(shifted_x, truth)["rms_px"], rel=1e-9)
+
+
 def test_corner_errors_are_order_independent() -> None:
     """Corner errors compare TL to TL regardless of the input ordering."""
     truth = [(0.2, 0.2), (0.8, 0.2), (0.8, 0.8), (0.2, 0.8)]

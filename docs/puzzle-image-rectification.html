@@ -601,13 +601,13 @@
 <table>
   <thead><tr><th>Capture</th><th>IoU</th><th>Corner RMS (px @2048)</th><th>Winner</th></tr></thead>
   <tbody>
-    <tr><td>121211 — the screenshot</td><td>0.91 → <strong>0.99</strong></td><td>69.2 → <strong>8.6</strong></td><td>edge → lines</td></tr>
-    <tr><td>115323</td><td>0.89 → <strong>0.94</strong></td><td>57.3 → <strong>20.1</strong></td><td>mask → grabcut</td></tr>
-    <tr><td>212628</td><td>0.77 → <strong>0.85</strong></td><td>141.2 → <strong>73.5</strong></td><td>edge → lines</td></tr>
-    <tr><td>123532</td><td>0.98 → <strong>0.99</strong></td><td>8.5 → <strong>6.7</strong></td><td>mask → lines</td></tr>
-    <tr><td>121439</td><td>0.85 → <strong>0.87</strong></td><td>60.2 → <strong>56.5</strong></td><td>edge → lines</td></tr>
-    <tr><td>115252</td><td>0.94 → 0.94</td><td>43.4 → 43.4</td><td>grabcut (unchanged)</td></tr>
-    <tr><td><strong>Mean</strong></td><td><strong>0.89 → 0.93</strong></td><td><strong>63.3 → 34.8</strong></td><td>—</td></tr>
+    <tr><td>121211 — the screenshot</td><td>0.91 → <strong>0.99</strong></td><td>54.1 → <strong>7.8</strong></td><td>edge → lines</td></tr>
+    <tr><td>115323</td><td>0.89 → <strong>0.94</strong></td><td>43.7 → <strong>16.6</strong></td><td>mask → grabcut</td></tr>
+    <tr><td>212628</td><td>0.77 → <strong>0.85</strong></td><td>133.7 → <strong>66.8</strong></td><td>edge → lines</td></tr>
+    <tr><td>123532</td><td>0.98 → <strong>0.99</strong></td><td>6.8 → <strong>6.0</strong></td><td>mask → lines</td></tr>
+    <tr><td>121439</td><td>0.85 → <strong>0.87</strong></td><td>54.3 → <strong>50.5</strong></td><td>edge → lines</td></tr>
+    <tr><td>115252</td><td>0.94 → 0.94</td><td>33.2 → 33.2</td><td>grabcut (unchanged)</td></tr>
+    <tr><td><strong>Mean</strong></td><td><strong>0.89 → 0.93</strong></td><td><strong>54.3 → 30.2</strong></td><td>—</td></tr>
   </tbody>
 </table>
 </div>
@@ -651,8 +651,8 @@
   </li>
   <li>
     <strong>B, detector fusion.</strong> <span class="pill have">done</span> Mean corner
-    error more than halved (63.3 → 34.8 px); the capture behind the screenshot went from
-    69 px to 9 px and now crops square-on. Manual corners deferred by choice — getting the
+    error nearly halved (54.3 → 30.2 px); the capture behind the screenshot went from
+    54 px to 8 px and now crops square-on. Manual corners deferred by choice — getting the
     rectangle right mattered more than a recovery path for getting it wrong.
   </li>
   <li>
