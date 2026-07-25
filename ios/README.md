@@ -78,6 +78,20 @@ make ios-deploy IOS_DEVICE=<name-or-udid>   # device is auto-detected otherwise
 `ios-deploy` needs `DEVELOPMENT_TEAM` set in `Config/Secrets.xcconfig` (device
 signing) and a device that's connected and trusts this Mac.
 
+It builds the Debug configuration with Swift optimization on
+(`SWIFT_OPTIMIZATION_LEVEL=-O`, `SWIFT_COMPILATION_MODE=wholemodule`): at
+`-Onone` the glare-free compose step takes ~8-10x longer (19.5s vs 2.5s on a
+real capture), which is the phone the app is actually scanned with. Only
+codegen changes — `DEBUG` is still defined, so the debug-only features below
+(auth bypass, command channel, `GlareFreeDumps` recording) all still work. The
+optimized build uses its own derived-data directory, `ios/.build-opt`, so it
+doesn't force full rebuilds when alternating with `ios-run` / `ios-test`.
+Turn it off — and fall back to the shared `ios/.build` — with:
+
+```bash
+make ios-deploy IOS_OPTIMIZE=0
+```
+
 ## Screenshots
 
 `make ios-screenshot` captures a booted Simulator or a connected device at

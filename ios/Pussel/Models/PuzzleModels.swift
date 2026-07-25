@@ -16,7 +16,14 @@ struct QuadCorners: Codable, Equatable {
 /// Response of POST /api/v1/puzzle/detect-frame.
 struct DetectFrameResponse: Codable, Equatable {
   /// data:image/jpeg;base64,... of the trimmed, perspective-corrected puzzle.
-  let trimmedImage: String
+  ///
+  /// Null (or absent) whenever the request opts out with `include_image=false`,
+  /// which is what `APIClient.detectFrame` always sends: the app re-warps the
+  /// same region locally from `corners` (see `TrimCandidate.croppedJPEG`), so
+  /// the echoed copy would be a base64 payload nobody reads. Kept optional
+  /// rather than dropped so a response from a backend that still echoes it
+  /// decodes unchanged.
+  let trimmedImage: String?
   let corners: QuadCorners
   let confidence: Double
 }

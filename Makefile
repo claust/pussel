@@ -135,6 +135,21 @@ IOS_DERIVED    = ios/.build
 IOS_SIM_ARCH  ?= $(shell uname -m)
 IOS_DESTINATION = platform=iOS Simulator,name=$(IOS_SIMULATOR),arch=$(IOS_SIM_ARCH)
 
+# Device deploys (ios-deploy) build the Debug configuration with Swift
+# optimization turned on. Unoptimized (-Onone) code makes the glare-free
+# compose step ~8-10x slower — 19.5s vs 2.5s on a real capture — and the phone
+# is where the app is actually used, so an unoptimized deploy misrepresents it.
+# These are codegen settings only: the Debug configuration still defines DEBUG,
+# so `#if DEBUG` features (GlareFreeDumps recording, the debug command channel)
+# keep working. Opt out with `make ios-deploy IOS_OPTIMIZE=0`.
+IOS_OPTIMIZE  ?= 1
+IOS_OPTIMIZE_ON = $(filter-out 0,$(IOS_OPTIMIZE))
+IOS_OPT_FLAGS  = $(if $(IOS_OPTIMIZE_ON),SWIFT_OPTIMIZATION_LEVEL=-O SWIFT_COMPILATION_MODE=wholemodule)
+# Flipping the optimization settings invalidates every object file, so sharing
+# IOS_DERIVED with ios-run/ios-test would mean a full rebuild on every switch
+# between simulator and device. The optimized build gets its own derived data.
+IOS_DEPLOY_DERIVED = $(if $(IOS_OPTIMIZE_ON),$(IOS_DERIVED)-opt,$(IOS_DERIVED))
+
 # Canonical (gitignored, machine-local) copy of the real secrets. It lives
 # outside every worktree so a fresh worktree or a `git clean` never loses it;
 # ios-generate restores ios/Config/Secrets.xcconfig from here automatically.
@@ -180,6 +195,8 @@ ios-test: ios-generate
 # Build a Debug build, then install + launch on a connected device (iPhone/iPad).
 # Requires DEVELOPMENT_TEAM in ios/Config/Secrets.xcconfig (device signing).
 # The device is auto-detected; override with IOS_DEVICE=<name-or-udid>.
+# Swift optimization is on by default (see IOS_OPTIMIZE above), which puts the
+# build in its own derived-data directory, $(IOS_DERIVED)-opt.
 ios-deploy: ios-generate
 	@DEVICE="$(IOS_DEVICE)"; \
 	if [ -z "$$DEVICE" ]; then \
@@ -191,9 +208,10 @@ ios-deploy: ios-generate
 	fi; \
 	echo "Deploying to device: $$DEVICE"; \
 	xcodebuild build -project "$(IOS_PROJECT)" -scheme "$(IOS_SCHEME)" \
-		-destination 'generic/platform=iOS' -derivedDataPath "$(IOS_DERIVED)" -allowProvisioningUpdates && \
+		-destination 'generic/platform=iOS' -derivedDataPath "$(IOS_DEPLOY_DERIVED)" \
+		-allowProvisioningUpdates $(IOS_OPT_FLAGS) && \
 	xcrun devicectl device install app --device "$$DEVICE" \
-		"$(IOS_DERIVED)/Build/Products/Debug-iphoneos/$(IOS_APP_NAME).app" && \
+		"$(IOS_DEPLOY_DERIVED)/Build/Products/Debug-iphoneos/$(IOS_APP_NAME).app" && \
 	xcrun devicectl device process launch --device "$$DEVICE" "$(IOS_BUNDLE_ID)"
 
 # Screenshot a connected device or a booted Simulator, whichever is available

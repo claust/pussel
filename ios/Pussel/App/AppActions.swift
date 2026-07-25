@@ -44,11 +44,22 @@ extension AppModel {
     }
     do {
       let detection = try await api.detectFrame(jpegData: jpeg)
+      // The backend is asked not to echo its crop back (`include_image=false`),
+      // so straighten the photo here from the corners it did return. Started
+      // as soon as the corners land and awaited below, so it overlaps whatever
+      // is left of the zoom encode and the OCR instead of queueing behind
+      // them; off the main actor because decoding, warping and re-encoding a
+      // multi-megapixel photo would otherwise freeze the screen. Computed once
+      // here rather than per access — see `TrimCandidate.trimmedJPEG`.
+      let trimTask = Task.detached(priority: .userInitiated) {
+        TrimCandidate.croppedJPEG(from: jpeg, corners: detection.corners)
+      }
       flow.phase = .confirmTrim(
         TrimCandidate(
           rawJPEG: jpeg, zoomSourceJPEG: await zoomSourceTask.value, detection: detection,
           source: source,
-          pieceCountEstimate: await countTask.value)
+          pieceCountEstimate: await countTask.value,
+          trimmedJPEG: await trimTask.value)
       )
     } catch {
       // Marks the encode and the OCR unwanted and drops them without waiting.
@@ -137,12 +148,12 @@ extension AppModel {
 
   /// Re-warps the kept zoom-quality photo to the accepted trim, so the solve
   /// screen can zoom into real detail instead of magnifying the
-  /// upload-resolution crop the backend returned.
+  /// upload-resolution crop.
   ///
   /// Uses the corners from the same detect-frame response the accepted
-  /// preview came from, so both copies frame the same region; `quarterTurns`
-  /// is the user's rotation, baked in here exactly as it is for the uploaded
-  /// image so the two stay in the same orientation.
+  /// preview was warped from, so both copies frame the same region;
+  /// `quarterTurns` is the user's rotation, baked in here exactly as it is for
+  /// the uploaded image so the two stay in the same orientation.
   ///
   /// Best-effort throughout: every failure yields nil, leaving the session to
   /// fall back to `trimmedJPEG` rather than blocking a working capture over a

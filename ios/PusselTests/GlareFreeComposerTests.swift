@@ -516,3 +516,67 @@ final class GlareFreeComposerTests: XCTestCase {
     )
   }
 }
+
+// MARK: - Incremental session
+
+/// The incremental face of the composer, driven the way the capture flow
+/// drives it. In an extension so these keep the fixtures above without
+/// pushing the class body past SwiftLint's `type_body_length` ceiling.
+extension GlareFreeComposerTests {
+  /// The pipelined path the capture flow actually uses: the same burst as
+  /// `testComposeRemovesReferenceGlare`, handed over a frame at a time so
+  /// the four registrations overlap, must heal the reference's glare just
+  /// as the all-at-once call does.
+  func testSessionHealsTheSameBurstHandedOverFrameByFrame() async throws {
+    let base = testCard()
+    let referenceGlare = CGPoint(x: 160, y: 160)
+    let reference = frame(base: base, translation: .zero, glareCenter: referenceGlare)
+    let shots: [(translation: CGSize, glare: CGPoint)] = [
+      (CGSize(width: 42, height: -38), CGPoint(x: 352, y: 160)),
+      (CGSize(width: -40, height: 36), CGPoint(x: 160, y: 352)),
+      (CGSize(width: 38, height: 40), CGPoint(x: 352, y: 352)),
+      (CGSize(width: -36, height: -42), CGPoint(x: 256, y: 96)),
+    ]
+
+    let session = try XCTUnwrap(GlareFreeComposer.Session(reference: reference, geometry: nil))
+    for shot in shots {
+      session.addFrame(
+        frame(base: base, translation: shot.translation, glareCenter: shot.glare),
+        expectedShift: CGSize(
+          width: shot.translation.width / CGFloat(cardSize),
+          height: shot.translation.height / CGFloat(cardSize)),
+        geometry: nil)
+    }
+    let composite = await session.finish()
+    let result = try XCTUnwrap(composite)
+
+    XCTAssertEqual(
+      result.alignedFrameCount, shots.count,
+      "all synthetic frames should register onto the reference")
+    XCTAssertEqual(result.image.size, reference.size)
+    let healed = pixel(of: result.image, at: referenceGlare)
+    assertClose(
+      healed, pixel(of: base, at: referenceGlare), tolerance: 40,
+      "glare spot should heal to the card color")
+    let clean = CGPoint(x: 96, y: 288)
+    assertClose(
+      pixel(of: result.image, at: clean), pixel(of: base, at: clean), tolerance: 40,
+      "clean area should keep the card color")
+  }
+
+  func testCancellingASessionDiscardsItsFrames() async throws {
+    let base = testCard()
+    let session = try XCTUnwrap(GlareFreeComposer.Session(reference: base, geometry: nil))
+    session.addFrame(
+      frame(base: base, translation: CGSize(width: 42, height: -38), glareCenter: nil),
+      expectedShift: nil, geometry: nil)
+    // A restart mid-burst: whatever that frame registers to is worth
+    // nothing without the burst it belonged to, so it must not reach a
+    // later composite.
+    session.cancel()
+    let composite = await session.finish()
+    let result = try XCTUnwrap(composite)
+    XCTAssertEqual(result.alignedFrameCount, 0)
+    XCTAssertEqual(result.image.size, base.size)
+  }
+}

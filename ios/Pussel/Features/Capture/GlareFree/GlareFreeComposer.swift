@@ -126,8 +126,12 @@ enum GlareFreeComposer {
   // reuses the same `CIContext` for its own `createCGImage` calls.
   static let context = CIContext()
 
-  /// Builds the glare-free composite. Synchronous and heavy (a few seconds
-  /// for five frames) — call it off the main actor.
+  /// Builds the glare-free composite in one synchronous, heavy call (a few
+  /// seconds for five frames) — call it off the main actor. The guided
+  /// capture flow drives `Session` instead, which does the same work but
+  /// starts each frame's registration as its shot lands; this entry point
+  /// is the whole burst at once, for callers that have one already (the
+  /// tests, and the dump replays).
   ///
   /// `expectedShifts` optionally carries, per extra frame, the content
   /// displacement the guided capture flow expects (unit coordinates,
@@ -154,64 +158,26 @@ enum GlareFreeComposer {
     reference: UIImage, others: [UIImage], expectedShifts: [CGSize?]? = nil,
     geometries: [PlaneCaptureGeometry?]? = nil
   ) -> Composite? {
-    guard let referenceCG = downscaledUpright(reference),
-      let referenceProxies = registrationProxies(of: referenceCG)
+    guard let session = Session(reference: reference, geometry: geometries?.first.flatMap({ $0 }))
     else { return nil }
-    let extent = CGRect(x: 0, y: 0, width: referenceCG.width, height: referenceCG.height)
-    let referenceImage = CIImage(cgImage: referenceCG)
-    let rectifier = Rectifier(geometries: geometries, referenceWidth: referenceCG.width)
-
-    // Registration is unchanged from the plain min-composite pipeline: each
-    // frame that registers and passes `alignmentError`'s verification gate
-    // (inside `homography`/`refined`) contributes its warped image here,
-    // UNFILLED (transparent, not white, outside its own footprint) —
-    // filling gaps is now `healedComposite`'s job, which needs to tell
-    // "white because glare-free" apart from "white because unfilled".
-    var verifiedFrames: [CIImage] = []
-    let referenceGeometry = geometries?.first.flatMap { $0 }
+    // The same session the capture flow drives, only run inline: each frame
+    // is registered on the calling thread, in call order, rather than on its
+    // own task. Registration frames are independent of one another, so
+    // running them serially or concurrently produces the same composite —
+    // this way round keeps the entry point synchronous.
+    var registered: [RegisteredFrame] = []
     for (index, other) in others.enumerated() {
       let expectedShift = expectedShifts.flatMap { $0.indices.contains(index) ? $0[index] : nil }
-      let floatingGeometry = geometries.flatMap {
+      let geometry = geometries.flatMap {
         $0.indices.contains(index + 1) ? $0[index + 1] : nil
       }
-      // Both ends or neither: a seed needs the pose of the frame it starts
-      // from *and* the one it aims at.
-      let planePoses = floatingGeometry.flatMap { floating in
-        referenceGeometry.map { (floating: floating, reference: $0) }
-      }
-      guard let otherCG = downscaledUpright(other),
-        let warp = homography(
-          mapping: otherCG, ontoReferenceProxies: referenceProxies,
-          expectedShift: expectedShift, planePoses: planePoses),
-        let warped = warpedImage(otherCG, by: warp)
+      guard
+        let frame = session.registeredFrame(
+          other, expectedShift: expectedShift, geometry: geometry)
       else { continue }
-      verifiedFrames.append(warped.cropped(to: extent))
+      registered.append(frame)
     }
-
-    guard !verifiedFrames.isEmpty else {
-      guard let output = rectifier.render(referenceImage, extent: extent) else { return nil }
-      return Composite(image: output, alignedFrameCount: 0)
-    }
-
-    guard
-      let healed = healedComposite(
-        reference: referenceImage, verifiedFrames: verifiedFrames, extent: extent)
-    else {
-      // The masked-healing math failed outright (an unexpected Core
-      // Graphics allocation failure, say) — fall back to the reference
-      // alone rather than losing the whole capture. `alignedFrameCount`
-      // reports 0, not how many frames registered: it counts frames whose
-      // pixels reached the output, and none of the extra frames' did. It is
-      // not a claim that the output *is* the reference byte for byte — the
-      // reference's own pixels are here, and are still plane-rectified. 0 is
-      // what the capture view keys its "used the center photo as-is"
-      // degradation message on.
-      guard let output = rectifier.render(referenceImage, extent: extent) else { return nil }
-      return Composite(image: output, alignedFrameCount: 0)
-    }
-    let healedImage = healed.cgImage.map(CIImage.init(cgImage:)) ?? referenceImage
-    guard let output = rectifier.render(healedImage, extent: extent) else { return nil }
-    return Composite(image: output, alignedFrameCount: verifiedFrames.count)
+    return session.composite(from: registered)
   }
 
   // MARK: - Plane rectification
@@ -658,5 +624,165 @@ enum GlareFreeComposer {
       image.draw(in: CGRect(origin: .zero, size: targetSize))
     }
     return upright.cgImage
+  }
+}
+
+/// The incremental compositing surface the guided capture flow drives —
+/// `GlareFreeComposer.Session` in production, a recording stand-in in the
+/// controller's tests, which have no Vision to run.
+protocol GlareFreeComposeSession: AnyObject {
+  /// Hands over one corner frame; registration starts immediately and runs
+  /// in the background, so the caller can go on capturing.
+  func addFrame(_ image: UIImage, expectedShift: CGSize?, geometry: PlaneCaptureGeometry?)
+  /// Awaits every frame handed over so far, then fuses them.
+  func finish() async -> GlareFreeComposer.Composite?
+  /// Abandons the burst: outstanding registrations are cancelled and their
+  /// results discarded.
+  func cancel()
+}
+
+// MARK: - Incremental compositing
+
+extension GlareFreeComposer {
+  /// One frame's registration result, on its way out of the detached task
+  /// that produced it. The wrapper exists only to carry a `CIImage` — which
+  /// predates `Sendable` and declares no conformance — across that task's
+  /// boundary; each is built inside its own task and read exactly once,
+  /// after that task has finished.
+  struct RegisteredFrame: @unchecked Sendable {
+    let image: CIImage
+  }
+
+  /// `compose` spread out over the capture it fuses: the reference is
+  /// prepared as soon as the center shot lands, and each corner frame is
+  /// registered onto it the moment that corner is shot, on its own task.
+  ///
+  /// The four registrations are what makes `compose` slow (Vision's
+  /// bootstrap plus up to six refinement passes, per frame), they are
+  /// independent of one another, and the capture flow spends seconds
+  /// between shots waiting for the user to aim — so running them
+  /// concurrently, as the burst arrives, hides nearly all of that cost
+  /// behind the capture. Only the parts that genuinely need the whole burst
+  /// (masked healing and plane rectification) are left for `finish`.
+  ///
+  /// Nothing about the per-frame pipeline changes: `registeredFrame` is the
+  /// body of the old serial loop, called from a task instead of inline, and
+  /// `composite` is the old tail. The synchronous `compose` above runs the
+  /// same two through this same type.
+  final class Session: GlareFreeComposeSession {
+    private let referenceImage: CIImage
+    private let referenceProxies: RegistrationProxies
+    private let referenceGeometry: PlaneCaptureGeometry?
+    private let extent: CGRect
+    private let rectifier: Rectifier
+    /// One entry per `addFrame`, in call order — `finish` collects them by
+    /// index, so a burst's composite doesn't depend on which registration
+    /// happened to land first.
+    private var registrations: [Task<RegisteredFrame?, Never>] = []
+
+    /// Prepares the reference frame: the downscale and the two blurred
+    /// registration proxies every corner frame is registered against, done
+    /// once here rather than per frame. Heavy — construct it off the main
+    /// actor. Fails exactly where `compose` fails on its reference, and
+    /// means the same thing: the reference shot is unusable.
+    ///
+    /// `geometry` is the reference shot's own camera geometry; the corner
+    /// shots' come in with them. Only the reference's decides the
+    /// rectification, since it is the frame everything else is registered
+    /// onto.
+    init?(reference: UIImage, geometry: PlaneCaptureGeometry?) {
+      guard let referenceCG = GlareFreeComposer.downscaledUpright(reference),
+        let proxies = GlareFreeComposer.registrationProxies(of: referenceCG)
+      else { return nil }
+      self.referenceImage = CIImage(cgImage: referenceCG)
+      self.referenceProxies = proxies
+      self.referenceGeometry = geometry
+      self.extent = CGRect(x: 0, y: 0, width: referenceCG.width, height: referenceCG.height)
+      self.rectifier = Rectifier(geometries: [geometry], referenceWidth: referenceCG.width)
+    }
+
+    func addFrame(_ image: UIImage, expectedShift: CGSize?, geometry: PlaneCaptureGeometry?) {
+      registrations.append(
+        Task.detached(priority: .userInitiated) { [self] in
+          // A frame cancelled before its task ever started is simply
+          // dropped; one already inside Vision runs to completion and has
+          // its result discarded by `cancel`, which is cheap enough — the
+          // burst it belonged to is over either way.
+          guard !Task.isCancelled else { return nil }
+          return registeredFrame(image, expectedShift: expectedShift, geometry: geometry)
+        })
+    }
+
+    func finish() async -> Composite? {
+      var registered: [RegisteredFrame] = []
+      for registration in registrations {
+        guard let frame = await registration.value else { continue }
+        registered.append(frame)
+      }
+      registrations = []
+      return composite(from: registered)
+    }
+
+    func cancel() {
+      for registration in registrations { registration.cancel() }
+      registrations = []
+    }
+
+    /// Registers one corner frame onto the reference, unchanged from the
+    /// serial composer's loop body: downscale, seek the homography (same
+    /// seed hypotheses, same verification gate), warp, crop.
+    ///
+    /// The returned frame is UNFILLED — transparent, not white, outside its
+    /// own footprint. Filling the gaps is `healedComposite`'s job, which
+    /// needs to tell "white because glare-free" apart from "white because
+    /// unfilled". A frame that fails to register (Vision throws, or
+    /// refinement never converges, or the converged warp fails
+    /// verification) comes back nil and is skipped: a glare-free result
+    /// from three frames still beats the single reference shot.
+    fileprivate func registeredFrame(
+      _ image: UIImage, expectedShift: CGSize?, geometry: PlaneCaptureGeometry?
+    ) -> RegisteredFrame? {
+      // Both ends or neither: a seed needs the pose of the frame it starts
+      // from *and* the one it aims at.
+      let planePoses = geometry.flatMap { floating in
+        referenceGeometry.map { (floating: floating, reference: $0) }
+      }
+      guard let floatingCG = GlareFreeComposer.downscaledUpright(image),
+        let warp = GlareFreeComposer.homography(
+          mapping: floatingCG, ontoReferenceProxies: referenceProxies,
+          expectedShift: expectedShift, planePoses: planePoses),
+        let warped = GlareFreeComposer.warpedImage(floatingCG, by: warp)
+      else { return nil }
+      return RegisteredFrame(image: warped.cropped(to: extent))
+    }
+
+    /// Fuses the frames that registered — masked healing, then plane
+    /// rectification — into the finished composite.
+    fileprivate func composite(from registered: [RegisteredFrame]) -> Composite? {
+      let verifiedFrames = registered.map(\.image)
+      guard !verifiedFrames.isEmpty else {
+        guard let output = rectifier.render(referenceImage, extent: extent) else { return nil }
+        return Composite(image: output, alignedFrameCount: 0)
+      }
+      guard
+        let healed = GlareFreeComposer.healedComposite(
+          reference: referenceImage, verifiedFrames: verifiedFrames, extent: extent)
+      else {
+        // The masked-healing math failed outright (an unexpected Core
+        // Graphics allocation failure, say) — fall back to the reference
+        // alone rather than losing the whole capture. `alignedFrameCount`
+        // reports 0, not how many frames registered: it counts frames whose
+        // pixels reached the output, and none of the extra frames' did. It is
+        // not a claim that the output *is* the reference byte for byte — the
+        // reference's own pixels are here, and are still plane-rectified. 0 is
+        // what the capture view keys its "used the center photo as-is"
+        // degradation message on.
+        guard let output = rectifier.render(referenceImage, extent: extent) else { return nil }
+        return Composite(image: output, alignedFrameCount: 0)
+      }
+      let healedImage = healed.cgImage.map(CIImage.init(cgImage:)) ?? referenceImage
+      guard let output = rectifier.render(healedImage, extent: extent) else { return nil }
+      return Composite(image: output, alignedFrameCount: verifiedFrames.count)
+    }
   }
 }

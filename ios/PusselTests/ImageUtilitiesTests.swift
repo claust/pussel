@@ -134,6 +134,82 @@ final class ImageUtilitiesTests: XCTestCase {
     XCTAssertEqual(turned.size.height * turned.scale, 800, accuracy: 1)
   }
 
+  // MARK: TrimCandidate.croppedJPEG(from:corners:)
+
+  /// The upload-size photo as the app holds it: JPEG bytes at an exact pixel
+  /// size, which is what `croppedJPEG` warps.
+  private func makeJPEG(width: Int, height: Int) throws -> Data {
+    try XCTUnwrap(makeImage(width: width, height: height).jpegData(compressionQuality: 0.9))
+  }
+
+  private func decodedPixelSize(_ data: Data) throws -> CGSize {
+    let image = try XCTUnwrap(UIImage(data: data))
+    return CGSize(width: image.size.width * image.scale, height: image.size.height * image.scale)
+  }
+
+  func testCroppedJPEGMatchesCornerGeometry() throws {
+    // The local crop stands in for the server's `trimmed_image`, so its
+    // dimensions must be the ones the corners imply — here the left half of an
+    // 800×400 photo, i.e. a 400×400 square, not the source's 2:1 frame.
+    let corners = QuadCorners(
+      topLeft: NormalizedPoint(x: 0, y: 0),
+      topRight: NormalizedPoint(x: 0.5, y: 0),
+      bottomRight: NormalizedPoint(x: 0.5, y: 1),
+      bottomLeft: NormalizedPoint(x: 0, y: 1))
+    let jpeg = try makeJPEG(width: 800, height: 400)
+    let cropped = try XCTUnwrap(TrimCandidate.croppedJPEG(from: jpeg, corners: corners))
+    let size = try decodedPixelSize(cropped)
+    XCTAssertEqual(size.width, 400, accuracy: 2)
+    XCTAssertEqual(size.height, 400, accuracy: 2)
+  }
+
+  func testCroppedJPEGStraightensSkewedQuadToLongestEdges() throws {
+    // Same sizing rule as the server's warp (longer of each side's two source
+    // edges): a photo shot at an angle straightens to the full 800 wide.
+    let corners = QuadCorners(
+      topLeft: NormalizedPoint(x: 0.25, y: 0),
+      topRight: NormalizedPoint(x: 0.75, y: 0),
+      bottomRight: NormalizedPoint(x: 1, y: 1),
+      bottomLeft: NormalizedPoint(x: 0, y: 1))
+    let jpeg = try makeJPEG(width: 800, height: 400)
+    let cropped = try XCTUnwrap(TrimCandidate.croppedJPEG(from: jpeg, corners: corners))
+    XCTAssertEqual(try decodedPixelSize(cropped).width, 800, accuracy: 2)
+  }
+
+  func testCroppedJPEGDoesNotDownscaleTheUploadSizeCopy() throws {
+    // No cap of its own: the source is already the 1920-capped upload copy, so
+    // a full-frame quad must come back at full size.
+    let jpeg = try makeJPEG(width: 800, height: 400)
+    let cropped = try XCTUnwrap(
+      TrimCandidate.croppedJPEG(from: jpeg, corners: fullFrameCorners()))
+    XCTAssertEqual(try decodedPixelSize(cropped), CGSize(width: 800, height: 400))
+  }
+
+  func testCroppedJPEGReturnsNilForUndecodableBytes() {
+    // acceptTrim's "Could not decode the trimmed image." guard depends on this
+    // failing rather than yielding the uncropped photo.
+    XCTAssertNil(
+      TrimCandidate.croppedJPEG(from: Data([0x00, 0x01, 0x02]), corners: fullFrameCorners()))
+  }
+
+  func testCroppedJPEGReturnsNilForDegenerateQuad() throws {
+    let point = NormalizedPoint(x: 0.5, y: 0.5)
+    let corners = QuadCorners(
+      topLeft: point, topRight: point, bottomRight: point, bottomLeft: point)
+    let jpeg = try makeJPEG(width: 800, height: 400)
+    XCTAssertNil(TrimCandidate.croppedJPEG(from: jpeg, corners: corners))
+  }
+
+  func testWholeImageCandidateIsItsOwnTrim() {
+    // The barcode path never sees detect-frame: no server crop, no local warp,
+    // the box image itself is the trim.
+    let jpeg = Data("JPEGBYTES".utf8)
+    let candidate = TrimCandidate.wholeImage(jpeg: jpeg, source: .barcodeLookup)
+    XCTAssertEqual(candidate.trimmedJPEG, jpeg)
+    XCTAssertNil(candidate.detection.trimmedImage)
+    XCTAssertEqual(candidate.detection.confidence, 1.0)
+  }
+
   // MARK: rotatedJPEG(from:quarterTurns:)
 
   func testRotatedJPEGZeroTurnsReturnsInputUnchanged() throws {

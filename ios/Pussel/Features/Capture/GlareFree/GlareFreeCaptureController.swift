@@ -33,9 +33,18 @@ struct GlareFreeShot {
 /// then four corner shots that fire automatically — the guide dot is
 /// anchored to a fixed spot on the puzzle (`ingestGuide`), and once the
 /// user has steered it into the screen-center ring and held it there, the
-/// step's photo is taken and the next anchor lights up. A background
-/// composition pass (`GlareFreeComposer`) then fuses the burst.
-/// Dependency-injected capture and compose closures keep it unit-testable
+/// step's photo is taken and the next anchor lights up.
+///
+/// Composition (`GlareFreeComposer.Session`) runs *alongside* the capture
+/// rather than after it: the center shot opens the session, each corner
+/// shot is handed over the moment it lands and starts registering in the
+/// background, and the last step only waits for the frames still in flight
+/// plus the healing and rectification that genuinely need the whole burst.
+/// The seconds the user spends aiming at the next target are seconds the
+/// registration would otherwise have made them wait for afterwards, under a
+/// spinner.
+///
+/// Dependency-injected capture and session closures keep it unit-testable
 /// without a camera — mirrors `PieceScanController`.
 @Observable
 @MainActor
@@ -77,11 +86,20 @@ final class GlareFreeCaptureController {
   /// a nil offset means tracking is currently lost.
   private(set) var guide: GlareGuideUpdate?
 
+  /// Opens the composition for a burst from its reference shot and that
+  /// shot's camera geometry; nil when the reference is unusable.
+  typealias SessionFactory = (UIImage, PlaneCaptureGeometry?) async -> (
+    any GlareFreeComposeSession
+  )?
+
   private let capture: () async -> GlareFreeShot?
-  private let compose:
-    (UIImage, [UIImage], [CGSize?], [PlaneCaptureGeometry?]) async ->
-      GlareFreeComposer.Composite?
+  private let makeSession: SessionFactory
   private var captured: [GlareFreeShot] = []
+  /// The composition in progress, opened by the center shot. Nil before it
+  /// and after a restart, and also when the reference shot turned out to be
+  /// unusable — the flow then degrades to that shot alone, as it always did
+  /// when composition failed.
+  private var session: (any GlareFreeComposeSession)?
   private var aim = GlareAimStabilityTracker()
 
   #if DEBUG
@@ -92,20 +110,19 @@ final class GlareFreeCaptureController {
     static weak var debugActive: GlareFreeCaptureController?
   #endif
 
+  /// `session` opens the composition for a burst from its reference shot.
+  /// Detached by default: building it downscales the still and blurs the
+  /// two registration proxies, which has no business on the main actor.
   init(
     capture: @escaping () async -> GlareFreeShot?,
-    compose:
-      @escaping (UIImage, [UIImage], [CGSize?], [PlaneCaptureGeometry?]) async ->
-      GlareFreeComposer.Composite? = { reference, others, expectedShifts, geometries in
-        await Task.detached(priority: .userInitiated) {
-          GlareFreeComposer.compose(
-            reference: reference, others: others, expectedShifts: expectedShifts,
-            geometries: geometries)
-        }.value
-      }
+    session: @escaping SessionFactory = { reference, geometry in
+      await Task.detached(priority: .userInitiated) {
+        GlareFreeComposer.Session(reference: reference, geometry: geometry)
+      }.value
+    }
   ) {
     self.capture = capture
-    self.compose = compose
+    self.makeSession = session
   }
 
   var currentStep: GlareFreeStep? {
@@ -155,10 +172,11 @@ final class GlareFreeCaptureController {
     Task { await self.captureShot() }
   }
 
-  /// Takes the current step's photo and advances; the last step triggers
-  /// composition. Fired by the shutter button on the reference step and by
-  /// the aim dwell on the corner steps; shots while one is already
-  /// developing are ignored, so each step captures exactly once.
+  /// Takes the current step's photo, hands it to the composition, and
+  /// advances; the last step waits for that composition to finish. Fired by
+  /// the shutter button on the reference step and by the aim dwell on the
+  /// corner steps; shots while one is already developing are ignored, so
+  /// each step captures exactly once.
   func captureShot() async {
     guard case .capturing(let index) = phase, !isCapturing else { return }
     isCapturing = true
@@ -171,29 +189,45 @@ final class GlareFreeCaptureController {
     if index == 0 {
       referenceShot = shot.image
     }
-    guard index + 1 < Self.steps.count else {
-      await composeCaptured()
-      return
+    let isLast = index + 1 == Self.steps.count
+    if !isLast {
+      // Light the next anchor up *before* the shot goes off to register, so
+      // the user starts aiming while it does. Re-arming the aim matters as
+      // much: the stale dot would otherwise still sit at the screen center
+      // and instantly re-fire.
+      aim.reset()
+      guide = nil
+      phase = .capturing(step: index + 1)
     }
-    // Re-arm the aim for the next anchor; the stale dot would otherwise
-    // still sit at the screen center and instantly re-fire.
-    aim.reset()
-    guide = nil
-    phase = .capturing(step: index + 1)
+    if index == 0 {
+      // The center shot is the frame every other one registers onto, so
+      // preparing it gates all four registrations and is awaited here,
+      // which also keeps `addFrame` in capture order. Nothing can fire
+      // meanwhile — `isCapturing` is still set — and it lands well inside
+      // the seconds the user spends aiming at the first corner.
+      session = await makeSession(shot.image, shot.geometry)
+    } else {
+      session?.addFrame(
+        shot.image, expectedShift: Self.expectedShift(step: index), geometry: shot.geometry)
+    }
+    if isLast {
+      await composeCaptured()
+    }
   }
 
   private func composeCaptured() async {
     phase = .composing
     let reference = captured[0].image
-    let others = captured.dropFirst().map(\.image)
-    let geometries = captured.map(\.geometry)
-    let shifts = (1..<Self.steps.count).map(Self.expectedShift(step:))
-    // A composer failure still leaves the reference shot — degrade to a
-    // normal single-photo capture rather than dead-ending the flow. The
-    // view surfaces the degradation via `alignedFrameCount == 0`.
+    // Whatever is still registering, plus the healing and rectification
+    // that need the whole burst. A composition failure — or a reference
+    // shot too broken to open a session with — still leaves the reference
+    // shot: degrade to a normal single-photo capture rather than
+    // dead-ending the flow. The view surfaces the degradation via
+    // `alignedFrameCount == 0`.
     let result =
-      await compose(reference, others, shifts, geometries)
+      await session?.finish()
       ?? GlareFreeComposer.Composite(image: reference, alignedFrameCount: 0)
+    session = nil
     composite = result
     phase = .done
     // Fire-and-forget on a detached task: the flow shouldn't wait on disk
@@ -202,8 +236,12 @@ final class GlareFreeCaptureController {
     // async body happens to execute under the current language mode. The
     // whole call is compiled out of Release builds rather than relying on
     // `record`'s own internal no-op, so production never even spawns the
-    // task.
+    // task. The dump gets the burst exactly as it was shot — the original
+    // full-resolution stills, not the composer's working copies.
     #if DEBUG
+      let others = captured.dropFirst().map(\.image)
+      let geometries = captured.map(\.geometry)
+      let shifts = (1..<Self.steps.count).map(Self.expectedShift(step:))
       Task.detached(priority: .utility) {
         await GlareFreeDump.record(
           reference: reference, others: others, expectedShifts: shifts,
@@ -214,8 +252,12 @@ final class GlareFreeCaptureController {
   }
 
   /// Restarts the five-shot sequence (offered after a failed capture).
+  /// Whatever the abandoned burst still had registering is cancelled — its
+  /// frames belong to a reference shot the next burst won't share.
   func restart() {
     guard !isCapturing else { return }
+    session?.cancel()
+    session = nil
     captured = []
     composite = nil
     referenceShot = nil

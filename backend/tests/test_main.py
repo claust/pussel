@@ -414,6 +414,62 @@ def test_detect_frame_manual_corners() -> None:
     assert result["trimmed_image"].startswith("data:image/jpeg;base64,")
 
 
+def test_detect_frame_include_image_false_omits_trimmed_image() -> None:
+    """include_image=false skips the server-side warp but still returns corners and confidence."""
+    response = client.post(
+        "/api/v1/puzzle/detect-frame",
+        files=photo_files(make_photo_jpeg()),
+        data={"include_image": "false"},
+        headers=get_auth_header(),
+    )
+
+    assert response.status_code == 200
+    result = response.json()
+    assert result["trimmed_image"] is None
+    assert 0.0 <= result["confidence"] <= 1.0
+    assert result["confidence"] > 0.5
+    for name in ("top_left", "top_right", "bottom_right", "bottom_left"):
+        corner = result["corners"][name]
+        assert 0.0 <= corner["x"] <= 1.0
+        assert 0.0 <= corner["y"] <= 1.0
+    assert abs(result["corners"]["top_left"]["x"] - 100 / 800) < 0.03
+    assert abs(result["corners"]["top_left"]["y"] - 80 / 600) < 0.03
+
+
+def test_detect_frame_manual_corners_include_image_false() -> None:
+    """Manual corners are still validated and echoed with confidence 1.0 when the image is skipped."""
+    manual_corners = {
+        "top_left": {"x": 0.125, "y": 0.1333},
+        "top_right": {"x": 0.875, "y": 0.1333},
+        "bottom_right": {"x": 0.875, "y": 0.8667},
+        "bottom_left": {"x": 0.125, "y": 0.8667},
+    }
+
+    response = client.post(
+        "/api/v1/puzzle/detect-frame",
+        files=photo_files(make_photo_jpeg()),
+        data={"corners": json.dumps(manual_corners), "include_image": "false"},
+        headers=get_auth_header(),
+    )
+
+    assert response.status_code == 200
+    result = response.json()
+    assert result["trimmed_image"] is None
+    assert result["confidence"] == 1.0
+    assert result["corners"] == manual_corners
+
+
+def test_detect_frame_invalid_corners_json_include_image_false() -> None:
+    """A malformed corners payload is still rejected when the image is skipped."""
+    response = client.post(
+        "/api/v1/puzzle/detect-frame",
+        files=photo_files(make_photo_jpeg()),
+        data={"corners": "not valid json", "include_image": "false"},
+        headers=get_auth_header(),
+    )
+    assert response.status_code == 400
+
+
 def test_detect_frame_omits_piece_count_estimate() -> None:
     """The count is read on-device (iOS Vision), so detect-frame no longer OCRs it."""
     with patch("app.main.estimate_piece_count") as estimator:
