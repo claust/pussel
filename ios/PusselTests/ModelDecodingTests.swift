@@ -33,37 +33,6 @@ final class ModelDecodingTests: XCTestCase {
     XCTAssertNil(response.user.picture)
   }
 
-  func testDecodeDetectFrameResponse() throws {
-    let json = """
-      {
-        "trimmed_image": "data:image/jpeg;base64,aGVsbG8=",
-        "corners": {
-          "top_left": {"x": 0.1, "y": 0.1},
-          "top_right": {"x": 0.9, "y": 0.1},
-          "bottom_right": {"x": 0.9, "y": 0.9},
-          "bottom_left": {"x": 0.1, "y": 0.9}
-        },
-        "confidence": 0.87
-      }
-      """
-    let response = try decoder.decode(DetectFrameResponse.self, from: Data(json.utf8))
-    XCTAssertEqual(response.confidence, 0.87)
-    XCTAssertEqual(response.corners.topLeft, NormalizedPoint(x: 0.1, y: 0.1))
-    XCTAssertEqual(response.corners.bottomRight, NormalizedPoint(x: 0.9, y: 0.9))
-    XCTAssertEqual(ImageUtilities.decodeDataURL(response.trimmedImage), Data("hello".utf8))
-    // A stray piece_count_estimate from an older backend must not break decoding.
-    XCTAssertNoThrow(
-      try decoder.decode(
-        DetectFrameResponse.self,
-        from: Data(
-          """
-          {"trimmed_image": "data:image/jpeg;base64,aGVsbG8=",
-           "corners": {"top_left": {"x": 0, "y": 0}, "top_right": {"x": 1, "y": 0},
-                       "bottom_right": {"x": 1, "y": 1}, "bottom_left": {"x": 0, "y": 1}},
-           "confidence": 0.5, "piece_count_estimate": 1000}
-          """.utf8)))
-  }
-
   func testDecodePuzzleUploadResponse() throws {
     let json = """
       {"puzzle_id": "3f2b9c", "image_url": null}
@@ -442,5 +411,87 @@ final class ModelDecodingTests: XCTestCase {
     XCTAssertEqual(GeometryEdgeType.tab.glyph, "T")
     XCTAssertEqual(GeometryEdgeType.blank.glyph, "B")
     XCTAssertEqual(GeometryEdgeType.flat.glyph, "F")
+  }
+}
+
+/// Decoding tests for POST /api/v1/puzzle/detect-frame, whose payload shape
+/// depends on the request's `include_image` field (see `APIClient.detectFrame`).
+/// Their own suite so the response contract has one place to grow.
+final class DetectFrameDecodingTests: XCTestCase {
+  private let decoder: JSONDecoder = {
+    let decoder = JSONDecoder()
+    decoder.keyDecodingStrategy = .convertFromSnakeCase
+    return decoder
+  }()
+
+  func testDecodeDetectFrameResponse() throws {
+    let json = """
+      {
+        "trimmed_image": "data:image/jpeg;base64,aGVsbG8=",
+        "corners": {
+          "top_left": {"x": 0.1, "y": 0.1},
+          "top_right": {"x": 0.9, "y": 0.1},
+          "bottom_right": {"x": 0.9, "y": 0.9},
+          "bottom_left": {"x": 0.1, "y": 0.9}
+        },
+        "confidence": 0.87
+      }
+      """
+    let response = try decoder.decode(DetectFrameResponse.self, from: Data(json.utf8))
+    XCTAssertEqual(response.confidence, 0.87)
+    XCTAssertEqual(response.corners.topLeft, NormalizedPoint(x: 0.1, y: 0.1))
+    XCTAssertEqual(response.corners.bottomRight, NormalizedPoint(x: 0.9, y: 0.9))
+    // A backend that still echoes the crop must keep decoding, even though the
+    // app no longer asks for it (include_image=false) or reads it.
+    XCTAssertEqual(
+      response.trimmedImage.flatMap(ImageUtilities.decodeDataURL), Data("hello".utf8))
+    // A stray piece_count_estimate from an older backend must not break decoding.
+    XCTAssertNoThrow(
+      try decoder.decode(
+        DetectFrameResponse.self,
+        from: Data(
+          """
+          {"trimmed_image": "data:image/jpeg;base64,aGVsbG8=",
+           "corners": {"top_left": {"x": 0, "y": 0}, "top_right": {"x": 1, "y": 0},
+                       "bottom_right": {"x": 1, "y": 1}, "bottom_left": {"x": 0, "y": 1}},
+           "confidence": 0.5, "piece_count_estimate": 1000}
+          """.utf8)))
+  }
+
+  func testDecodeDetectFrameResponseWithoutTrimmedImage() throws {
+    // The include_image=false shape the app asks for: corners and confidence
+    // only, with the crop echoed back as null…
+    let nulled = """
+      {
+        "trimmed_image": null,
+        "corners": {
+          "top_left": {"x": 0.1, "y": 0.1},
+          "top_right": {"x": 0.9, "y": 0.1},
+          "bottom_right": {"x": 0.9, "y": 0.9},
+          "bottom_left": {"x": 0.1, "y": 0.9}
+        },
+        "confidence": 0.87
+      }
+      """
+    let response = try decoder.decode(DetectFrameResponse.self, from: Data(nulled.utf8))
+    XCTAssertNil(response.trimmedImage)
+    XCTAssertEqual(response.confidence, 0.87)
+    XCTAssertEqual(response.corners.topRight, NormalizedPoint(x: 0.9, y: 0.1))
+
+    // …or omitted from the payload entirely.
+    let absent = """
+      {
+        "corners": {
+          "top_left": {"x": 0, "y": 0},
+          "top_right": {"x": 1, "y": 0},
+          "bottom_right": {"x": 1, "y": 1},
+          "bottom_left": {"x": 0, "y": 1}
+        },
+        "confidence": 0.5
+      }
+      """
+    let sparse = try decoder.decode(DetectFrameResponse.self, from: Data(absent.utf8))
+    XCTAssertNil(sparse.trimmedImage)
+    XCTAssertEqual(sparse.corners.bottomLeft, NormalizedPoint(x: 0, y: 1))
   }
 }

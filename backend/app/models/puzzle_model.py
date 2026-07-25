@@ -161,7 +161,13 @@ class PiecePreviewResponse(BaseModel):
 class DetectFrameResponse(BaseModel):
     """Response model for puzzle frame detection."""
 
-    trimmed_image: str = Field(..., description="Base64 data URL (JPEG) of the perspective-corrected puzzle image")
+    trimmed_image: Optional[str] = Field(
+        default=None,
+        description=(
+            "Base64 data URL (JPEG) of the perspective-corrected puzzle image; null when the request "
+            "opted out with include_image=false and warps client-side from `corners` instead"
+        ),
+    )
     corners: QuadCorners = Field(..., description="Corners used, normalized 0-1 relative to the EXIF-corrected photo")
     confidence: float = Field(..., ge=0.0, le=1.0, description="Detection confidence; 1.0 for manual corners")
 

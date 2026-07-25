@@ -96,6 +96,34 @@ final class APIClientTests: XCTestCase {
     XCTAssertTrue(body.contains("name=\"file\"; filename=\"puzzle.jpg\""))
   }
 
+  // MARK: - detectFrame
+
+  func testDetectFrameSendsIncludeImageFalse() async throws {
+    authStore.backendToken = "tok"
+    StubURLProtocol.handler = { _ in (200, Self.detectFrameJSON) }
+    _ = try await client.detectFrame(jpegData: Data("JPEG".utf8))
+    let req = try XCTUnwrap(StubURLProtocol.receivedRequests.first)
+    XCTAssertEqual(req.url?.path, "/api/v1/puzzle/detect-frame")
+    XCTAssertEqual(req.httpMethod, "POST")
+    let body = try bodyString(of: req)
+    // The pinned wire contract: a multipart text field, literal "false",
+    // alongside the file part. Without it the backend echoes a base64 copy of
+    // the photo back that the app would only throw away.
+    XCTAssertTrue(
+      body.contains("Content-Disposition: form-data; name=\"include_image\"\r\n\r\nfalse\r\n"),
+      "detect-frame must send include_image=false; body was:\n\(body)")
+    XCTAssertTrue(body.contains("name=\"file\"; filename=\"puzzle.jpg\""))
+  }
+
+  func testDetectFrameDecodesResponseWithoutTrimmedImage() async throws {
+    authStore.backendToken = "tok"
+    StubURLProtocol.handler = { _ in (200, Self.detectFrameJSON) }
+    let response = try await client.detectFrame(jpegData: Data("JPEG".utf8))
+    XCTAssertNil(response.trimmedImage)
+    XCTAssertEqual(response.confidence, 0.87)
+    XCTAssertEqual(response.corners.topLeft, NormalizedPoint(x: 0.1, y: 0.1))
+  }
+
   func testAuthorizationHeaderAttached() async throws {
     authStore.backendToken = "token123"
     StubURLProtocol.handler = { _ in
@@ -288,7 +316,49 @@ final class APIClientTests: XCTestCase {
     )
   }
 
+  // MARK: - Helpers
+
+  /// The request body as text. URLSession has replaced `httpBody` with a
+  /// stream by the time a URLProtocol sees the request, so the stub's captured
+  /// requests have to be read back out of that stream — `httpBody` alone is
+  /// nil there (which is why the other body assertions in this file build
+  /// their request with `makeMultipartRequest` instead of sending it).
+  private func bodyString(of request: URLRequest) throws -> String {
+    if let body = request.httpBody {
+      return try XCTUnwrap(String(bytes: body, encoding: .utf8))
+    }
+    let stream = try XCTUnwrap(request.httpBodyStream)
+    stream.open()
+    defer { stream.close() }
+    var data = Data()
+    var buffer = [UInt8](repeating: 0, count: 4096)
+    while stream.hasBytesAvailable {
+      let read = stream.read(&buffer, maxLength: buffer.count)
+      guard read > 0 else { break }
+      data.append(buffer, count: read)
+    }
+    return try XCTUnwrap(String(bytes: data, encoding: .utf8))
+  }
+
   // MARK: - JSON fixtures
+
+  /// A detect-frame response in the include_image=false shape: corners and
+  /// confidence, no echoed crop.
+  private static let detectFrameJSON: Data = {
+    let json = """
+      {
+        "trimmed_image": null,
+        "corners": {
+          "top_left": {"x": 0.1, "y": 0.1},
+          "top_right": {"x": 0.9, "y": 0.1},
+          "bottom_right": {"x": 0.9, "y": 0.9},
+          "bottom_left": {"x": 0.1, "y": 0.9}
+        },
+        "confidence": 0.87
+      }
+      """
+    return Data(json.utf8)
+  }()
 
   private static let geometryUploadJSON: Data = {
     let json = """

@@ -42,16 +42,48 @@ struct TrimCandidate {
   /// (`PieceCountReader`) on the detect-frame path — used to prefill the
   /// confirm screen's piece-count field; nil for boxes it couldn't read.
   var pieceCountEstimate: Int?
+  /// The straightened crop: what the confirm screen shows and what
+  /// `AppModel.acceptTrim` uploads. Warped out of `rawJPEG` by
+  /// `detection.corners` on this device — the backend is asked not to echo its
+  /// own copy back (`include_image=false`), and `perspectiveCorrected` frames
+  /// the same region from the same normalized corners (see its docs).
+  ///
+  /// Stored rather than recomputed per access: decode + warp + encode is the
+  /// expensive half of a capture, and both `ConfirmTrimView` (which re-reads
+  /// on every rotate tap) and `acceptTrim` want the same bytes.
+  /// `AppModel.startTrim` fills it in once, off the main actor, via
+  /// `croppedJPEG(from:corners:)`. Nil when that warp or encode failed, which
+  /// the confirm screen shows as its could-not-decode placeholder and
+  /// `acceptTrim` refuses to upload.
+  let trimmedJPEG: Data?
 
-  var trimmedJPEG: Data? {
-    ImageUtilities.decodeDataURL(detection.trimmedImage)
+  /// Straightens `rawJPEG` to `corners` and re-encodes it as JPEG — the local
+  /// stand-in for the server's `trimmed_image`.
+  ///
+  /// No extra downscale: `rawJPEG` is already the upload-size copy (capped at
+  /// 1920 by `normalizedJPEG`), so a cap here could only throw away detail the
+  /// upload is entitled to — a quad seen at an angle straightens to something
+  /// longer than the photo's own long side.
+  ///
+  /// Blocking, multi-megapixel work (see `AppModel.startTrim`): call it off
+  /// the main actor. Returns nil when the bytes can't be decoded or the quad
+  /// is degenerate.
+  static func croppedJPEG(from rawJPEG: Data, corners: QuadCorners) -> Data? {
+    guard let image = UIImage(data: rawJPEG),
+      let corrected = ImageUtilities.perspectiveCorrected(
+        from: image, corners: corners, maxDimension: .greatestFiniteMagnitude)
+    else {
+      return nil
+    }
+    return ImageUtilities.normalizedJPEG(
+      from: corrected, maxDimension: .greatestFiniteMagnitude, quality: 0.9)
   }
 
   /// Synthetic candidate for an image obtained without a detect-frame round
   /// trip — the barcode lookup's box image is already a clean product shot,
-  /// so the whole image *is* the trim: identity corners, confidence 1.0
-  /// (suppressing the low-confidence banner), and the same JPEG as its own
-  /// zoom source (the identity re-warp is a no-op crop).
+  /// so the whole image *is* the trim: it stands as its own crop (the identity
+  /// warp would be a no-op), identity corners, confidence 1.0 (suppressing the
+  /// low-confidence banner), and the same JPEG as its own zoom source.
   static func wholeImage(jpeg: Data, source: CaptureSource, pieceCountEstimate: Int? = nil)
     -> TrimCandidate
   {
@@ -59,7 +91,9 @@ struct TrimCandidate {
       rawJPEG: jpeg,
       zoomSourceJPEG: jpeg,
       detection: DetectFrameResponse(
-        trimmedImage: "data:image/jpeg;base64,\(jpeg.base64EncodedString())",
+        // This path never talks to detect-frame, so there is no server crop to
+        // carry — `trimmedJPEG` below is the image itself.
+        trimmedImage: nil,
         corners: QuadCorners(
           topLeft: NormalizedPoint(x: 0, y: 0),
           topRight: NormalizedPoint(x: 1, y: 0),
@@ -70,7 +104,8 @@ struct TrimCandidate {
       ),
       source: source,
       // The count rides in on the lookup response, not the detection.
-      pieceCountEstimate: pieceCountEstimate
+      pieceCountEstimate: pieceCountEstimate,
+      trimmedJPEG: jpeg
     )
   }
 }

@@ -289,6 +289,62 @@ async def list_puzzles(
     )
 
 
+class _UndecodableImageError(Exception):
+    """Raised by `_detect_frame_blocking` when the uploaded bytes aren't a decodable image.
+
+    The worker runs off the event loop in a thread, so it signals failures with a
+    plain exception that `detect_frame` translates into an HTTPException.
+    """
+
+
+def _detect_frame_blocking(
+    contents: bytes,
+    quad: Optional[QuadCorners],
+    include_image: bool,
+) -> tuple[QuadCorners, float, Optional[str]]:
+    """Run the CPU-bound half of frame detection: decode, detect, and optionally warp.
+
+    Kept synchronous so `detect_frame` can hand it to `asyncio.to_thread`; the
+    ~100-300 ms of OpenCV/Pillow work would otherwise block the event loop and
+    stall concurrent piece predictions.
+
+    Args:
+        contents: The raw uploaded photo bytes.
+        quad: Manually supplied corners, or None to auto-detect.
+        include_image: Whether to also warp and JPEG/base64-encode the crop.
+
+    Returns:
+        Tuple of (corners used, confidence, trimmed image data URL or None).
+
+    Raises:
+        _UndecodableImageError: If the bytes can't be opened as an image.
+    """
+    try:
+        image = Image.open(io.BytesIO(contents))
+        # Phone photos carry EXIF orientation; correct it so corners match what the user sees
+        image = ImageOps.exif_transpose(image).convert("RGB")
+    except (UnidentifiedImageError, OSError, ValueError) as exc:
+        raise _UndecodableImageError() from exc
+
+    detector = get_puzzle_detector()
+    if quad is not None:
+        used_corners = quad
+        confidence = 1.0
+        points = quad.as_points()
+    else:
+        points, confidence = detector.detect_corners(image)
+        used_corners = QuadCorners.from_points(points)
+
+    trimmed_image: Optional[str] = None
+    if include_image:
+        trimmed = detector.warp(image, points)
+        buffer = io.BytesIO()
+        trimmed.save(buffer, format="JPEG", quality=90)
+        trimmed_image = f"data:image/jpeg;base64,{base64.b64encode(buffer.getvalue()).decode()}"
+
+    return used_corners, confidence, trimmed_image
+
+
 @app.post(
     "/api/v1/puzzle/detect-frame",
     response_model=DetectFrameResponse,
@@ -297,13 +353,24 @@ async def list_puzzles(
 async def detect_frame(
     file: Optional[UploadFile] = None,
     corners: Annotated[Optional[str], Form(description="Manually adjusted corners as JSON QuadCorners")] = None,
+    include_image: Annotated[
+        bool,
+        Form(
+            description=(
+                "Whether to warp the crop server-side and echo it back as `trimmed_image`. Send "
+                '"false" to opt out (the iOS app warps locally from `corners`), which skips the '
+                "warp/JPEG/base64 work and returns `trimmed_image` as null. Defaults to true, so "
+                "clients that omit the field are unaffected."
+            )
+        ),
+    ] = True,
 ) -> DetectFrameResponse:
     """Detect the puzzle picture in a photo and return a perspective-corrected crop.
 
     This endpoint is stateless: nothing is persisted. The frontend previews the
     trimmed image and, once accepted, uploads it via the regular upload endpoint.
     When ``corners`` is provided (manual adjustment), detection is skipped and
-    the supplied corners are used for the warp with confidence 1.0.
+    the supplied corners are used with confidence 1.0.
 
     The printed piece count is read from the photo on-device (iOS Vision, see
     the app's `PieceCountReader`), so this endpoint no longer OCRs it.
@@ -314,10 +381,12 @@ async def detect_frame(
     Args:
         file: The raw photo of the puzzle.
         corners: Optional JSON-encoded QuadCorners overriding auto-detection.
+        include_image: When false, skips the server-side warp and returns
+            `trimmed_image` as null; corners and confidence are unaffected.
 
     Returns:
-        DetectFrameResponse with the trimmed image (base64 data URL), the
-        corners used, and a detection confidence.
+        DetectFrameResponse with the corners used, a detection confidence, and
+        the trimmed image as a base64 data URL (null when include_image is false).
 
     Raises:
         HTTPException: If no/invalid file is provided, the file is too large,
@@ -333,33 +402,22 @@ async def detect_frame(
     if len(contents) > settings.MAX_UPLOAD_SIZE:
         raise HTTPException(status_code=413, detail="File too large")
 
-    try:
-        image = Image.open(io.BytesIO(contents))
-        # Phone photos carry EXIF orientation; correct it so corners match what the user sees
-        image = ImageOps.exif_transpose(image).convert("RGB")
-    except (UnidentifiedImageError, OSError, ValueError) as exc:
-        raise HTTPException(status_code=400, detail="Invalid image file") from exc
-
-    detector = get_puzzle_detector()
+    quad: Optional[QuadCorners] = None
     if corners is not None:
         try:
             quad = QuadCorners.model_validate_json(corners)
         except ValidationError as exc:
             raise HTTPException(status_code=400, detail="Invalid corners payload") from exc
-        used_corners = quad
-        confidence = 1.0
-        trimmed = detector.warp(image, quad.as_points())
-    else:
-        points, confidence = detector.detect_corners(image)
-        used_corners = QuadCorners.from_points(points)
-        trimmed = detector.warp(image, points)
 
-    buffer = io.BytesIO()
-    trimmed.save(buffer, format="JPEG", quality=90)
-    trimmed_base64 = base64.b64encode(buffer.getvalue()).decode()
+    try:
+        used_corners, confidence, trimmed_image = await asyncio.to_thread(
+            _detect_frame_blocking, contents, quad, include_image
+        )
+    except _UndecodableImageError as exc:
+        raise HTTPException(status_code=400, detail="Invalid image file") from exc
 
     return DetectFrameResponse(
-        trimmed_image=f"data:image/jpeg;base64,{trimmed_base64}",
+        trimmed_image=trimmed_image,
         corners=used_corners,
         confidence=confidence,
     )

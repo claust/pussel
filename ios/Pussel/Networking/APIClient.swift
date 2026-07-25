@@ -52,9 +52,20 @@ final class APIClient {
     return try decoder.decode(BarcodeLookupResponse.self, from: data)
   }
 
+  /// Detects the puzzle's frame in the photo and returns its corners.
+  ///
+  /// `include_image=false` opts out of the server echoing its own
+  /// perspective-corrected crop back as a base64 data URL: the app warps the
+  /// identical region locally from the returned `corners` (see
+  /// `TrimCandidate.croppedJPEG(from:corners:)`), so the echo would only be a
+  /// second copy of the photo travelling back over the wire.
   func detectFrame(jpegData: Data) async throws -> DetectFrameResponse {
     let request = makeMultipartRequest(
-      path: "api/v1/puzzle/detect-frame", jpegData: jpegData, filename: "puzzle.jpg")
+      path: "api/v1/puzzle/detect-frame",
+      jpegData: jpegData,
+      filename: "puzzle.jpg",
+      fields: ["include_image": "false"]
+    )
     return try await sendDecoding(request)
   }
 

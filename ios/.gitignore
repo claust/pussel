@@ -3,5 +3,7 @@
 Pussel/Resources/Info.plist
 DerivedData/
 .build/
+# Derived data for the optimized device build (make ios-deploy).
+.build-opt/
 xcuserdata/
 Config/Secrets.xcconfig

@@ -12,7 +12,7 @@ enum ImageUtilities {
   /// `perspectiveCorrected(from:corners:maxDimension:)`).
   ///
   /// The uploaded image is capped at 1920 by `normalizedJPEG`, and the crop
-  /// taken from it is smaller again, so on a 3× phone the server's copy is
+  /// taken from it is smaller again, so on a 3× phone the uploaded copy is
   /// already at one image pixel per device pixel when it merely *fits* the
   /// screen: pinching it magnifies JPEG artefacts from the first gesture.
   ///
@@ -104,11 +104,12 @@ enum ImageUtilities {
   /// rotate it (see `AppModel.acceptTrim`) can do so before encoding, and pay
   /// one lossy pass instead of two.
   ///
-  /// This reproduces locally the crop the backend's detect-frame endpoint
-  /// already returned, but from a higher-resolution source: `corners` are
-  /// normalized, so they describe the same region of the photo at any
-  /// resolution, and re-running the warp here avoids uploading a second,
-  /// much larger copy of the photo just to get a sharper picture back.
+  /// This is how the app produces both crops it keeps: the upload-size trim
+  /// (`TrimCandidate.croppedJPEG`, which is why detect-frame is asked not to
+  /// echo its own copy back) and the sharper zoom copy warped from the
+  /// higher-resolution photo. `corners` are normalized, so they describe the
+  /// same region at any resolution, and re-running the warp locally avoids
+  /// moving a second copy of the photo over the wire in either direction.
   ///
   /// The output frames the same region as the server's `trimmed_image` and
   /// carries its aspect ratio (the target size below mirrors the dst_w/dst_h

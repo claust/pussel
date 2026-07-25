@@ -21,8 +21,8 @@ struct ConfirmTrimView: View {
   @State private var didPlayHint = false
   let candidate: TrimCandidate
   /// Decoded once at init rather than in `body`, which re-runs on every
-  /// rotate tap (base64-decoding the data URL and the JPEG each time would be
-  /// wasteful during the rotation animation).
+  /// rotate tap (decoding the JPEG each time would be wasteful during the
+  /// rotation animation).
   private let previewImage: UIImage?
 
   init(candidate: TrimCandidate) {
@@ -129,11 +129,11 @@ struct ConfirmTrimView: View {
           }
           .buttonStyle(.borderedProminent)
           .controlSize(.large)
-          // Gate on the cached preview (not the base64-decoding
-          // `trimmedJPEG` computed property) so this doesn't re-decode
-          // on every rotate tap and stays disabled exactly when the
-          // preview can't be shown — and on a valid piece count, since the
-          // grid estimate (and thus overlay marker sizing) depends on it.
+          // Gate on the cached preview rather than re-decoding
+          // `candidate.trimmedJPEG`, so this doesn't decode a JPEG on every
+          // rotate tap and stays disabled exactly when the preview can't be
+          // shown — and on a valid piece count, since the grid estimate (and
+          // thus overlay marker sizing) depends on it.
           .disabled(previewImage == nil || pieceCount == nil)
         }
       }
