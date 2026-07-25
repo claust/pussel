@@ -121,6 +121,19 @@ final class AppFlowStore {
   /// picker on appear; cleared once consumed.
   var pendingRetake: CaptureSource?
 
+  /// Where the home screen's list was scrolled to, in points, or nil if it has
+  /// never been scrolled. Lives here rather than in `CapturePuzzleView` because
+  /// the phase switch tears that view down: opening a puzzle destroys its
+  /// `ScrollView`, and going back builds a new one, which starts at the top.
+  ///
+  /// Deliberately *not* cleared by `reset()` — going back is a reset, and
+  /// coming back to where you left off is the whole point. Sign-out clears it
+  /// explicitly instead.
+  ///
+  /// `@ObservationIgnored` because it's written on every scrolled frame: an
+  /// observed property here would invalidate the whole wizard while scrolling.
+  @ObservationIgnored var homeScrollOffset: CGFloat?
+
   /// The stored puzzle whose files are being read for a solve session, if any
   /// (see `AppModel.openPuzzle`). Doubles as the home-screen row's spinner and
   /// as the token that tells a finished read whether it is still wanted:

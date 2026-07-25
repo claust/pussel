@@ -106,4 +106,16 @@ final class AppFlowNavigationTests: XCTestCase {
     XCTAssertNil(flow.errorMessage)
     XCTAssertNil(flow.pendingRetake)
   }
+
+  /// The home screen's `ScrollView` dies with the phase switch, so its offset
+  /// is parked on the store — and `reset()` must leave it alone, or coming
+  /// back from a puzzle opened far down the list lands at the top again.
+  func testGoBackKeepsTheHomeScrollOffset() {
+    let flow = AppFlowStore()
+    flow.homeScrollOffset = 420
+    flow.phase = .solving(session())
+
+    flow.goBack()
+    XCTAssertEqual(flow.homeScrollOffset, 420)
+  }
 }

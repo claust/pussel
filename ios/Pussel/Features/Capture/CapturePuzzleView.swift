@@ -1,11 +1,28 @@
 import PhotosUI
 import SwiftUI
 
+/// The bits of the list's scroll geometry the offset restore needs.
+private struct ScrollSnapshot: Equatable {
+  let offset: CGFloat
+  let insetTop: CGFloat
+
+  /// How far the list has been scrolled from its resting top, which is what
+  /// `ScrollPosition.scrollTo(y:)` takes — `contentOffset` is measured from
+  /// under the navigation bar instead, so it sits one top inset lower.
+  var scrolledY: CGFloat { offset + insetTop }
+}
+
 struct CapturePuzzleView: View {
   @Environment(AppModel.self) private var model
   @State private var showCamera = false
   @State private var showLibrary = false
   @State private var photoItem: PhotosPickerItem?
+  /// Drives the restore of `flow.homeScrollOffset` — see `body`.
+  @State private var scrollPosition = ScrollPosition()
+  /// False until `restoreScrollOffset` has run. A freshly built `ScrollView`
+  /// reports its geometry (offset 0) before `onAppear`, which would overwrite
+  /// the very offset we came back to restore.
+  @State private var hasRestoredScroll = false
 
   private var hasSavedPuzzles: Bool {
     !model.store.puzzles.isEmpty
@@ -22,6 +39,20 @@ struct CapturePuzzleView: View {
       }
     }
     .scrollBounceBehavior(.basedOnSize)
+    // This screen is rebuilt from scratch every time the wizard comes back to
+    // it (see `AppFlowStore.homeScrollOffset`), so the offset is remembered
+    // out here and put back on appear — otherwise reopening a puzzle from far
+    // down the list always returns the user to the top.
+    .scrollPosition($scrollPosition)
+    .onScrollGeometryChange(for: ScrollSnapshot.self) { geometry in
+      ScrollSnapshot(offset: geometry.contentOffset.y, insetTop: geometry.contentInsets.top)
+    } action: { _, snapshot in
+      guard hasRestoredScroll else {
+        restoreScrollOffset(snapshot)
+        return
+      }
+      model.flow.homeScrollOffset = snapshot.scrolledY
+    }
     .overlay(alignment: .bottom) { UndoDeleteSnackbar() }
     .animation(.snappy, value: model.store.pendingDelete)
     .fullScreenCover(isPresented: cameraCoverIsPresented) {
@@ -49,6 +80,18 @@ struct CapturePuzzleView: View {
       }
     }
     .onAppear(perform: reopenPickerIfRetaking)
+  }
+
+  /// Puts the list back where it was before the wizard left this screen.
+  ///
+  /// Waits for the navigation bar's inset to land: a fresh `ScrollView` reports
+  /// its geometry once before the bar is accounted for, and scrolling in that
+  /// pass is undone (and re-resolved a top inset off) when the inset arrives.
+  private func restoreScrollOffset(_ snapshot: ScrollSnapshot) {
+    guard snapshot.insetTop > 0 else { return }
+    hasRestoredScroll = true
+    guard let scrolledY = model.flow.homeScrollOffset else { return }
+    scrollPosition.scrollTo(y: scrolledY)
   }
 
   private var content: some View {
