@@ -61,6 +61,10 @@ struct AppFlowView: View {
               Button("Sign Out", role: .destructive) {
                 model.authService.signOut()
                 model.flow.reset()
+                // `reset()` keeps the home screen's scroll position on purpose
+                // (see `homeScrollOffset`); signing out is the one exit that
+                // should not restore it.
+                model.flow.homeScrollOffset = nil
               }
             } header: {
               if let user = model.auth.user {
