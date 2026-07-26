@@ -676,6 +676,55 @@ overflow, heatmap CE vs MSE, the frozen-encoder BatchNorm trap).
 
 ---
 
+## Exp 30: Generator Fixes (label-leaking shortcuts removed)
+
+Acted on Test 1 of the synthetic-realism investigation
+(`docs/synthetic-dataset-realism.html`): the generator cropped pieces tight
+to the silhouette and rotated them with `expand=False`, which made
+"content touches all four canvas borders ⟹ rotation ∈ {0°, 180°}" a
+100%-precision rule and left 90°/270° pieces ~30% blurrier from half-pixel
+resampling. Both leak the rotation label, only in synthetic data. exp30
+rotates losslessly (`Image.transpose`) and frames pieces with exp24's real
+8%-margin `pad_to_square` before the 128 px resize; the exp26 recipe,
+frozen split and checkpoint contract are otherwise unchanged.
+
+Acceptance probes (`probes.py`, doc §8) confirm the fix at the data level:
+exp26 fails them (P(all four borders) = 1.000 for 0°/180° vs 0.04–0.09 for
+90°/270°; paired |Laplacian| ratio 1.07), exp30 passes at border touch
+0.000 and sharpness ratio 1.0000.
+
+Trained 50 epochs (RunPod RTX 5090, ~223 s/epoch). Synthetic test (touched
+once) **78.6% cell / 98.7% rotation / 78.5% both** — the best learned
+result on the realistic 4x4 benchmark, beating exp26 (76.4/99.0/76.2).
+north_star v1 (touched once) **21.5% cell / 37.9% rotation / 13.2% both**
+vs exp26's 22.3/33.5/12.7.
+
+Key finding: **the shortcuts were real and are provably gone, and it barely
+matters.** The predicted mechanism did change — exp26 predicted 90°/270°
+for nearly everything, while exp30's predicted-rotation distribution is
+near-uniform (990/902/989/895 over 0/90/180/270, uniform = 944) — but
+rotation accuracy rose only 33.5% → 37.9% (chance is 25%), cell accuracy
+did not move, and the 76.7% hybrid bar is untouched. Removing label leakage
+is necessary data hygiene that buys ~4 points; it is not the cause of the
+sim-to-real collapse. This sharpens exp27's conclusion rather than
+contradicting it, and leaves §4.3's piece↔overview pixel identity as the
+prime remaining suspect: the synthetic pair is one file, the real pair is
+two independent captures of two different physical prints. Next levers, in
+order: break pixel identity structurally (independent per-view degradation
+chains, asymmetric random patching, rembg on synthetic renders), swap the
+source corpus to box art, and the non-synthetic routes (a small real
+training set for the readout, classical-teacher distillation, the
+two-capture trick).
+
+Harness caveat worth remembering: the north_star evaluation is only
+trustworthy when the classical baselines reproduce exp25 exactly
+(`sift_else_ncc` = 77.9/89.2/76.7). A first run mixed a stale
+pre-orientation-fix copy of the overviews with the current piece-crop cache
+and collapsed every classical method to ~4% cell — the CNN number from that
+run was meaningless.
+
+---
+
 ## Summary Table
 
 | Exp | Focus                       | Test Result            | Key Finding                                    |
@@ -707,6 +756,7 @@ overflow, heatmap CE vs MSE, the frozen-encoder BatchNorm trap).
 | 25  | North-star real-photo eval  | **77% both (hybrid)**  | CNN collapses on real photos (14.8% both)      |
 | 26  | Domain randomization (4x4)  | 76% synth / 13% real   | Realism augs lift synthetic, don't transfer    |
 | 27  | Frozen DINOv2 + corr heads  | **49% real zero-shot** / 7% real trained | Sim-to-real gap lives in the trained readout, not the features |
+| 30  | Generator shortcut fixes    | **79% synth** / 13% real | Label-leaking shortcuts removed (rotation bias gone) — real transfer unchanged |
 
 ---
 
