@@ -338,10 +338,19 @@ def _labels(piece_path: Path, applied_rotation_idx: int) -> tuple[float, float, 
 
     Returns:
         Tuple of (cx, cy, rotation_idx).
+
+    Raises:
+        ValueError: If the filename does not carry labels. Returning a
+            placeholder here would be worse than failing: (0.0, 0.0) is a
+            *plausible* cell centre, so a misnamed file would silently
+            anchor the NCC probe at the wrong ground-truth location.
     """
     parsed = parse_piece_filename(piece_path.name)
     if parsed is None:
-        return 0.0, 0.0, applied_rotation_idx
+        raise ValueError(
+            f"Cannot parse labels from piece filename {piece_path.name!r}; expected "
+            "'<puzzle_id>_x<cx>_y<cy>_rot<deg>.png' as written by generate_dataset.py."
+        )
     _, cx, cy, base_rotation = parsed
     return cx, cy, ((base_rotation + ROTATION_ANGLES[applied_rotation_idx]) % 360) // 90
 
