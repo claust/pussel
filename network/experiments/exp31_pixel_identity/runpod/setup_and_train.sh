@@ -81,14 +81,26 @@ python generate_dataset.py \
 GEN_COUNT=$(ls "$RGBA_DIR" 2>/dev/null | wc -l)
 echo "Generated puzzle dirs: $GEN_COUNT"
 
-# Section 8 gate: the NCC-headroom probe must pass BEFORE training. Advisory
-# here (the run continues) because the probe prints its own verdict and the
-# decision is a human one; read the output before trusting the training run.
-if [ -f ncc_probe.py ]; then
+# Section 8 gate: the NCC-headroom probe must pass BEFORE training. This is a
+# spend guard -- a GPU run on data that failed its own acceptance test buys
+# nothing -- so a failure (or a missing probe) stops here instead of warning.
+# Set SKIP_NCC_GATE=1 to train anyway, deliberately and on the record.
+if [ "${SKIP_NCC_GATE:-0}" = "1" ]; then
+    echo ""
+    echo "WARNING: SKIP_NCC_GATE=1 — training WITHOUT the section 8 acceptance gate."
+elif [ ! -f ncc_probe.py ]; then
+    echo "ERROR: ncc_probe.py is missing from the package, so the acceptance gate cannot run."
+    echo "       Rebuild with runpod/prepare_package.sh, or set SKIP_NCC_GATE=1 to train ungated."
+    exit 1
+else
     echo ""
     echo "Running the section 8 NCC-headroom acceptance probe..."
-    python ncc_probe.py --dataset-root "$RGBA_DIR" --puzzle-root /datasets/puzzles || \
-        echo "WARNING: NCC probe reported a problem — review before trusting these results"
+    if ! python ncc_probe.py --pipeline exp31 --dataset-root "$RGBA_DIR" --puzzle-root /datasets/puzzles; then
+        echo ""
+        echo "ERROR: the NCC-headroom gate FAILED. Not spending GPU time on this dataset."
+        echo "       Review the verdict above; set SKIP_NCC_GATE=1 to override deliberately."
+        exit 1
+    fi
 fi
 
 echo ""

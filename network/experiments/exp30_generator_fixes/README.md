@@ -215,4 +215,29 @@ so the checkpoint is selected on clean synthetic val.
 
 ## Results
 
-_Not yet run._
+Trained 50 epochs on a RunPod RTX 5090 (~223 s/epoch); artifacts in
+`outputs/generator_fixes/` (`results.json`) and `outputs/north_star_results.json`.
+
+| Metric | exp26 | **exp30** | bar (SIFT→NCC) |
+| --- | --- | --- | --- |
+| Synthetic test — both | 76.2% | **78.5%** | 82.2% |
+| north_star — cell | 22.3% | 21.5% | 77.9% |
+| north_star — rotation | 33.5% | **37.9%** | 89.2% |
+| north_star — both | 12.7% | 13.2% | **76.7%** |
+
+**The fix worked; the hypothesis did not.** The predicted mechanism changed
+exactly as expected — exp26 predicted 90°/270° for nearly everything, while
+exp30's predicted-rotation distribution is near-uniform (990/902/989/895 over
+0/90/180/270, uniform = 944) and the acceptance probes pass at border touch
+0.000 / sharpness ratio 1.0000. But rotation accuracy rose only 33.5% → 37.9%
+against a 25% chance floor, cell accuracy did not move, and the 76.7% bar is
+untouched. Removing label leakage is necessary data hygiene worth ~4 points,
+not the cause of the sim-to-real collapse. See `../EXPERIMENT_LOG.md` (Exp 30)
+and exp31, which tests the remaining pixel-identity hypothesis.
+
+> Evaluation gotcha: the north_star eval is only trustworthy when the classical
+> baselines reproduce exp25 exactly (`sift_else_ncc` = 77.9/89.2/76.7). A first
+> run mixed a stale pre-orientation-fix copy of the overviews with the current
+> piece-crop cache and collapsed every classical method to ~4% cell; the CNN
+> number from that run was meaningless. Always eval against the **main
+> checkout's** `network/datasets/north_star/v1`.

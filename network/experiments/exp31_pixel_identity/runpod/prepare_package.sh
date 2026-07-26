@@ -62,13 +62,13 @@ for file in augment.py aug_dataset.py; do
 done
 
 echo "Copying exp30 framing + generator modules..."
-for file in framing.py framed_dataset.py generate_dataset.py; do
+for file in framing.py framed_dataset.py generate_dataset.py probes.py; do
     cp "$EXP30_DIR/$file" "$OUTPUT_DIR/"
     flatten_imports "$OUTPUT_DIR/$file"
 done
 
 echo "Copying exp31 modules..."
-for file in capture.py capture_dataset.py train.py segmentation_validation.py; do
+for file in capture.py capture_dataset.py augmentation.py ncc_probe.py train.py segmentation_validation.py; do
     cp "$EXP31_DIR/$file" "$OUTPUT_DIR/"
     flatten_imports "$OUTPUT_DIR/$file"
 done
@@ -120,7 +120,7 @@ echo "Creating final package..."
 ( cd "$OUTPUT_DIR" && tar -czf runpod_training.tar.gz \
     dataset.py model.py visualize.py splits.py harness.py data_prep.py \
     augment.py aug_dataset.py framing.py framed_dataset.py \
-    generate_dataset.py capture.py capture_dataset.py train.py \
+    generate_dataset.py probes.py capture.py capture_dataset.py augmentation.py ncc_probe.py train.py \
     segmentation_validation.py $EXTRA_FILES \
     splits setup_and_train.sh puzzle_shapes puzzles.tar.gz )
 

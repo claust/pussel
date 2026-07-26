@@ -789,11 +789,15 @@ def _exp31_module() -> Any:
     """
     searched: list[str] = []
     for name in ("augmentation", "augment", "aug", "degradation", "asymmetric"):
-        qualified = f"{__package__}.{name}"
-        try:
-            return importlib.import_module(qualified)
-        except ImportError:
-            searched.append(qualified)
+        # RunPod flattens the package into one directory and runs modules as
+        # scripts, so __package__ is empty there; fall back to the bare name
+        # rather than trying to import ".augmentation".
+        candidates = [f"{__package__}.{name}", name] if __package__ else [name]
+        for qualified in candidates:
+            try:
+                return importlib.import_module(qualified)
+            except ImportError:
+                searched.append(qualified)
     raise RuntimeError(
         "exp31 NCC probe: no augmentation module found. Searched: "
         + ", ".join(searched)
