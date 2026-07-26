@@ -725,6 +725,61 @@ run was meaningless.
 
 ---
 
+## Exp 31: Pixel Identity (Test 2) — built, gate passed, not yet trained
+
+Test 2 of the realism investigation, on top of exp30's framing: model the
+production truth that the piece and the overview are **two independent
+captures of two different physical prints**. Fully independent per-view
+degradation chains (own subpixel phase, resample kernel, sensor noise, tone
+curve, and a non-aligned JPEG block grid), asymmetric random patching,
+a fitted segmentation-slop model, a bright cardboard rim with cast shadow,
+box-photo overview realism, and crop jitter. The exp26 recipe, frozen split
+and checkpoint contract are otherwise unchanged.
+
+`ncc_probe.py` is the doc §8 acceptance gate, measuring masked zero-mean NCC
+at the ground-truth overview location with the same code path for every
+pipeline. **exp31 passes it:**
+
+| Pipeline | GT median NCC | fraction > 0.8 | decoy | GT−decoy margin |
+| --- | --- | --- | --- | --- |
+| exp20 raw | 1.000 | 0.99 | 0.435 | 0.565 |
+| exp26 / exp30 | 0.937 | 0.84 | 0.45 | 0.484 |
+| **exp31** | **0.737** | **0.381** | 0.436 | **0.300** |
+| real (north_star) | 0.679 | 0.340 | 0.303 | 0.377 |
+
+The probe also **corrects §4.3 of the findings doc**: measured on the strict
+eroded interior (`alpha > 254`, eroded 2 px), raw synthetic pixel identity is
+exactly **1.000 with 99% above 0.8**, not 0.990/56% — the earlier figure
+included the antialiased silhouette boundary, where the stored piece's RGB is
+blended toward the transparent fill. Pixel identity was total, not near-total.
+
+Two results matter more than the PASS. First, **the independent degradation
+chains — Test 2's headline idea — contribute almost nothing** (+0.036 of the
+0.194 total drop). The work is done by asymmetric random patching (+0.082),
+the cardboard rim (+0.064), the substrate field (+0.063) and segmentation slop
+(+0.044); each is individually load-bearing. Lowpassing the overview actually
+*raises* masked NCC, because NCC is low-frequency-dominated, so resolution
+asymmetry is kept for fidelity rather than for this metric.
+
+Second, **the corpus is now the binding constraint.** exp31's GT−decoy margin
+(0.300) is *below* real's (0.377) and near the gate's 0.277 floor: the decoy
+sits at ~0.436 for every synthetic pipeline we have built, because at 256×256
+sources a 4×4 cell is only 64 px and Unsplash cells are genuinely
+self-similar, while real puzzle motifs reach 0.303. We lowered the
+pixel-identity headroom into the real band but made the data *harder to
+discriminate than reality* rather than more real. The lowest admissible GT
+median on this corpus is 0.713; closing the remaining gap to real's 0.679
+would fail the margin gate instead. **Training exp31 on this corpus would
+therefore not cleanly answer Test 2's question** — a poor result could simply
+mean the task got harder. Test 3's higher-resolution, box-art corpus is the
+prerequisite.
+
+Not yet measured: doc §8's classical-parity metric. exp23's evaluator reads
+stored pieces from disk while exp31 degrades at load time, so it needs
+plumbing; the margin finding makes it load-bearing.
+
+---
+
 ## Summary Table
 
 | Exp | Focus                       | Test Result            | Key Finding                                    |
@@ -757,6 +812,7 @@ run was meaningless.
 | 26  | Domain randomization (4x4)  | 76% synth / 13% real   | Realism augs lift synthetic, don't transfer    |
 | 27  | Frozen DINOv2 + corr heads  | **49% real zero-shot** / 7% real trained | Sim-to-real gap lives in the trained readout, not the features |
 | 30  | Generator shortcut fixes    | **79% synth** / 13% real | Label-leaking shortcuts removed (rotation bias gone) — real transfer unchanged |
+| 31  | Pixel identity (Test 2)     | NCC 0.94→0.74 (real 0.68); untrained | Headroom broken, but decoy floor makes the 256px corpus the binding constraint |
 
 ---
 
