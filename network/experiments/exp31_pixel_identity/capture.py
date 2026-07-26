@@ -431,6 +431,12 @@ class CaptureConfig(AugmentConfig):
         active = self.enabled and self.capture
         flags["capture"] = bool(active)
         flags.update({name: bool(active and getattr(self, name)) for name in names})
+        # substrate lives on the per-view chains, not flat on this config, so
+        # it needs its own entry -- without it a no_substrate run serializes
+        # as substrate-disabled while the flags still read unchanged. Reported
+        # per view because the two chains are independently configurable.
+        flags["substrate_piece"] = bool(active and self.piece_chain.substrate)
+        flags["substrate_overview"] = bool(active and self.overview_chain.substrate)
         return flags
 
 
