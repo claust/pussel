@@ -154,6 +154,7 @@
   <tr><td>exp26</td><td>CNN + heavy domain randomization</td><td class="num">76.2%</td><td class="num">12.7%</td></tr>
   <tr><td>exp27 stage 0</td><td>Frozen DINOv2 + <em>non-learned</em> cosine readout</td><td class="num">—</td><td class="num">49.2%</td></tr>
   <tr><td>exp27 stage 1</td><td>Same frozen DINOv2 + 1.9M-param readout <em>trained on synthetic</em></td><td class="num">64.3%</td><td class="num">7.0%</td></tr>
+  <tr><td>exp30</td><td>CNN + DR, with both label-leaking generator bugs fixed (Test 1)</td><td class="num"><strong>78.5%</strong> — best learned</td><td class="num">13.2%</td></tr>
 </table>
 </div>
 <p>
@@ -163,6 +164,27 @@
   synthetic-trained readout collapses, and input-level domain randomization
   (exp26) does not save it.
 </p>
+<div class="callout risk">
+  <p>
+    <strong>Update 2026-07-26 — Test 1 ran, and the shortcut theory does not
+    carry the collapse.</strong> exp30 fixed both label-leaking bugs (§4.1,
+    §4.2) and retrained the exp26 recipe unchanged. The fix verifiably worked
+    at the data level: the acceptance probes go from fail to pass (border touch
+    1.000→0.000 for 0°/180°, sharpness ratio 1.07→1.0000) and exp26's
+    all-90°/270° rotation bias is gone — predictions are now near-uniform
+    (990/902/989/895 over 0/90/180/270, uniform = 944).
+  </p>
+  <p>
+    But real transfer did not follow: north_star rotation rose only
+    <strong>33.5% → 37.9%</strong> against a 25% chance floor, cell accuracy
+    did not move (22.3% → 21.5%), and both-correct went 12.7% → 13.2%.
+    Synthetic accuracy meanwhile rose to a new learned best. <strong>Removing
+    label leakage is necessary data hygiene worth ~4 points, not the cause of
+    the sim-to-real collapse.</strong> Read §4.1 and §4.2 below as confirmed
+    bugs that had to be fixed, not as the explanation — and weight §4.3 and
+    §10 accordingly.
+  </p>
+</div>
 
 <h2 id="framing">2 · The production framing: overview = box photo</h2>
 <div class="callout accent">
@@ -214,6 +236,18 @@
   literature hit this identical failure (synthetic pairs with pixel-identical
   local statistics) and fixed it with cheap data-side changes — a 7×
   error reduction from two augmentations (Chuah et al., 2021).
+</p>
+<p>
+  <strong>Revised after exp30:</strong> two of the three cues are now removed
+  and real transfer is essentially unchanged, so “shortcuts” cannot be the
+  whole story. The surviving candidates split into two families, and they make
+  different predictions: either the remaining pixel-identity shortcut (§4.3) is
+  doing all the work — testable by Test 2, which drives the NCC headroom down
+  and retrains — or synthetic training data is the wrong instrument for this
+  task at any realism level, as exp27 suggests, in which case the answer is
+  §10's non-synthetic routes and further realism work has no ceiling worth
+  reaching. Test 2 is worth running because it is the cheapest experiment that
+  <em>distinguishes</em> these two, not because a fix is expected.
 </p>
 
 <h2 id="guns">4 · The smoking guns</h2>
@@ -357,7 +391,7 @@
 
 <h2 id="plan">7 · Ranked test plan</h2>
 
-<h3>Test 1 — Fix the two generator bugs <span class="tag good">~10 lines · highest certainty</span></h3>
+<h3>Test 1 — Fix the two generator bugs <span class="tag risk">DONE (exp30) · fix confirmed, hypothesis not</span></h3>
 <ul>
   <li>Square-pad synthetic pieces with the same 8% margin as the real path
       (<code>pad_to_square</code>), so no rotation ever touches the canvas border.</li>
@@ -367,10 +401,29 @@
       squashes aspect while deployment pads; they must agree.</li>
 </ul>
 <p>
-  Then retrain the exp26 model unchanged. <strong>Prediction:</strong>
+  Then retrain the exp26 model unchanged. <strong>Prediction was:</strong>
   north_star rotation jumps well above 33.5% and the 90°/270° bias disappears.
-  If it does, the shortcut theory is validated end-to-end.
 </p>
+<div class="callout warn">
+  <p>
+    <strong>Result (exp30, 2026-07-26): half the prediction held.</strong>
+    Implemented as lossless <code>Image.transpose</code> rotations plus exp24's
+    8%-margin <code>pad_to_square</code> framing applied at load time, exp26
+    recipe otherwise untouched
+    (<code>network/experiments/exp30_generator_fixes/</code>).
+  </p>
+  <p>
+    The bias <em>did</em> disappear and the probes <em>do</em> pass — but
+    rotation accuracy moved only 33.5% → 37.9% (chance = 25%), cell accuracy
+    did not improve, and both-correct went 12.7% → 13.2% against the 76.7%
+    bar. Synthetic test rose to 78.5%, the best learned result on this
+    benchmark, which is precisely the exp26 pattern: synthetic gains, no
+    transfer. <strong>The two bugs were real and are fixed; they were not what
+    was breaking real-photo transfer.</strong> Do the fix anyway — it is
+    correct, cheap, and removes a confound from every future measurement — but
+    expect no rescue from it.
+  </p>
+</div>
 
 <h3>Test 2 — Break piece↔overview pixel identity structurally <span class="tag good">1–2 days</span></h3>
 <p>
@@ -389,7 +442,16 @@
   <li><strong>Resolution asymmetry matching reality</strong>: render the
       overview at the real per-cell pixel budget (~100–150 px/cell) and the
       piece from a high-res source (≥350 px native), instead of today's
-      matched-MTF pair.</li>
+      matched-MTF pair.
+      <em>Blocked on the corpus (measured 2026-07-26):</em> the source images in
+      <code>network/datasets/puzzles</code> are <strong>256×256</strong>, i.e.
+      64 px per 4×4 cell — so a piece cannot be rendered at ≥350 px without
+      inventing detail, and this is also the §5 6.5× high-frequency energy gap
+      that no augmentation can close. Test 3's higher-resolution corpus is a
+      <em>prerequisite</em> for this bullet, not an alternative to it. What is
+      achievable on the current corpus is the asymmetry <em>direction</em>:
+      give each view its own sampling lattice, resample kernel and subpixel
+      phase so the pair no longer shares an MTF.</li>
   <li><strong>Run rembg on synthetic piece renders too</strong>, so both
       domains share the same segmentation artifacts (mask softness, tab-neck
       rounding) — the cheapest way to align edge statistics.</li>
@@ -401,7 +463,7 @@
       per-piece misalignment.</li>
 </ul>
 
-<h3>Test 3 — Swap the source corpus <span class="tag good">~1 day</span></h3>
+<h3>Test 3 — Swap the source corpus <span class="tag accent">~1 day · also unblocks Test 2</span></h3>
 <p>
   Train on cartoon/box-art-style motifs instead of (or mixed 50/50 with)
   Unsplash photos. The backend already has the Ravensburger motif CDN client
