@@ -140,7 +140,18 @@ def _rembg_runner() -> Callable[[Image.Image], Image.Image]:
     Returns:
         A callable turning an RGB image into rembg's RGBA output.
     """
-    from rembg import new_session, remove  # local import: heavy, pulls onnxruntime
+    # Local import: heavy (pulls onnxruntime). rembg is declared by the
+    # backend member, not by pussel-network, so it is present in the shared
+    # workspace .venv but absent from a network-only install.
+    try:
+        from rembg import new_session, remove
+    except ImportError as exc:  # pragma: no cover - depends on the install
+        raise ImportError(
+            "This comparison needs rembg (the deployed segmenter), which is declared by the backend "
+            "workspace member rather than by pussel-network. Run 'uv sync --all-extras' at the repo "
+            "root to get the shared environment, or pass --no-rembg to run the cheap-model statistics "
+            "alone (no rembg baseline to compare against)."
+        ) from exc
 
     session = new_session("u2net")
 
