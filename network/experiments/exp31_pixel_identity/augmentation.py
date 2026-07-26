@@ -54,9 +54,9 @@ from .capture import (
     CAPTURE_PRESETS,
     CaptureConfig,
     PatchSource,
-    apply_arp,
     augment_overview_capture,
     augment_piece_capture,
+    patch_view,
 )
 
 # Built once and reused: the probe must see the SAME ARP patch distribution
@@ -165,17 +165,15 @@ def _arp_one_view(view: Image.Image, config: CaptureConfig) -> Image.Image:
     """
     if not config.capture or not config.arp:
         return view
-    # apply_arp itself decides with ``arp_p``; halve it here so the marginal
-    # per-view rate matches the training path's "fire once, pick one of two".
-    solo = random.random() < 0.5
-    if not solo:
+    # Two gates, reproducing apply_arp's marginal rate for a single view:
+    # the 0.5 mirrors the training path's "fire once, then pick one of two
+    # views", and arp_p is apply_arp's own gate. Calls patch_view directly
+    # rather than apply_arp(view, view, ...) -- the probe has already decided
+    # which view it is patching, so it must not have to infer that from a
+    # returned tuple.
+    if random.random() >= 0.5 or random.random() >= config.arp_p:
         return view
-    # Passing the same image as both views is deliberate. apply_arp picks one
-    # of its two arguments to patch, but here they are the same image, so the
-    # pick is a no-op and its size-equality dispatch always returns the
-    # patched copy in slot 0 -- never the unpatched one. Verified 400/400.
-    patched, _ = apply_arp(view, view, config, patch_source())
-    return patched
+    return patch_view(view, config, patch_source())
 
 
 def augment_piece_rgba(piece_rgba: Image.Image, config: CaptureConfig | None = None) -> Image.Image:

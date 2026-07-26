@@ -985,8 +985,39 @@ def apply_arp(
     if not config.capture or not config.arp or random.random() >= config.arp_p:
         return piece_rgb, overview_rgb
 
+    # Dispatch on the choice itself, never on image size: when the piece and
+    # overview happen to share dimensions, a size comparison cannot tell the
+    # two views apart and would return a patched overview in the piece slot,
+    # silently swapping the views and patching neither correctly.
+    patch_piece = random.random() < 0.5
     source = patch_source or PatchSource()
-    target = piece_rgb.copy() if random.random() < 0.5 else overview_rgb.copy()
+    target = patch_view(piece_rgb if patch_piece else overview_rgb, config, source, exclude_stem)
+    return (target, overview_rgb) if patch_piece else (piece_rgb, target)
+
+
+def patch_view(
+    view: Image.Image,
+    config: CaptureConfig,
+    patch_source: PatchSource | None = None,
+    exclude_stem: str | None = None,
+) -> Image.Image:
+    """Paste ARP patches into a copy of one view, unconditionally.
+
+    The single-view half of :func:`apply_arp`, exposed so a caller that has
+    already decided *which* view to patch does not have to infer it from a
+    returned tuple.
+
+    Args:
+        view: The view to patch (not modified in place).
+        config: Active capture config (patch count and size ranges).
+        patch_source: Patch content supplier (a default is built if None).
+        exclude_stem: Source stem to avoid when cutting texture patches.
+
+    Returns:
+        A patched copy of ``view``.
+    """
+    source = patch_source or PatchSource()
+    target = view.copy()
     short_side = min(target.size)
     for _ in range(random.randint(config.arp_patches_min, config.arp_patches_max)):
         frac = random.uniform(config.arp_size_min_frac, config.arp_size_max_frac)
@@ -994,8 +1025,7 @@ def apply_arp(
         size = (side, max(3, round(side * random.uniform(0.6, 1.6))))
         size = (min(size[0], target.width), min(size[1], target.height))
         _paste_patch(target, source.patch(size, exclude_stem), random.random() < config.arp_feather_p)
-
-    return (target, overview_rgb) if target.size == piece_rgb.size else (piece_rgb, target)
+    return target
 
 
 # --------------------------------------------------------------------------
