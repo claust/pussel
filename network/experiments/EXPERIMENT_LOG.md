@@ -676,6 +676,118 @@ overflow, heatmap CE vs MSE, the frozen-encoder BatchNorm trap).
 
 ---
 
+## Exp 30: Generator Fixes (label-leaking shortcuts removed)
+
+Acted on Test 1 of the synthetic-realism investigation
+(`docs/synthetic-dataset-realism.html`): the generator cropped pieces tight
+to the silhouette and rotated them with `expand=False`, which made
+"content touches all four canvas borders ⟹ rotation ∈ {0°, 180°}" a
+100%-precision rule and left 90°/270° pieces ~30% blurrier from half-pixel
+resampling. Both leak the rotation label, only in synthetic data. exp30
+rotates losslessly (`Image.transpose`) and frames pieces with exp24's real
+8%-margin `pad_to_square` before the 128 px resize; the exp26 recipe,
+frozen split and checkpoint contract are otherwise unchanged.
+
+Acceptance probes (`probes.py`, doc §8) confirm the fix at the data level:
+exp26 fails them (P(all four borders) = 1.000 for 0°/180° vs 0.04–0.09 for
+90°/270°; paired |Laplacian| ratio 1.07), exp30 passes at border touch
+0.000 and sharpness ratio 1.0000.
+
+Trained 50 epochs (RunPod RTX 5090, ~223 s/epoch). Synthetic test (touched
+once) **78.6% cell / 98.7% rotation / 78.5% both** — the best learned
+result on the realistic 4x4 benchmark, beating exp26 (76.4/99.0/76.2).
+north_star v1 (touched once) **21.5% cell / 37.9% rotation / 13.2% both**
+vs exp26's 22.3/33.5/12.7.
+
+Key finding: **the shortcuts were real and are provably gone, and it barely
+matters.** The predicted mechanism did change — exp26 predicted 90°/270°
+for nearly everything, while exp30's predicted-rotation distribution is
+near-uniform (990/902/989/895 over 0/90/180/270, uniform = 944) — but
+rotation accuracy rose only 33.5% → 37.9% (chance is 25%), cell accuracy
+did not move, and the 76.7% hybrid bar is untouched. Removing label leakage
+is necessary data hygiene that buys ~4 points; it is not the cause of the
+sim-to-real collapse. This sharpens exp27's conclusion rather than
+contradicting it, and leaves §4.3's piece↔overview pixel identity as the
+prime remaining suspect: the synthetic pair is one file, the real pair is
+two independent captures of two different physical prints. Next levers, in
+order: break pixel identity structurally (independent per-view degradation
+chains, asymmetric random patching, rembg on synthetic renders), swap the
+source corpus to box art, and the non-synthetic routes (a small real
+training set for the readout, classical-teacher distillation, the
+two-capture trick).
+
+Harness caveat worth remembering: the north_star evaluation is only
+trustworthy when the classical baselines reproduce exp25 exactly
+(`sift_else_ncc` = 77.9/89.2/76.7). A first run mixed a stale
+pre-orientation-fix copy of the overviews with the current piece-crop cache
+and collapsed every classical method to ~4% cell — the CNN number from that
+run was meaningless.
+
+---
+
+## Exp 31: Pixel Identity (Test 2) — built, gate passed, not yet trained
+
+Test 2 of the realism investigation, on top of exp30's framing: model the
+production truth that the piece and the overview are **two independent
+captures of two different physical prints**. Fully independent per-view
+degradation chains (own subpixel phase, resample kernel, sensor noise, tone
+curve, and a non-aligned JPEG block grid), asymmetric random patching,
+a fitted segmentation-slop model, a bright cardboard rim with cast shadow,
+box-photo overview realism, and crop jitter. The exp26 recipe, frozen split
+and checkpoint contract are otherwise unchanged.
+
+`ncc_probe.py` is the doc §8 acceptance gate, measuring masked zero-mean NCC
+at the ground-truth overview location with the same code path for every
+pipeline. **exp31 passes it:**
+
+| Pipeline | GT median NCC | fraction > 0.8 | decoy | GT−decoy margin |
+| --- | --- | --- | --- | --- |
+| exp20 raw | 1.000 | 0.99 | 0.435 | 0.565 |
+| exp26 / exp30 | 0.937 | 0.84 | 0.45 | 0.484 |
+| **exp31** | **0.763** | **0.429** | 0.443 | **0.320** |
+| real (north_star) | 0.679 | 0.340 | 0.303 | 0.377 |
+
+exp31's row is `--sample 800 --seed 0`; the others are n=200. **The pass is
+narrow and was seed-dependent at the old n=200 default** — seed 1 FAILED
+(0.780 / 0.482 against limits of 0.779 / 0.460) while seeds 0 and 2 passed, and
+n=200 also read optimistically low (~0.740 vs the ~0.765 population value). The
+probe's default sample is now 800, where every seed tried agrees, but exp31
+clears the ceilings by only 0.016 and 0.031. Read "exp31 passes the gate" as
+"passes by a hair on this corpus".
+
+The probe also **corrects §4.3 of the findings doc**: measured on the strict
+eroded interior (`alpha > 254`, eroded 2 px), raw synthetic pixel identity is
+exactly **1.000 with 99% above 0.8**, not 0.990/56% — the earlier figure
+included the antialiased silhouette boundary, where the stored piece's RGB is
+blended toward the transparent fill. Pixel identity was total, not near-total.
+
+Two results matter more than the PASS. First, **the independent degradation
+chains — Test 2's headline idea — contribute almost nothing** (+0.036 of the
+0.194 total drop). The work is done by asymmetric random patching (+0.082),
+the cardboard rim (+0.064), the substrate field (+0.063) and segmentation slop
+(+0.044); each is individually load-bearing. Lowpassing the overview actually
+*raises* masked NCC, because NCC is low-frequency-dominated, so resolution
+asymmetry is kept for fidelity rather than for this metric.
+
+Second, **the corpus is now the binding constraint.** exp31's GT−decoy margin
+(0.300) is *below* real's (0.377) and near the gate's 0.277 floor: the decoy
+sits at ~0.436 for every synthetic pipeline we have built, because at 256×256
+sources a 4×4 cell is only 64 px and Unsplash cells are genuinely
+self-similar, while real puzzle motifs reach 0.303. We lowered the
+pixel-identity headroom into the real band but made the data *harder to
+discriminate than reality* rather than more real. The lowest admissible GT
+median on this corpus is 0.713; closing the remaining gap to real's 0.679
+would fail the margin gate instead. **Training exp31 on this corpus would
+therefore not cleanly answer Test 2's question** — a poor result could simply
+mean the task got harder. Test 3's higher-resolution, box-art corpus is the
+prerequisite.
+
+Not yet measured: doc §8's classical-parity metric. exp23's evaluator reads
+stored pieces from disk while exp31 degrades at load time, so it needs
+plumbing; the margin finding makes it load-bearing.
+
+---
+
 ## Summary Table
 
 | Exp | Focus                       | Test Result            | Key Finding                                    |
@@ -707,6 +819,8 @@ overflow, heatmap CE vs MSE, the frozen-encoder BatchNorm trap).
 | 25  | North-star real-photo eval  | **77% both (hybrid)**  | CNN collapses on real photos (14.8% both)      |
 | 26  | Domain randomization (4x4)  | 76% synth / 13% real   | Realism augs lift synthetic, don't transfer    |
 | 27  | Frozen DINOv2 + corr heads  | **49% real zero-shot** / 7% real trained | Sim-to-real gap lives in the trained readout, not the features |
+| 30  | Generator shortcut fixes    | **79% synth** / 13% real | Label-leaking shortcuts removed (rotation bias gone) — real transfer unchanged |
+| 31  | Pixel identity (Test 2)     | NCC 0.94→0.76 (real 0.68), narrow pass; untrained | Headroom broken, but decoy floor makes the 256px corpus the binding constraint |
 
 ---
 
