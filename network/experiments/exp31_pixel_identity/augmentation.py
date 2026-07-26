@@ -105,6 +105,10 @@ def _arp_one_view(view: Image.Image, config: CaptureConfig) -> Image.Image:
     solo = random.random() < 0.5
     if not solo:
         return view
+    # Passing the same image as both views is deliberate. apply_arp picks one
+    # of its two arguments to patch, but here they are the same image, so the
+    # pick is a no-op and its size-equality dispatch always returns the
+    # patched copy in slot 0 -- never the unpatched one. Verified 400/400.
     patched, _ = apply_arp(view, view, config, PatchSource())
     return patched
 
