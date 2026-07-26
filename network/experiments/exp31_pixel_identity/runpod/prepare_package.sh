@@ -72,16 +72,8 @@ for file in capture.py capture_dataset.py augmentation.py ncc_probe.py train.py 
     cp "$EXP31_DIR/$file" "$OUTPUT_DIR/"
     flatten_imports "$OUTPUT_DIR/$file"
 done
-# ncc_probe.py is the section 8 acceptance gate; ship it when it exists so the
-# probe can be re-run on the pod's regenerated dataset.
-if [ -f "$EXP31_DIR/ncc_probe.py" ]; then
-    cp "$EXP31_DIR/ncc_probe.py" "$OUTPUT_DIR/"
-    flatten_imports "$OUTPUT_DIR/ncc_probe.py"
-    EXTRA_FILES="ncc_probe.py"
-else
-    echo "  (no ncc_probe.py yet — skipping)"
-    EXTRA_FILES=""
-fi
+# ncc_probe.py (the section 8 acceptance gate) is copied in the loop above,
+# not optionally: setup_and_train.sh refuses to train without it.
 
 echo "Copying frozen split..."
 cp "$EXP20_DIR/splits/"*.json "$OUTPUT_DIR/splits/"
@@ -116,12 +108,11 @@ else
 fi
 
 echo "Creating final package..."
-# shellcheck disable=SC2086
 ( cd "$OUTPUT_DIR" && tar -czf runpod_training.tar.gz \
     dataset.py model.py visualize.py splits.py harness.py data_prep.py \
     augment.py aug_dataset.py framing.py framed_dataset.py \
     generate_dataset.py probes.py capture.py capture_dataset.py augmentation.py ncc_probe.py train.py \
-    segmentation_validation.py $EXTRA_FILES \
+    segmentation_validation.py \
     splits setup_and_train.sh puzzle_shapes puzzles.tar.gz )
 
 echo ""
