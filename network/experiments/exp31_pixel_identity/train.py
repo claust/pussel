@@ -76,6 +76,13 @@ DISABLE_SWITCHES: dict[str, tuple[str, ...]] = {
     "no_rim": ("rim", "shadow"),
     "no_box_photo": ("box_photo",),
     "no_crop_jitter": ("crop_jitter",),
+    "no_piece_lighting": ("piece_lighting",),
+}
+
+# Switches whose field lives on the nested per-view ViewChainConfig rather
+# than flat on CaptureConfig; applied to both chains.
+CHAIN_DISABLE_SWITCHES: dict[str, tuple[str, ...]] = {
+    "no_substrate": ("substrate",),
 }
 
 
@@ -96,6 +103,12 @@ def build_config(args: argparse.Namespace) -> CaptureConfig:
         if getattr(args, switch):
             for name in fields:
                 setattr(config, name, False)
+
+    for switch, fields in CHAIN_DISABLE_SWITCHES.items():
+        if getattr(args, switch):
+            for chain in (config.piece_chain, config.overview_chain):
+                for name in fields:
+                    setattr(chain, name, False)
 
     if args.overview_target_px is not None:
         config.overview_chain.target_px = args.overview_target_px
@@ -361,6 +374,8 @@ def _add_ablation_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--no-scene-surface", action="store_true", help="Disable the surface the piece bleeds from")
     parser.add_argument("--no-seg-slop", action="store_true", help="Disable the rembg-calibrated mask slop")
     parser.add_argument("--no-rim", action="store_true", help="Disable the bright die-cut rim and cast shadow")
+    parser.add_argument("--no-substrate", action="store_true", help="Disable the substrate/illumination field")
+    parser.add_argument("--no-piece-lighting", action="store_true", help="Disable room lighting on the piece view")
     parser.add_argument(
         "--no-box-photo", action="store_true", help="Disable glare/perspective/vignette on the overview"
     )
