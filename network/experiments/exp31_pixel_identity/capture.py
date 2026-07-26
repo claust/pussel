@@ -878,11 +878,26 @@ class PatchSource:
         Returns:
             The patch, or None when no usable source is configured.
         """
-        candidates = [p for p in self.texture_paths if p.stem != exclude_stem]
-        if not candidates:
+        if not self.texture_paths:
             return None
+        # Rejection-sample instead of filtering: the filter is O(len(texture_paths))
+        # per patch (thousands of training JPEGs, 2-4 patches per sample) and this
+        # runs in the training hot loop. Retries keep the never-self-patch
+        # guarantee at O(1) expected cost.
+        chosen: Path | None = None
+        for _ in range(8):
+            candidate = random.choice(self.texture_paths)
+            if candidate.stem != exclude_stem:
+                chosen = candidate
+                break
+        if chosen is None:
+            # Every draw hit the excluded stem: either it is the only source, or
+            # the RNG was pathologically unlucky. Confirm with one full scan.
+            if all(p.stem == exclude_stem for p in self.texture_paths):
+                return None
+            chosen = next(p for p in self.texture_paths if p.stem != exclude_stem)
         try:
-            src = self._load(random.choice(candidates))
+            src = self._load(chosen)
         except (OSError, ValueError):
             return None
         width, height = min(size[0], src.width), min(size[1], src.height)
