@@ -243,7 +243,12 @@ PIECE_ROOTS = {
 }
 
 # Defaults, all justified in the module docstring.
-DEFAULT_SAMPLE = 200
+# 800, not 200: this gate decides whether to spend GPU hours, and exp31 sits
+# close enough to the thresholds that n=200 flips the verdict on the sampling
+# seed (seed 1 failed at 0.780/0.482 while seeds 0 and 2 passed). n=200 was
+# also biased optimistic — GT median reads ~0.74 there against a population
+# value of ~0.765. n=800 gives the same verdict on every seed tried, for ~70 s.
+DEFAULT_SAMPLE = 800
 DEFAULT_SCALES = 9
 DEFAULT_ROTATIONS = 7
 DEFAULT_SCALE_SPAN = 1.25

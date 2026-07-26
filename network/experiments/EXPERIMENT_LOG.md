@@ -744,8 +744,16 @@ pipeline. **exp31 passes it:**
 | --- | --- | --- | --- | --- |
 | exp20 raw | 1.000 | 0.99 | 0.435 | 0.565 |
 | exp26 / exp30 | 0.937 | 0.84 | 0.45 | 0.484 |
-| **exp31** | **0.737** | **0.381** | 0.436 | **0.300** |
+| **exp31** | **0.763** | **0.429** | 0.443 | **0.320** |
 | real (north_star) | 0.679 | 0.340 | 0.303 | 0.377 |
+
+exp31's row is `--sample 800 --seed 0`; the others are n=200. **The pass is
+narrow and was seed-dependent at the old n=200 default** — seed 1 FAILED
+(0.780 / 0.482 against limits of 0.779 / 0.460) while seeds 0 and 2 passed, and
+n=200 also read optimistically low (~0.740 vs the ~0.765 population value). The
+probe's default sample is now 800, where every seed tried agrees, but exp31
+clears the ceilings by only 0.016 and 0.031. Read "exp31 passes the gate" as
+"passes by a hair on this corpus".
 
 The probe also **corrects §4.3 of the findings doc**: measured on the strict
 eroded interior (`alpha > 254`, eroded 2 px), raw synthetic pixel identity is
@@ -812,7 +820,7 @@ plumbing; the margin finding makes it load-bearing.
 | 26  | Domain randomization (4x4)  | 76% synth / 13% real   | Realism augs lift synthetic, don't transfer    |
 | 27  | Frozen DINOv2 + corr heads  | **49% real zero-shot** / 7% real trained | Sim-to-real gap lives in the trained readout, not the features |
 | 30  | Generator shortcut fixes    | **79% synth** / 13% real | Label-leaking shortcuts removed (rotation bias gone) — real transfer unchanged |
-| 31  | Pixel identity (Test 2)     | NCC 0.94→0.74 (real 0.68); untrained | Headroom broken, but decoy floor makes the 256px corpus the binding constraint |
+| 31  | Pixel identity (Test 2)     | NCC 0.94→0.76 (real 0.68), narrow pass; untrained | Headroom broken, but decoy floor makes the 256px corpus the binding constraint |
 
 ---
 

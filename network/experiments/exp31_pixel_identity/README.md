@@ -39,11 +39,24 @@ transfer still does not move, pixel identity is *not* the remaining blocker
 and §7's ranking needs rethinking again — Test 3 (corpus swap) and Test 4
 (FDA) become the live hypotheses.
 
-**Status: the gate passes.** Masked NCC at the ground-truth cell is down from
-exp30's 0.937 to **0.737** (real 0.679) with the true-vs-decoy margin preserved
-at 0.300. The training half of the prediction is untested — that is the next
-run. See "Measured effect" for the per-component ablation, and for why 0.737 is
-within 0.024 of the floor this corpus allows.
+**Status: the gate passes, but marginally.** Masked NCC at the ground-truth
+cell is down from exp30's 0.937 to **0.763** (real 0.679) with the
+true-vs-decoy margin preserved at **0.320**. The training half of the
+prediction is untested — that is the next run.
+
+> **Measurement provenance — read before quoting any number here.** All gate
+> figures in this README are `--sample 800 --seed 0` on the default config,
+> which is now the probe's default. Do **not** quote them to three decimals as
+> if exact: exp31 sits close enough to the thresholds that the *verdict* was
+> seed-dependent at the old `--sample 200` default (seed 1 FAILED at
+> 0.780 / 0.482 against limits of 0.779 / 0.460, while seeds 0 and 2 passed),
+> and n=200 also read optimistically low (~0.740 vs the ~0.765 population
+> value). At n=800 every seed tried agrees, but the pass is *narrow*: 0.763
+> against a 0.779 ceiling, and 0.429 above-0.8 against a 0.460 ceiling. Treat
+> "exp31 clears the gate" as "clears it by a hair on this corpus", not as
+> comfortable headroom. Ablation rows below were measured at the old n=200 and
+> are directional — their *ordering* is the useful part, not their absolute
+> values.
 
 ## What is built
 
@@ -354,9 +367,15 @@ protocol (9 scales × 7 rotations, mask = strict eroded interior), at
 | exp20 raw | 1.000 | 0.990 | 0.435 | 0.565 |
 | exp26 | 0.933 | 0.830 | 0.432 | 0.501 |
 | exp30 | 0.937 | 0.840 | 0.453 | 0.484 |
-| **exp31** | **0.737** | **0.381** | 0.436 | 0.300 |
+| **exp31** (n=800, seed 0) | **0.763** | **0.429** | 0.443 | 0.320 |
 | real (north_star) | 0.679 | 0.340 | 0.303 | 0.377 |
 | gate band | [0.579, 0.779] | [0.220, 0.460] | — | [0.277, 0.527] |
+
+exp31's row clears every band, but by 0.016 on GT median and 0.031 on the
+above-0.8 fraction. The other rows are n=200 measurements, kept because the
+comparison across pipelines is what matters and the gaps are large; exp31's is
+re-measured at n=800 because it is the only row close enough to a threshold for
+sampling noise to change its verdict.
 
 The `exp30` **control run through exp31's own code** lands at 0.931 / 0.830 /
 0.454 / 0.477 — within noise of the probe's independent exp30 reference
@@ -378,7 +397,7 @@ the data change and not a plumbing difference.
 | `no_seg_slop` | 0.781 | 0.460 | 0.326 | **FAIL** | +0.044 |
 | `no_piece_lighting` | 0.769 | 0.447 | 0.330 | PASS | +0.032 |
 | `no_crop_jitter` | 0.763 | 0.406 | 0.303 | PASS | +0.026 |
-| **`full`** | **0.737** | **0.381** | **0.300** | **PASS** | — |
+| **`full`** (n=200; 0.763 at n=800) | **0.737** | **0.381** | **0.300** | **PASS** | — |
 | `no_box_photo` | 0.735 | 0.365 | 0.292 | PASS | −0.002 |
 | `no_asymmetry` | 0.723 | 0.371 | 0.288 | PASS | −0.014 |
 | `no_chains` (shared pass) | 0.717 | 0.365 | 0.298 | PASS | −0.020 |
@@ -562,10 +581,12 @@ shortcut still works, and there is no *real* validation set. For a reproducible
   0.73**, while the decoy (wrong-cell) NCC stays near the real **0.407** — the
   *contrast* between true and decoy must not be destroyed, only the
   pixel-identity headroom. A run that destroys the contrast has made the task
-  impossible, not realistic. **Status: PASS** at 0.737 GT median / 0.381 above
-  0.8 / 0.300 margin (see the gate section). Note the margin is the binding
+  impossible, not realistic. **Status: PASS, narrowly** — 0.763 GT median /
+  0.429 above 0.8 / 0.320 margin at n=800 seed 0, against ceilings of 0.779 and
+  0.460 (see the gate section, and the provenance note at the top: the verdict
+  was seed-dependent at the old n=200 default). Note the margin is the binding
   constraint and the corpus's decoy floor puts the lowest admissible GT median
-  at ≈0.713, so do not read the remaining distance to real's 0.679 as headroom.
+  at ≈0.720, so do not read the remaining distance to real's 0.679 as headroom.
 - **Classical parity (§8):** if the SIFT→NCC hybrid's accuracy on the new
   synthetic test set goes **up** (it is 82.2% synthetic / 76.7% real today),
   the data got *easier* rather than more real, and the change is wrong however
