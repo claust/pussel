@@ -50,7 +50,10 @@ pip install --quiet --break-system-packages pillow numpy tqdm timm matplotlib op
 echo "Checking CUDA..."
 python -c "import torch; print(f'PyTorch {torch.__version__}, CUDA {torch.cuda.is_available()}, GPU', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'N/A')"
 
-if [ -f puzzles.tar.gz ] && [ ! -d /datasets/puzzles ]; then
+# Extract when the puzzles dir is missing OR empty — a leftover mountpoint
+# or a previously failed extraction leaves an empty dir that must not mask
+# a present tarball.
+if [ -f puzzles.tar.gz ] && [ -z "$(ls -A /datasets/puzzles 2>/dev/null)" ]; then
     echo "Extracting source puzzles..."
     mkdir -p /datasets
     ( cd /datasets && tar -xzf /workspace/puzzles.tar.gz )
