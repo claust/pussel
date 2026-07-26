@@ -87,7 +87,7 @@ import sys
 from contextlib import redirect_stdout
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, cast
 
 import numpy as np
 from PIL import Image
@@ -228,7 +228,8 @@ def sample_pieces(dataset_root: Path, sample: int, seed: int) -> list[tuple[str,
         List of ``(puzzle_id, piece_path, base_rotation)`` tuples.
 
     Raises:
-        FileNotFoundError: If the root has no puzzle subdirectories.
+        FileNotFoundError: If the root has no puzzle subdirectories, or its
+            puzzle subdirectories hold no parseable piece PNGs.
     """
     if not dataset_root.is_dir():
         raise FileNotFoundError(f"Dataset root does not exist: {dataset_root}")
@@ -248,6 +249,22 @@ def sample_pieces(dataset_root: Path, sample: int, seed: int) -> list[tuple[str,
             rng.shuffle(entries)
             per_puzzle.append(entries)
 
+    picked = _round_robin(per_puzzle, sample)
+    if not picked:
+        raise FileNotFoundError(f"No parseable piece PNGs ('<puzzle>_x*_y*_rot*.png') under {dataset_root}")
+    return picked
+
+
+def _round_robin(per_puzzle: list[list[tuple[str, Path, int]]], sample: int) -> list[tuple[str, Path, int]]:
+    """Take up to ``sample`` entries round-robin across the per-puzzle lists.
+
+    Args:
+        per_puzzle: One shuffled entry list per puzzle.
+        sample: Number of entries to draw.
+
+    Returns:
+        The drawn entries, spread over as many puzzles as possible.
+    """
     picked: list[tuple[str, Path, int]] = []
     depth = 0
     while len(picked) < sample:
@@ -505,6 +522,9 @@ def _adapter_from_hook(hook: Any, piece_size: int) -> PipelineAdapter:
         )
         return None, _to_array(view)
 
+    # Marks the raw_rotated stage as legitimately absent (vs silently lost),
+    # so an empty stage is not treated as missing evidence downstream.
+    cast(Any, adapter).provides_rotated = False
     return adapter
 
 
@@ -675,9 +695,11 @@ def border_probe(
     for stage in (RAW_STAGE, INPUT_STAGE):
         records = stages[stage]
         if not records:
-            verdict.info(f"{stage}: no records, skipped")
+            verdict.check(False, f"{stage}: no records - zero evidence cannot pass the gate")
             continue
         grouped = _group_by_rotation(records)
+        empty_classes = [rotation for rotation, group in grouped.items() if not group]
+        verdict.check(not empty_classes, f"{stage}: every rotation class sampled (empty: {empty_classes or 'none'})")
         rows: list[list[str]] = []
         per_class: dict[str, Any] = {}
         for rotation, group in grouped.items():
@@ -764,7 +786,9 @@ def _print_sharpness_stage(stage: str, metric: str, summary: dict[str, Any]) -> 
     )
 
 
-def sharpness_probe(stages: dict[str, list[dict[str, Any]]], max_ratio: float) -> tuple[ProbeVerdict, dict[str, Any]]:
+def sharpness_probe(
+    stages: dict[str, list[dict[str, Any]]], max_ratio: float, expect_rotated: bool = True
+) -> tuple[ProbeVerdict, dict[str, Any]]:
     """Run the sharpness probe on every available stage.
 
     The two content-paired stages gate the verdict; the unpaired ``raw_png``
@@ -773,6 +797,9 @@ def sharpness_probe(stages: dict[str, list[dict[str, Any]]], max_ratio: float) -
     Args:
         stages: Mapping of stage name to its records.
         max_ratio: Maximum tolerated per-class max/min ratio.
+        expect_rotated: Whether the pipeline adapter produces the
+            native-scale ``raw_rotated`` stage (hook-based exp30 adapters do
+            not); when True, an empty ``raw_rotated`` stage is a failure.
 
     Returns:
         The verdict and a JSON-serializable stats dict.
@@ -781,7 +808,10 @@ def sharpness_probe(stages: dict[str, list[dict[str, Any]]], max_ratio: float) -
     stats: dict[str, Any] = {}
     for stage, records in stages.items():
         if not records:
-            verdict.info(f"{stage}: no records, skipped")
+            if stage == INPUT_STAGE or (stage == ROTATED_STAGE and expect_rotated):
+                verdict.check(False, f"{stage}: no records - zero evidence cannot pass the gate")
+            else:
+                verdict.info(f"{stage}: no records, skipped (not gating)")
             continue
         grouped = _group_by_rotation(records)
         stage_stats: dict[str, Any] = {}
@@ -821,7 +851,7 @@ def framing_probe(records: list[dict[str, Any]], max_ratio: float) -> tuple[Prob
     """
     verdict = ProbeVerdict(name="framing")
     if not records:
-        verdict.info(f"{INPUT_STAGE}: no records, skipped")
+        verdict.check(False, f"{INPUT_STAGE}: no records - zero evidence cannot pass the gate")
         return verdict, {}
 
     grouped = _group_by_rotation(records)
@@ -931,7 +961,9 @@ def main(argv: list[str] | None = None) -> int:
         stages,
         {"all_touch": args.max_border_touch, "spread": args.max_border_spread, "edge": args.max_edge_touch},
     )
-    sharp_verdict, sharp_stats = sharpness_probe(stages, args.max_sharpness_ratio)
+    sharp_verdict, sharp_stats = sharpness_probe(
+        stages, args.max_sharpness_ratio, expect_rotated=bool(getattr(adapter, "provides_rotated", True))
+    )
     framing_verdict, framing_stats = framing_probe(input_records, args.max_framing_ratio)
 
     verdicts = [border_verdict, sharp_verdict, framing_verdict]
