@@ -7,7 +7,7 @@ requires-python = ">=3.12"
 license = { text = "MIT" }
 dependencies = [
     # ML frameworks
-    "torch>=2.6.0",
+    "torch>=2.14.0",
     "torchvision>=0.17.0",
     "pytorch-lightning>=2.5.0",
     "timm>=0.9.12",
